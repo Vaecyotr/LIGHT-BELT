@@ -85,13 +85,18 @@ All Python commands must begin with:
 
 `.\\.python\\python.exe`
 
-Before the first Python command in each Claude Code session, verify the interpreter with:
+Before the first Python command in each Claude Code session, verify the interpreter.
+Codex on Windows may remap the repository into a sandbox path such as
+`C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\<sandbox-id>`, so do not
+require `sys.executable` to contain the original drive path or repository
+directory name.
 
-`.\\.python\\python.exe -c "import sys; print(sys.executable)"`
+`.\\.python\\python.exe -c "import sys, pathlib, light_engine; exe=pathlib.Path(sys.executable).resolve(); pkg=pathlib.Path(light_engine.__file__).resolve(); cwd=pathlib.Path.cwd().resolve(); print('executable=', exe); print('package=', pkg); assert exe.name.lower() == 'python.exe'; assert exe.parent.name == '.python'; assert exe.parent.parent == cwd; assert str(pkg).startswith(str(cwd)); print('PROJECT_PYTHON_OK')"`
 
-The returned path must end with:
-
-`LIGHT-BELT\\.python\\python.exe`
+The command is valid when it was invoked as `.\\.python\\python.exe`, the
+resolved executable is the `.python\\python.exe` under the current workspace
+mapping, `light_engine` imports successfully, and the imported package file is
+also under the current workspace mapping.
 
 If the bundled interpreter does not exist or cannot run, stop and report the error. Do not fall back to another Python installation.
 

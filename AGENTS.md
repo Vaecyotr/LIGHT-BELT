@@ -27,17 +27,20 @@ On Windows, use only the bundled interpreter:
 Never use bare `python`, `python3`, `py`, a Python executable from `C:`, or any
 Python executable outside this repository.
 
-Before the first Python command in each Codex session, verify the interpreter:
+Before the first Python command in each Codex session, verify the interpreter.
+Codex on Windows may remap the repository into a sandbox path such as
+`C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\<sandbox-id>`, so do not
+require `sys.executable` to contain the original drive path or repository
+directory name.
 
 ```powershell
-.\.python\python.exe -c "import sys; print(sys.executable)"
+.\.python\python.exe -c "import sys, pathlib, light_engine; exe=pathlib.Path(sys.executable).resolve(); pkg=pathlib.Path(light_engine.__file__).resolve(); cwd=pathlib.Path.cwd().resolve(); print('executable=', exe); print('package=', pkg); assert exe.name.lower() == 'python.exe'; assert exe.parent.name == '.python'; assert exe.parent.parent == cwd; assert str(pkg).startswith(str(cwd)); print('PROJECT_PYTHON_OK')"
 ```
 
-The printed path must end with:
-
-```text
-LIGHT-BELT\.python\python.exe
-```
+The command is valid when it was invoked as `.\.python\python.exe`, the
+resolved executable is the `.python\python.exe` under the current workspace
+mapping, `light_engine` imports successfully, and the imported package file is
+also under the current workspace mapping.
 
 If the bundled interpreter is missing or fails, stop and report the error. Do
 not fall back to another Python.
