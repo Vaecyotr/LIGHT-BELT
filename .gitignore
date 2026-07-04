@@ -58,3 +58,5 @@ firmware/**/.pio/
 .env.*
 secrets/
 
+
+.agent-worktrees/
