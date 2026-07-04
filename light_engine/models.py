@@ -176,7 +176,7 @@ class RGBWColor:
     brightness: float = 1.0
 
     def __post_init__(self) -> None:
-        self.r = clamp_rgb(self.r, self.g, self.b)[0] if not math.isnan(self.w) else _validate_float(self.r, "r")
+        self.r = _validate_float(self.r, "r")
         self.g = _validate_float(self.g, "g")
         self.b = _validate_float(self.b, "b")
         self.w = _validate_float(self.w, "w")

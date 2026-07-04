@@ -117,8 +117,9 @@ class UdpOutput(LightOutput):
 
     def send_frame(self, frame: PixelFrame) -> None:
         if not self._enabled or self._socket is None:
-            self._health().frames_dropped += 1
+            self._health.frames_dropped += 1
             return
+        frame_ok = True
         for strip_idx, strip in enumerate(frame.strips):
             pixels_uint8 = strip.to_uint8()
             offset = 0
@@ -133,10 +134,14 @@ class UdpOutput(LightOutput):
                 )
                 try:
                     self._socket.sendto(packet.encode(), (self._host, self._port))  # type: ignore
-                    self._health().frames_sent += 1
-                except Exception:
-                    self._health().frames_dropped += 1
+                    self._health.packets_sent += 1
+                except Exception as e:
+                    frame_ok = False
+                    self._health.last_error = str(e)
+                    self._health.frames_dropped += 1
                 offset += MAX_PIXELS_PER_PACKET
+        if frame_ok:
+            self._health.frames_sent += 1
         self._sequence += 1
 
     def close(self) -> None:

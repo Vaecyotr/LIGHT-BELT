@@ -23,6 +23,7 @@ class OutputHealth:
         self.healthy: bool = True
         self.last_error: Optional[str] = None
         self.frames_sent: int = 0
+        self.packets_sent: int = 0
         self.frames_dropped: int = 0
         self.errors: list[str] = []
 
@@ -123,16 +124,23 @@ def open_all(outputs: dict[str, LightOutput]) -> None:
 def send_all(outputs: dict[str, LightOutput], frame: PixelFrame) -> None:
     """Send frame to all open outputs, isolating failures."""
     for name, output in outputs.items():
-        if not output.health().healthy:
+        health = output.health()
+        if not health.healthy:
             continue
         try:
+            frames_before = health.frames_sent
+            drops_before = health.frames_dropped
             output.send_frame(frame)
-            output.health().frames_sent += 1
+            if (
+                health.frames_sent == frames_before
+                and health.frames_dropped == drops_before
+            ):
+                health.frames_sent += 1
         except Exception as e:
-            output.health().healthy = False
-            output.health().last_error = str(e)
-            output.health().frames_dropped += 1
-            output.health().errors.append(str(e))
+            health.healthy = False
+            health.last_error = str(e)
+            health.frames_dropped += 1
+            health.errors.append(str(e))
 
 
 def close_all(outputs: dict[str, LightOutput]) -> None:

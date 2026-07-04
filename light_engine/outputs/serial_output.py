@@ -255,6 +255,7 @@ class SerialOutput(LightOutput):
 
         # Output thread
         self._write_queue: deque[bytes] = deque(maxlen=32)
+        self._queue_lock = threading.Lock()
         self._write_thread: Optional[threading.Thread] = None
         self._running = False
 
@@ -290,6 +291,7 @@ class SerialOutput(LightOutput):
         if not self._open or not self._running:
             return
 
+        packets: list[bytes] = []
         for zone in frame.zones:
             try:
                 c = zone.color.to_uint8()
@@ -304,27 +306,45 @@ class SerialOutput(LightOutput):
                     brightness=br,
                     fade_ms=0,
                 )
-                data = packet.encode()
-                # Non-blocking enqueue
-                if len(self._write_queue) >= self._write_queue.maxlen:
-                    # Queue full: drop oldest
-                    self._write_queue.popleft()
-                    self._health().frames_dropped += 1
-                self._write_queue.append(data)
+                packets.append(packet.encode())
             except Exception as e:
                 self._health.last_error = f"Encode error: {e}"
                 self._health.frames_dropped += 1
+                return
+
+        if not packets:
+            return
+
+        with self._queue_lock:
+            maxlen = self._write_queue.maxlen
+            if maxlen is not None and len(packets) > maxlen:
+                self._health.last_error = (
+                    f"Serial frame requires {len(packets)} packets, "
+                    f"queue capacity is {maxlen}"
+                )
+                self._health.frames_dropped += 1
+                return
+            if maxlen is not None and len(self._write_queue) + len(packets) > maxlen:
+                self._health.last_error = "Serial queue lacks capacity for complete frame"
+                self._health.frames_dropped += 1
+                return
+            self._write_queue.extend(packets)
+            self._health.frames_sent += 1
 
     def _writer_loop(self) -> None:
         """Background thread for writing queued frames."""
         while self._running:
             try:
-                while self._write_queue:
-                    data = self._write_queue.popleft()
+                while True:
+                    with self._queue_lock:
+                        if not self._write_queue:
+                            break
+                        data = self._write_queue.popleft()
                     self._write_data(data)
-                    self._health().frames_sent += 1
-            except Exception:
-                self._health().frames_dropped += 1
+                    self._health.packets_sent += 1
+            except Exception as e:
+                self._health.last_error = str(e)
+                self._health.frames_dropped += 1
             time.sleep(0.001)  # 1ms polling, not busy-wait
 
     def _write_data(self, data: bytes) -> None:
