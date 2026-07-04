@@ -50,7 +50,9 @@ class AudioPulseEffect(BaseEffect):
                 color=rgb_to_rgbcct(r, g, b),
             ))
 
-        return PixelFrame(timestamp=ctx.timestamp, strips=strips, zones=zones)
+        return PixelFrame(
+            timestamp=ctx.timestamp, sequence=ctx.sequence, strips=strips, zones=zones
+        )
 
     def reset(self) -> None:
         self._env.reset(0.0)

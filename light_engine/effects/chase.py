@@ -120,7 +120,9 @@ class ChaseEffect(BaseEffect):
                 color=RGBCCTColor(),
             ))
 
-        return PixelFrame(timestamp=ctx.timestamp, strips=strips, zones=zones)
+        return PixelFrame(
+            timestamp=ctx.timestamp, sequence=ctx.sequence, strips=strips, zones=zones
+        )
 
     def reset(self) -> None:
         self._position = 0.0

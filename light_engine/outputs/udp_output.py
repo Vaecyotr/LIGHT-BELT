@@ -102,7 +102,6 @@ class UdpOutput(LightOutput):
         self._host = host
         self._port = port
         self._max_packet_size = max_packet_size
-        self._sequence = 0
         self._socket: Optional[object] = None
         self._enabled = False
 
@@ -126,7 +125,7 @@ class UdpOutput(LightOutput):
             while offset < strip.pixel_count:
                 chunk = pixels_uint8[offset : offset + MAX_PIXELS_PER_PACKET]
                 packet = UdpPacket(
-                    sequence=self._sequence,
+                    sequence=frame.sequence,
                     strip_id=strip_idx,
                     pixel_offset=offset,
                     pixel_count=len(chunk),
@@ -142,7 +141,6 @@ class UdpOutput(LightOutput):
                 offset += MAX_PIXELS_PER_PACKET
         if frame_ok:
             self._health.frames_sent += 1
-        self._sequence += 1
 
     def close(self) -> None:
         if self._socket:

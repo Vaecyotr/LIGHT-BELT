@@ -40,4 +40,6 @@ class StaticEffect(BaseEffect):
                 color=rgb_to_rgbcct(r, g, b),
             ))
 
-        return PixelFrame(timestamp=ctx.timestamp, strips=strips, zones=zones)
+        return PixelFrame(
+            timestamp=ctx.timestamp, sequence=ctx.sequence, strips=strips, zones=zones
+        )

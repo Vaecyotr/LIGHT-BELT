@@ -52,7 +52,9 @@ class CalmEffect(BaseEffect):
                 color=rgb_to_rgbcct(r * bri, g * bri, b * bri),
             ))
 
-        return PixelFrame(timestamp=ctx.timestamp, strips=strips, zones=zones)
+        return PixelFrame(
+            timestamp=ctx.timestamp, sequence=ctx.sequence, strips=strips, zones=zones
+        )
 
     def reset(self) -> None:
         self._phase = 0.0

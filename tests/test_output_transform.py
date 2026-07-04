@@ -26,6 +26,7 @@ def test_global_brightness_applies_once_to_digital_pixels() -> None:
     transform = OutputTransform(global_brightness=0.25)
     frame = PixelFrame(
         timestamp=1.0,
+        sequence=12,
         strips=[
             DigitalStrip(
                 strip_id="s1",
@@ -45,6 +46,7 @@ def test_global_brightness_applies_once_to_digital_pixels() -> None:
     out = transform.apply_to_frame(frame)
 
     assert out.timestamp == frame.timestamp
+    assert out.sequence == 12
     assert out.metadata == frame.metadata
     assert out.strips[0].pixels == [(0.2, 0.1, 0.05)]
     assert out.zones[0].color == RGBCCTColor(r=0.2, g=0.1, b=0.05)
@@ -79,6 +81,7 @@ def test_json_output_emits_warm_and_cool_white_fields(tmp_path) -> None:
     output = JsonOutput(path=str(path))
     frame = PixelFrame(
         timestamp=0.0,
+        sequence=44,
         zones=[
             ZoneOutput(
                 zone_id="z1",
@@ -96,6 +99,7 @@ def test_json_output_emits_warm_and_cool_white_fields(tmp_path) -> None:
         output.close()
 
     data = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+    assert data["sequence"] == 44
     zone = data["zones"][0]
     assert zone["warm_white"] == 102
     assert zone["cool_white"] == 128

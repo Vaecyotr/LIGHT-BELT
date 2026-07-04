@@ -130,6 +130,7 @@ class EffectContext:
 
     Attributes:
         timestamp: Current time in seconds.
+        sequence: Engine-assigned logical frame sequence.
         delta_time: Time since last frame in seconds.
         video_features: Latest video analysis features (may be None).
         audio_features: Latest audio analysis features (may be None).
@@ -140,6 +141,7 @@ class EffectContext:
 
     timestamp: float
     delta_time: float
+    sequence: int = 0
     video_features: Optional[VideoFeatures] = None
     audio_features: Optional[AudioFeatures] = None
     speed: float = 1.0
@@ -151,6 +153,8 @@ class EffectContext:
             raise ValueError(f"timestamp must be finite, got {self.timestamp}")
         if self.delta_time <= 0:
             raise ValueError(f"delta_time must be positive, got {self.delta_time}")
+        if self.sequence < 0:
+            raise ValueError(f"sequence must be >= 0, got {self.sequence}")
         self.speed = _validate_float(self.speed, "speed", min_val=0.0, max_val=10.0)
         self.intensity = _validate_float(
             self.intensity, "intensity", min_val=0.0, max_val=10.0
@@ -237,12 +241,14 @@ class PixelFrame:
 
     Attributes:
         timestamp: Frame time in seconds.
+        sequence: Engine-assigned logical frame sequence.
         strips: List of DigitalStrip outputs.
         zones: List of ZoneOutput for analog zones.
         metadata: Arbitrary key-value metadata.
     """
 
     timestamp: float
+    sequence: int = 0
     strips: list[DigitalStrip] = field(default_factory=list)
     zones: list[ZoneOutput] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -250,6 +256,8 @@ class PixelFrame:
     def __post_init__(self) -> None:
         if math.isnan(self.timestamp) or math.isinf(self.timestamp):
             raise ValueError(f"timestamp must be finite, got {self.timestamp}")
+        if self.sequence < 0:
+            raise ValueError(f"sequence must be >= 0, got {self.sequence}")
 
     def all_pixels_valid(self) -> bool:
         """Check that all pixel values are finite and in [0,1]."""

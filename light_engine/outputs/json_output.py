@@ -29,6 +29,7 @@ class JsonOutput(LightOutput):
             return
         data = {
             "timestamp": frame.timestamp,
+            "sequence": frame.sequence,
             "strips": [
                 {
                     "strip_id": s.strip_id,

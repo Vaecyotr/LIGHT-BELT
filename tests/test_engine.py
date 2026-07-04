@@ -31,6 +31,31 @@ class TestDurationLimit:
         assert engine.frame_count < 20
 
 
+class RecordingOutput(NullOutput):
+    def __init__(self):
+        super().__init__()
+        self.frames = []
+
+    def send_frame(self, frame):
+        self.frames.append(frame)
+
+
+class TestFrameSequence:
+    def test_engine_assigns_monotonic_frame_sequence(self):
+        Config.reset()
+        config = Config()
+        engine = Engine(config)
+        engine.use_synthetic(seed=42)
+        engine.set_effect("static")
+        output = RecordingOutput()
+        output.open()
+        engine._outputs = {"recording": output}
+
+        engine.run(max_frames=5)
+
+        assert [frame.sequence for frame in output.frames] == [1, 2, 3, 4, 5]
+
+
 class TestMaxFramesLimit:
     def test_max_frames_takes_priority(self):
         engine = _make_engine()

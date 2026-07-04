@@ -47,7 +47,7 @@ class DemoEffect(BaseEffect):
             self._effects[self._current_index].reset()
 
         if not self._effects:
-            return PixelFrame(timestamp=ctx.timestamp)
+            return PixelFrame(timestamp=ctx.timestamp, sequence=ctx.sequence)
 
         frame = self._effects[self._current_index].process(ctx)
         frame.metadata["demo_current"] = self.current_effect_name

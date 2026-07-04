@@ -11,6 +11,10 @@ def _assert_rgbcct_zones(frame):
         assert isinstance(zone.color, RGBCCTColor)
 
 
+def _assert_sequence(frame, ctx):
+    assert frame.sequence == ctx.sequence
+
+
 class TestEffectRegistry:
     def test_all_12_effects_registered(self):
         effects = list_effects()
@@ -59,72 +63,84 @@ class TestAllEffects:
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_breath(self, ctx):
         eff = create_effect("breath")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_color_wave(self, ctx):
         eff = create_effect("color_wave")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_chase(self, ctx):
         eff = create_effect("chase")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_comet(self, ctx):
         eff = create_effect("comet")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_audio_pulse(self, ctx):
         eff = create_effect("audio_pulse")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_bass_pulse(self, ctx):
         eff = create_effect("bass_pulse")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_spectrum(self, ctx):
         eff = create_effect("spectrum")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_video_ambient(self, ctx):
         eff = create_effect("video_ambient")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_video_audio_fusion(self, ctx):
         eff = create_effect("video_audio_fusion")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_calm(self, ctx):
         eff = create_effect("calm")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
 
     def test_demo(self, ctx):
         eff = create_effect("demo")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
         assert "demo_current" in frame.metadata
 
     def test_chase_position_changes(self, ctx):

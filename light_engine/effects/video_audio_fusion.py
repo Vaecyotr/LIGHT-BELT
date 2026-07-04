@@ -154,7 +154,10 @@ class VideoAudioFusionEffect(BaseEffect):
             zone_mapping[zd["id"]] = zd.get("video_zone", "center")
 
         return PixelFrame(
-            timestamp=ctx.timestamp, strips=strips, zones=zones,
+            timestamp=ctx.timestamp,
+            sequence=ctx.sequence,
+            strips=strips,
+            zones=zones,
             metadata={
                 "video_rgb": avg_rgb,
                 "audio_rms": round(audio_rms, 3),

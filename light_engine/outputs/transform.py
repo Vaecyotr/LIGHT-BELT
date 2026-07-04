@@ -49,6 +49,7 @@ class OutputTransform:
     def apply_to_frame(self, frame: PixelFrame) -> PixelFrame:
         return PixelFrame(
             timestamp=frame.timestamp,
+            sequence=frame.sequence,
             strips=[
                 DigitalStrip(
                     strip_id=strip.strip_id,

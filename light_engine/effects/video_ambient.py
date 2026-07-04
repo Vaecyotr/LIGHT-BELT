@@ -76,7 +76,10 @@ class VideoAmbientEffect(BaseEffect):
             zone_mapping[zd["id"]] = zd.get("video_zone", "center")
 
         return PixelFrame(
-            timestamp=ctx.timestamp, strips=strips, zones=zones,
+            timestamp=ctx.timestamp,
+            sequence=ctx.sequence,
+            strips=strips,
+            zones=zones,
             metadata={"effect": "video_ambient", "zone_mapping": zone_mapping},
         )
 

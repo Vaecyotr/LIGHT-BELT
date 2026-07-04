@@ -73,6 +73,7 @@ class Engine:
         self._running = False
         self._timestamp: float = 0.0
         self._frame_count: int = 0
+        self._sequence: int = 0
         self._fps_stats: list[float] = []
         self._run_start_wall: float = 0.0
         self._run_end_wall: float = 0.0
@@ -222,9 +223,11 @@ class Engine:
                     last_audio_time = self._timestamp
 
                 # Build context and run effect
+                self._sequence += 1
                 ctx = EffectContext(
                     timestamp=self._timestamp,
                     delta_time=frame_period,
+                    sequence=self._sequence,
                     video_features=self._latest_video,
                     audio_features=self._latest_audio,
                     mode_parameters={

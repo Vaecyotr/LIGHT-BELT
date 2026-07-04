@@ -81,8 +81,13 @@ class SpectrumEffect(BaseEffect):
                 color=rgb_to_rgbcct(cr * bri, cg * bri, cb * bri),
             ))
 
-        return PixelFrame(timestamp=ctx.timestamp, strips=strips, zones=zones,
-                          metadata={"bass": bass, "mid": mid, "treble": treble})
+        return PixelFrame(
+            timestamp=ctx.timestamp,
+            sequence=ctx.sequence,
+            strips=strips,
+            zones=zones,
+            metadata={"bass": bass, "mid": mid, "treble": treble},
+        )
 
     def reset(self) -> None:
         self._bass_env.reset(0.0)

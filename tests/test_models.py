@@ -90,8 +90,13 @@ class TestAudioFeatures:
 
 class TestEffectContext:
     def test_valid(self):
-        ctx = EffectContext(timestamp=1.0, delta_time=0.033)
+        ctx = EffectContext(timestamp=1.0, delta_time=0.033, sequence=7)
         assert ctx.timestamp == 1.0
+        assert ctx.sequence == 7
+
+    def test_rejects_negative_sequence(self):
+        with pytest.raises(ValueError):
+            EffectContext(timestamp=0.0, delta_time=0.033, sequence=-1)
 
     def test_rejects_zero_delta(self):
         with pytest.raises(ValueError):
@@ -154,8 +159,17 @@ class TestRGBCCTColor:
 
 class TestPixelFrame:
     def test_creation(self):
-        frame = PixelFrame(timestamp=1.0)
+        frame = PixelFrame(timestamp=1.0, sequence=3)
         assert frame.timestamp == 1.0
+        assert frame.sequence == 3
+
+    def test_default_sequence(self):
+        frame = PixelFrame(timestamp=1.0)
+        assert frame.sequence == 0
+
+    def test_rejects_negative_sequence(self):
+        with pytest.raises(ValueError):
+            PixelFrame(timestamp=1.0, sequence=-1)
 
     def test_all_pixels_valid(self):
         strip = DigitalStrip(strip_id="s1", pixel_count=1, pixels=[(0.5, 0.5, 0.5)])
