@@ -95,7 +95,7 @@ WS2811：15米
 开始工作前必须自行审计仓库并验证以下基线，不要只相信本任务书：
 
 ```text
-python -m pytest -q
+.\.python\python.exe -m pytest -q
 ```
 
 当前预期基线约为：
@@ -607,8 +607,8 @@ last_success_time
 最终必须实际运行并报告：
 
 ```text
-python -m pytest -q
-python -m light_engine benchmark --effect video_audio_fusion --frames 1800
+.\.python\python.exe -m pytest -q
+.\.python\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
 ```
 
 若新增 PlatformIO 固件：

@@ -67,17 +67,47 @@ Keep protocol golden vectors shared between host and firmware documentation/test
 - Use config for hardware-specific values.
 - If public models are migrated, update all callers and tests consistently; do not leave mixed RGBW/RGB+CCT semantics.
 
+## Windows Python interpreter
+
+On Windows, this repository must use only the bundled interpreter:
+
+`.\\.python\\python.exe`
+
+Never invoke any of the following on Windows:
+
+* `python`
+* `python3`
+* `py`
+* a Python executable outside this repository
+* a Python executable from the C: drive
+
+All Python commands must begin with:
+
+`.\\.python\\python.exe`
+
+Before the first Python command in each Claude Code session, verify the interpreter with:
+
+`.\\.python\\python.exe -c "import sys; print(sys.executable)"`
+
+The returned path must end with:
+
+`LIGHT-BELT\\.python\\python.exe`
+
+If the bundled interpreter does not exist or cannot run, stop and report the error. Do not fall back to another Python installation.
+
 ## Verification
 
 Before editing:
 
-`python -m pytest -q`
+`.\\.python\\python.exe -m pytest -q`
 
-After each coherent change, run relevant tests. Before finishing, run:
+After each coherent change, run relevant tests using the same bundled interpreter.
 
-`python -m pytest -q`
+Before finishing, run:
 
-`python -m light_engine benchmark --effect video_audio_fusion --frames 1800`
+`.\\.python\\python.exe -m pytest -q`
+
+`.\\.python\\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800`
 
 If firmware projects exist or are added:
 
@@ -86,6 +116,7 @@ If firmware projects exist or are added:
 `pio run -d firmware/esp32_ws2811_node`
 
 Show commands and results. Never delete or weaken tests just to pass.
+
 
 ## Working method
 

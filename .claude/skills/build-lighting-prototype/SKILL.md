@@ -1002,37 +1002,37 @@ B. STM32串口/RS-485协议
 
 1. 使用生成数据运行：
 
-python -m light_engine demo
+.\.python\python.exe -m light_engine demo
 
 2. 使用视频运行：
 
-python -m light_engine run --video path/to/video.mp4
+.\.python\python.exe -m light_engine run --video path/to/video.mp4
 
 3. 使用音频运行：
 
-python -m light_engine run --audio path/to/audio.wav
+.\.python\python.exe -m light_engine run --audio path/to/audio.wav
 
 4. 使用视频和音频运行：
 
-python -m light_engine run 
+.\.python\python.exe -m light_engine run 
 --video path/to/video.mp4 
 --audio path/to/audio.wav 
 --effect video_audio_fusion
 
 5. 运行软件模拟器：
 
-python -m light_engine simulator
+.\.python\python.exe -m light_engine simulator
 
 6. 导出离线灯光数据：
 
-python -m light_engine export 
+.\.python\python.exe -m light_engine export 
 --video path/to/video.mp4 
 --audio path/to/audio.wav 
 --output output.jsonl
 
 7. 运行基准测试：
 
-python -m light_engine benchmark
+.\.python\python.exe -m light_engine benchmark
 
 8. 运行全部测试：
 

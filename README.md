@@ -111,10 +111,10 @@ light_engine/
 
 ## No-Hardware Operation
 
-- `python -m light_engine demo` — uses synthetic data, no media files
-- `python -m light_engine simulator` — terminal visualization, no GUI
-- `python -m light_engine export` — JSONL export for offline analysis
-- `python -m light_engine benchmark` — performance testing with NullOutput
+- `.\.python\python.exe -m light_engine demo` — uses synthetic data, no media files
+- `.\.python\python.exe -m light_engine simulator` — terminal visualization, no GUI
+- `.\.python\python.exe -m light_engine export` — JSONL export for offline analysis
+- `.\.python\python.exe -m light_engine benchmark` — performance testing with NullOutput
 
 ## Verified / Unverified
 
