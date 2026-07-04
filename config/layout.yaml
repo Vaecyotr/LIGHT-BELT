@@ -1,0 +1,80 @@
+# Light Engine Layout Configuration
+# Defines lighting zones and strips for the immersive chamber.
+
+layout:
+  # Global strip count
+  total_strips: 6
+
+  # Analog RGBW zones (via RS-485/STM32)
+  zones:
+    - id: "ceiling_left"
+      type: "rgbw"
+      label: "Ceiling Left"
+      video_zone: "top"
+      direction: "forward"
+    - id: "ceiling_right"
+      type: "rgbw"
+      label: "Ceiling Right"
+      video_zone: "top"
+      direction: "forward"
+    - id: "wall_left"
+      type: "rgbw"
+      label: "Wall Left"
+      video_zone: "left"
+      direction: "forward"
+    - id: "wall_right"
+      type: "rgbw"
+      label: "Wall Right"
+      video_zone: "right"
+      direction: "forward"
+    - id: "front"
+      type: "rgbw"
+      label: "Front Panel"
+      video_zone: "center"
+      direction: "forward"
+    - id: "rear"
+      type: "rgbw"
+      label: "Rear Panel"
+      video_zone: "center"
+      direction: "reverse"
+
+  # Digital addressable strips (via UDP/ESP32-S3)
+  strips:
+    - id: "ceiling_left"
+      type: "digital"
+      pixel_count: 144
+      direction: "forward"
+      video_zone: "top"
+    - id: "ceiling_right"
+      type: "digital"
+      pixel_count: 144
+      direction: "forward"
+      video_zone: "top"
+    - id: "wall_left"
+      type: "digital"
+      pixel_count: 100
+      direction: "forward"
+      video_zone: "left"
+    - id: "wall_right"
+      type: "digital"
+      pixel_count: 100
+      direction: "forward"
+      video_zone: "right"
+    - id: "front"
+      type: "digital"
+      pixel_count: 72
+      direction: "forward"
+      video_zone: "center"
+    - id: "rear"
+      type: "digital"
+      pixel_count: 72
+      direction: "reverse"
+      video_zone: "center"
+
+  # Video zone mapping: video regions to logical zones
+  video_zone_map:
+    left: ["wall_left"]
+    right: ["wall_right"]
+    top: ["ceiling_left", "ceiling_right"]
+    bottom: []
+    center: ["front", "rear"]

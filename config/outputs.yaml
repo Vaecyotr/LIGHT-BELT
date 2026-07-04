@@ -1,0 +1,41 @@
+# Light Engine Outputs Configuration
+
+outputs:
+  # Enabled output backends
+  enabled:
+    - "simulator"
+    - "json"
+
+  # Simulator output
+  simulator:
+    type: "terminal"          # terminal, html, png_sequence
+    width: 120                # Display width in characters
+    show_fps: true
+    show_debug: true
+
+  # JSON output (for debugging)
+  json:
+    path: "output/light_data.jsonl"
+    compress: false
+    pretty: false
+
+  # Null output (for benchmarking)
+  null:
+    enabled: false
+
+  # UDP output (for ESP32-S3 digital strips)
+  udp:
+    enabled: false
+    host: "192.168.1.100"
+    port: 9001
+    protocol_version: 1
+    max_packet_size: 1400
+    fragment_timeout: 0.1     # Fragment reassembly timeout
+
+  # Serial output (for STM32 RGBW zones)
+  serial:
+    enabled: false
+    port: "COM3"
+    baudrate: 115200
+    protocol_version: 1
+    node_address: 1

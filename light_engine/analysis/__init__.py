@@ -1,0 +1,6 @@
+"""Analysis sub-package: video and audio feature extraction."""
+
+from light_engine.analysis.audio import AudioAnalyzer
+from light_engine.analysis.video import VideoAnalyzer
+
+__all__ = ["AudioAnalyzer", "VideoAnalyzer"]

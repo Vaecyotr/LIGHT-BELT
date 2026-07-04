@@ -1,0 +1,47 @@
+# Light Engine System Configuration
+# All time values in seconds unless otherwise noted.
+
+system:
+  version: "0.1.0"
+
+  # Frame rates
+  output_fps: 30.0           # Light output frame rate
+  video_analysis_fps: 10.0   # Video color analysis rate
+  audio_update_fps: 60.0     # Audio feature update rate
+
+  # Audio configuration
+  audio:
+    sample_rate: 44100        # Target sample rate for analysis
+    window_size: 0.05         # FFT window size in seconds
+    hop_size: 0.025           # Hop size between FFT windows
+    history_duration: 3.0     # Rolling history duration for normalization
+    freq_bands:
+      bass: [20, 200]         # Low frequency range Hz
+      mid: [200, 2000]        # Mid frequency range Hz
+      treble: [2000, 12000]   # High frequency range Hz
+
+  # Visual safety & smoothing
+  smoothing:
+    color_smoothing: 0.15      # EMA alpha for color (0=instant, 1=no change)
+    brightness_attack: 0.3     # Attack rate for brightness increase
+    brightness_release: 0.08   # Release rate for brightness decrease
+    max_brightness: 0.85       # Global max brightness
+    min_brightness: 0.01       # Global min (blackfloor)
+    max_delta_per_frame: 0.15  # Max color channel change per frame
+    flash_suppression: 0.5     # Flash suppression strength [0,1]
+    transition_duration: 0.5   # Mode switch crossfade duration
+    gamma: 2.2                 # Global gamma correction
+
+  # Video configuration
+  video:
+    analysis_size: [160, 90]   # Frame resize for analysis [width, height]
+    black_threshold: 15        # Pixel value below which considered black (0-255)
+    black_ratio_limit: 0.95    # If > this ratio of pixels are black, treat as dark frame
+    zone_grid: [3, 3]          # Zone grid for partitioned analysis [cols, rows]
+    scene_change_threshold: 0.15  # Threshold for scene change detection
+
+  # Logging
+  logging:
+    level: "INFO"              # DEBUG, INFO, WARNING, ERROR
+    per_frame_log: false       # Disable per-frame log spam
+    error_rate_limit: 10       # Max identical error messages per minute

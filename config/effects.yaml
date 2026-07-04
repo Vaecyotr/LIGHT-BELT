@@ -1,0 +1,74 @@
+# Light Engine Effects Configuration
+
+effects:
+  # Current active effect
+  active: "demo"
+
+  # Effect-specific parameters
+  static:
+    color: [0.2, 0.4, 0.8]  # RGB [0,1] - warm blue
+
+  breath:
+    period: 4.0              # Breath cycle period in seconds
+    min_brightness: 0.05
+    color: [0.4, 0.2, 0.6]  # Base color
+
+  color_wave:
+    speed: 1.0               # Wave speed multiplier
+    width: 0.3               # Wave width as fraction of strip
+    hue_cycle_rate: 0.1      # Hue rotation rate
+
+  chase:
+    speed: 2.0               # Pixels per second at speed=1.0
+    width: 5                 # Chase dot width in pixels
+    gap: 10                  # Gap between chase dots
+    direction: "forward"     # forward, reverse, bounce
+    trail: 0.3               # Trail decay factor
+    color_source: "rainbow"  # rainbow, video, static
+    beat_boost: 2.0          # Speed multiplier on beat
+
+  comet:
+    speed: 1.5
+    tail_length: 0.4         # Tail length as fraction of strip
+    decay: 0.85              # Tail decay per frame
+
+  audio_pulse:
+    attack: 0.4
+    release: 0.15
+    color: [0.9, 0.5, 0.1]  # Warm orange
+
+  bass_pulse:
+    attack: 0.6
+    release: 0.2
+    color: [0.2, 0.6, 1.0]  # Cool blue
+
+  spectrum:
+    # Maps frequency bands to zones
+    bass_zones: ["ceiling_left", "ceiling_right"]
+    mid_zones: ["wall_left", "wall_right"]
+    treble_zones: ["front", "rear"]
+
+  video_ambient:
+    smoothing: 0.15
+
+  video_audio_fusion:
+    video_weight: 0.65
+    audio_weight: 0.35
+    bass_boost: 1.5
+    treble_limit: 0.4
+
+  calm:
+    period: 12.0
+    color: [0.3, 0.2, 0.5]
+
+  demo:
+    cycle_interval: 10.0     # Seconds between effect switches
+    effects:
+      - "static"
+      - "breath"
+      - "color_wave"
+      - "chase"
+      - "video_audio_fusion"
+      - "audio_pulse"
+      - "spectrum"
+      - "calm"

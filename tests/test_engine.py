@@ -1,0 +1,137 @@
+"""Tests for engine media-finished logic and run-loop stop conditions."""
+
+import numpy as np
+import pytest
+from light_engine.config import Config
+from light_engine.engine import Engine
+from light_engine.outputs import NullOutput
+
+
+def _make_engine():
+    Config.reset()
+    config = Config()
+    engine = Engine(config)
+    engine.use_synthetic(seed=42)
+    engine.set_effect("video_audio_fusion")
+    null = NullOutput()
+    null.open()
+    engine._outputs = {"null": null}
+    return engine
+
+
+class TestDurationLimit:
+    def test_duration_takes_priority(self):
+        engine = _make_engine()
+        engine.run(duration=1.0)
+        assert 28 <= engine.frame_count <= 33, f"Expected ~30 frames, got {engine.frame_count}"
+
+    def test_duration_overrides_media(self):
+        engine = _make_engine()
+        engine.run(duration=0.5)
+        assert engine.frame_count < 20
+
+
+class TestMaxFramesLimit:
+    def test_max_frames_takes_priority(self):
+        engine = _make_engine()
+        engine.run(max_frames=10)
+        assert engine.frame_count == 10
+
+    def test_max_frames_overrides_duration(self):
+        engine = _make_engine()
+        engine.run(duration=999.0, max_frames=5)
+        assert engine.frame_count == 5
+
+
+class TestSyntheticSource:
+    def test_synthetic_runs_to_end(self):
+        engine = _make_engine()
+        engine._output_fps = 300.0
+        engine.run(max_frames=200)
+        assert engine.frame_count == 200
+
+
+class TestAudioOnlyStop:
+    def test_audio_stops_at_end(self):
+        from light_engine.data.test_media import generate_test_wav, cleanup_test_media
+        wav_path = generate_test_wav(None, duration=0.5, sample_rate=44100)
+        try:
+            Config.reset()
+            config = Config()
+            engine = Engine(config)
+            engine.load_audio(wav_path)
+            engine.set_effect("spectrum")
+            null = NullOutput()
+            null.open()
+            engine._outputs = {"null": null}
+            engine.run()
+            assert 12 <= engine.frame_count <= 18, f"Expected ~15 frames, got {engine.frame_count}"
+        finally:
+            cleanup_test_media(wav_path)
+
+
+class TestVideoOnlyStop:
+    def test_video_stops_at_end(self):
+        from light_engine.data.test_media import generate_test_video, cleanup_test_media
+        vid_path = generate_test_video(None, duration=1.0, fps=30.0, width=160, height=90)
+        try:
+            Config.reset()
+            config = Config()
+            engine = Engine(config)
+            engine.load_video(vid_path)
+            engine.set_effect("video_ambient")
+            null = NullOutput()
+            null.open()
+            engine._outputs = {"null": null}
+            engine.run()
+            assert 25 <= engine.frame_count <= 35, f"Expected ~30 frames, got {engine.frame_count}"
+        finally:
+            cleanup_test_media(vid_path)
+
+
+class TestAudioVideoBothStop:
+    def test_both_stop_at_longest(self):
+        from light_engine.data.test_media import generate_test_wav, generate_test_video, cleanup_test_media
+        wav_path = generate_test_wav(None, duration=0.5, sample_rate=44100)
+        vid_path = generate_test_video(None, duration=1.0, fps=30.0, width=160, height=90)
+        try:
+            Config.reset()
+            config = Config()
+            engine = Engine(config)
+            engine.load_audio(wav_path)
+            engine.load_video(vid_path)
+            engine.set_effect("video_audio_fusion")
+            null = NullOutput()
+            null.open()
+            engine._outputs = {"null": null}
+            engine.run()
+            assert 25 <= engine.frame_count <= 35, f"Expected ~30 frames, got {engine.frame_count}"
+        finally:
+            cleanup_test_media(wav_path, vid_path)
+
+
+class TestNoHiddenGate:
+    def test_no_100_frame_hidden_limit(self):
+        engine = _make_engine()
+        engine._output_fps = 300.0
+        engine.run(max_frames=200)
+        assert engine.frame_count == 200
+
+
+class TestTenSecondsAudio:
+    def test_ten_seconds_audio_produces_about_300_frames(self):
+        from light_engine.data.test_media import generate_test_wav, cleanup_test_media
+        wav_path = generate_test_wav(None, duration=10.0, sample_rate=44100)
+        try:
+            Config.reset()
+            config = Config()
+            engine = Engine(config)
+            engine.load_audio(wav_path)
+            engine.set_effect("spectrum")
+            null = NullOutput()
+            null.open()
+            engine._outputs = {"null": null}
+            engine.run()
+            assert 295 <= engine.frame_count <= 305, f"Expected ~300 frames, got {engine.frame_count}"
+        finally:
+            cleanup_test_media(wav_path)

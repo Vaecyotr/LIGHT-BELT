@@ -1,0 +1,271 @@
+"""Data models for the lighting engine.
+
+All public data models have type annotations, validate required fields,
+prevent NaN/Inf propagation, and use explicit timestamp units (seconds).
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+from typing import Any, Optional, Tuple
+
+import numpy as np
+
+
+def _validate_float(
+    value: float, name: str, min_val: float = 0.0, max_val: float = 1.0
+) -> float:
+    """Validate a float value is within bounds and not NaN/Inf."""
+    if math.isnan(value) or math.isinf(value):
+        raise ValueError(f"{name} must be a finite number, got {value}")
+    if value < min_val or value > max_val:
+        raise ValueError(
+            f"{name} must be in [{min_val}, {max_val}], got {value}"
+        )
+    return value
+
+
+def _validate_rgb(r: float, g: float, b: float) -> Tuple[float, float, float]:
+    """Validate RGB channels are in [0, 1] and finite."""
+    return (
+        _validate_float(r, "r"),
+        _validate_float(g, "g"),
+        _validate_float(b, "b"),
+    )
+
+
+def clamp_rgb(r: float, g: float, b: float) -> Tuple[float, float, float]:
+    """Clamp RGB values to [0, 1] without raising."""
+    return (
+        max(0.0, min(1.0, r)),
+        max(0.0, min(1.0, g)),
+        max(0.0, min(1.0, b)),
+    )
+
+
+def is_valid_rgb(r: float, g: float, b: float) -> bool:
+    """Check if RGB values are finite and within [0, 1]."""
+    for v in (r, g, b):
+        if math.isnan(v) or math.isinf(v) or v < 0.0 or v > 1.0:
+            return False
+    return True
+
+
+@dataclass
+class VideoFeatures:
+    """Per-frame video analysis features.
+
+    Attributes:
+        timestamp: Time in seconds since media start.
+        average_rgb: (r,g,b) tuple in [0,1] range.
+        dominant_rgb: (r,g,b) dominant color in [0,1] range.
+        zone_colors: Dict mapping zone name to (r,g,b) tuple.
+        brightness: Overall brightness in [0,1].
+        saturation: Overall saturation in [0,1].
+        scene_change: Scene change intensity in [0,1].
+    """
+
+    timestamp: float
+    average_rgb: Tuple[float, float, float]
+    dominant_rgb: Tuple[float, float, float]
+    zone_colors: dict[str, Tuple[float, float, float]] = field(default_factory=dict)
+    brightness: float = 0.0
+    saturation: float = 0.0
+    scene_change: float = 0.0
+
+    def __post_init__(self) -> None:
+        if math.isnan(self.timestamp) or math.isinf(self.timestamp):
+            raise ValueError(f"timestamp must be finite, got {self.timestamp}")
+        self.average_rgb = clamp_rgb(*self.average_rgb)
+        self.dominant_rgb = clamp_rgb(*self.dominant_rgb)
+        self.zone_colors = {
+            k: clamp_rgb(*v) for k, v in self.zone_colors.items()
+        }
+        self.brightness = _validate_float(self.brightness, "brightness")
+        self.saturation = _validate_float(self.saturation, "saturation")
+        self.scene_change = _validate_float(self.scene_change, "scene_change")
+
+
+@dataclass
+class AudioFeatures:
+    """Per-window audio analysis features.
+
+    Attributes:
+        timestamp: Time in seconds since media start.
+        rms: Root mean square energy in [0,1] (normalized).
+        bass: Low frequency energy (20-200Hz) in [0,1].
+        mid: Mid frequency energy (200-2000Hz) in [0,1].
+        treble: High frequency energy (2000-12000Hz) in [0,1].
+        spectral_flux: Spectral flux / transient intensity in [0,1].
+        beat: Boolean beat detection flag.
+        onset: Onset detection strength in [0,1].
+        silence: Boolean silence flag.
+    """
+
+    timestamp: float
+    rms: float = 0.0
+    bass: float = 0.0
+    mid: float = 0.0
+    treble: float = 0.0
+    spectral_flux: float = 0.0
+    beat: bool = False
+    onset: float = 0.0
+    silence: bool = True
+
+    def __post_init__(self) -> None:
+        if math.isnan(self.timestamp) or math.isinf(self.timestamp):
+            raise ValueError(f"timestamp must be finite, got {self.timestamp}")
+        self.rms = _validate_float(self.rms, "rms")
+        self.bass = _validate_float(self.bass, "bass")
+        self.mid = _validate_float(self.mid, "mid")
+        self.treble = _validate_float(self.treble, "treble")
+        self.spectral_flux = _validate_float(self.spectral_flux, "spectral_flux")
+        self.onset = _validate_float(self.onset, "onset")
+
+
+@dataclass
+class EffectContext:
+    """Context passed to each effect's process() method.
+
+    Attributes:
+        timestamp: Current time in seconds.
+        delta_time: Time since last frame in seconds.
+        video_features: Latest video analysis features (may be None).
+        audio_features: Latest audio analysis features (may be None).
+        global_brightness: Global brightness multiplier in [0,1].
+        speed: Global speed multiplier.
+        intensity: Global intensity multiplier.
+        mode_parameters: Effect-specific parameters dict.
+    """
+
+    timestamp: float
+    delta_time: float
+    video_features: Optional[VideoFeatures] = None
+    audio_features: Optional[AudioFeatures] = None
+    global_brightness: float = 1.0
+    speed: float = 1.0
+    intensity: float = 1.0
+    mode_parameters: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if math.isnan(self.timestamp) or math.isinf(self.timestamp):
+            raise ValueError(f"timestamp must be finite, got {self.timestamp}")
+        if self.delta_time <= 0:
+            raise ValueError(f"delta_time must be positive, got {self.delta_time}")
+        self.global_brightness = _validate_float(
+            self.global_brightness, "global_brightness"
+        )
+        self.speed = _validate_float(self.speed, "speed", min_val=0.0, max_val=10.0)
+        self.intensity = _validate_float(
+            self.intensity, "intensity", min_val=0.0, max_val=10.0
+        )
+
+
+@dataclass
+class RGBWColor:
+    """Color for analog RGBW strips.
+
+    Channels in [0,1] float internally.
+    """
+
+    r: float = 0.0
+    g: float = 0.0
+    b: float = 0.0
+    w: float = 0.0
+    brightness: float = 1.0
+
+    def __post_init__(self) -> None:
+        self.r = clamp_rgb(self.r, self.g, self.b)[0] if not math.isnan(self.w) else _validate_float(self.r, "r")
+        self.g = _validate_float(self.g, "g")
+        self.b = _validate_float(self.b, "b")
+        self.w = _validate_float(self.w, "w")
+        self.brightness = _validate_float(self.brightness, "brightness")
+
+    def to_uint8(self) -> dict[str, int]:
+        """Convert to 0-255 integer representation."""
+        return {
+            "r": round(self.r * self.brightness * 255),
+            "g": round(self.g * self.brightness * 255),
+            "b": round(self.b * self.brightness * 255),
+            "w": round(self.w * self.brightness * 255),
+        }
+
+
+@dataclass
+class DigitalStrip:
+    """Per-pixel colors for a digital addressable LED strip.
+
+    Attributes:
+        strip_id: Strip identifier.
+        pixel_count: Number of pixels in this strip.
+        pixels: List of (r,g,b) tuples in [0,1] range.
+    """
+
+    strip_id: str
+    pixel_count: int
+    pixels: list[Tuple[float, float, float]] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.pixel_count < 0:
+            raise ValueError(f"pixel_count must be >= 0, got {self.pixel_count}")
+        # Validate pixel values
+        self.pixels = [clamp_rgb(*p) for p in self.pixels]
+        if len(self.pixels) != self.pixel_count:
+            # Pad or trim
+            while len(self.pixels) < self.pixel_count:
+                self.pixels.append((0.0, 0.0, 0.0))
+            self.pixels = self.pixels[: self.pixel_count]
+
+    def to_uint8(self) -> list[Tuple[int, int, int]]:
+        """Convert pixels to 0-255 integer representation."""
+        return [
+            (round(r * 255), round(g * 255), round(b * 255))
+            for r, g, b in self.pixels
+        ]
+
+
+@dataclass
+class ZoneOutput:
+    """Output for an analog RGBW zone."""
+
+    zone_id: str
+    color: RGBWColor = field(default_factory=RGBWColor)
+
+
+@dataclass
+class PixelFrame:
+    """Complete output frame with strips and zones.
+
+    Attributes:
+        timestamp: Frame time in seconds.
+        strips: List of DigitalStrip outputs.
+        zones: List of ZoneOutput for analog zones.
+        metadata: Arbitrary key-value metadata.
+    """
+
+    timestamp: float
+    strips: list[DigitalStrip] = field(default_factory=list)
+    zones: list[ZoneOutput] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if math.isnan(self.timestamp) or math.isinf(self.timestamp):
+            raise ValueError(f"timestamp must be finite, got {self.timestamp}")
+
+    def all_pixels_valid(self) -> bool:
+        """Check that all pixel values are finite and in [0,1]."""
+        for strip in self.strips:
+            for r, g, b in strip.pixels:
+                if not is_valid_rgb(r, g, b):
+                    return False
+        for zone in self.zones:
+            c = zone.color
+            if not is_valid_rgb(c.r, c.g, c.b) or not is_valid_rgb(c.w, c.w, c.w):
+                return False
+        return True
+
+
+# Type aliases
+ColorRGB = Tuple[float, float, float]
+ColorRGBA = Tuple[float, float, float, float]
