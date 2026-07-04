@@ -38,6 +38,39 @@ layout:
       video_zone: "center"
       direction: "reverse"
 
+  # Phase 3 physical analog node mapping.
+  analog_nodes:
+    - node_id: 1
+      zone_id: "ceiling_left"
+      video_zone: "top"
+      channel_order: "RGBWC"
+      fade_ms: 0
+    - node_id: 2
+      zone_id: "ceiling_right"
+      video_zone: "top"
+      channel_order: "RGBWC"
+      fade_ms: 0
+    - node_id: 3
+      zone_id: "wall_left"
+      video_zone: "left"
+      channel_order: "RGBWC"
+      fade_ms: 0
+    - node_id: 4
+      zone_id: "wall_right"
+      video_zone: "right"
+      channel_order: "RGBWC"
+      fade_ms: 0
+    - node_id: 5
+      zone_id: "front"
+      video_zone: "center"
+      channel_order: "RGBWC"
+      fade_ms: 0
+    - node_id: 6
+      zone_id: "rear"
+      video_zone: "center"
+      channel_order: "RGBWC"
+      fade_ms: 0
+
   # Digital addressable strips (via UDP/ESP32-S3)
   strips:
     - id: "ceiling_left"
@@ -67,6 +100,58 @@ layout:
       video_zone: "center"
     - id: "rear"
       type: "digital"
+      pixel_count: 72
+      direction: "reverse"
+      video_zone: "center"
+
+  # Phase 3 physical digital node mapping.
+  digital_nodes:
+    - node_id: 7
+      host: "127.0.0.1"
+      port: 9001
+      pixel_count: 632
+      max_udp_payload: 4096
+
+  digital_segments:
+    - segment_id: "ceiling_left_main"
+      strip_id: "ceiling_left"
+      node_id: 7
+      offset: 0
+      pixel_count: 144
+      direction: "forward"
+      video_zone: "top"
+    - segment_id: "ceiling_right_main"
+      strip_id: "ceiling_right"
+      node_id: 7
+      offset: 144
+      pixel_count: 144
+      direction: "forward"
+      video_zone: "top"
+    - segment_id: "wall_left_main"
+      strip_id: "wall_left"
+      node_id: 7
+      offset: 288
+      pixel_count: 100
+      direction: "forward"
+      video_zone: "left"
+    - segment_id: "wall_right_main"
+      strip_id: "wall_right"
+      node_id: 7
+      offset: 388
+      pixel_count: 100
+      direction: "forward"
+      video_zone: "right"
+    - segment_id: "front_main"
+      strip_id: "front"
+      node_id: 7
+      offset: 488
+      pixel_count: 72
+      direction: "forward"
+      video_zone: "center"
+    - segment_id: "rear_main"
+      strip_id: "rear"
+      node_id: 7
+      offset: 560
       pixel_count: 72
       direction: "reverse"
       video_zone: "center"

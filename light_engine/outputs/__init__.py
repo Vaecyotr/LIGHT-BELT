@@ -13,7 +13,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from light_engine.models import PixelFrame
+from light_engine.models import PixelFrame, RoutedFrame
 
 
 class OutputHealth:
@@ -121,7 +121,14 @@ def open_all(outputs: dict[str, LightOutput]) -> None:
             output.health().last_error = str(e)
 
 
-def send_all(outputs: dict[str, LightOutput], frame: PixelFrame) -> None:
+def _legacy_frame(frame: PixelFrame | RoutedFrame) -> PixelFrame:
+    """Return the logical frame for Phase 0-2 output backends."""
+    if isinstance(frame, RoutedFrame):
+        return frame.logical
+    return frame
+
+
+def send_all(outputs: dict[str, LightOutput], frame: PixelFrame | RoutedFrame) -> None:
     """Send frame to all open outputs, isolating failures."""
     for name, output in outputs.items():
         health = output.health()
@@ -130,7 +137,7 @@ def send_all(outputs: dict[str, LightOutput], frame: PixelFrame) -> None:
         try:
             frames_before = health.frames_sent
             drops_before = health.frames_dropped
-            output.send_frame(frame)
+            output.send_frame(_legacy_frame(frame))
             if (
                 health.frames_sent == frames_before
                 and health.frames_dropped == drops_before

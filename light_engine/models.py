@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from light_engine.mapping.physical import PhysicalFrame
 
 
 def _validate_float(
@@ -273,6 +276,14 @@ class PixelFrame:
             ):
                 return False
         return True
+
+
+@dataclass
+class RoutedFrame:
+    """Phase 3-5 transition wrapper carrying logical and physical views."""
+
+    logical: PixelFrame
+    physical: "PhysicalFrame"
 
 
 # Type aliases

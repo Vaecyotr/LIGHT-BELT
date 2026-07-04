@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
-from light_engine.config import Config
+from light_engine.config import Config, ConfigError
+from light_engine.mapping.physical import (
+    AnalogNodeMapping,
+    DigitalNodeMapping,
+    DigitalSegmentMapping,
+    PhysicalMapping,
+)
 from light_engine.mapping.resolve import (
     validate_video_zone,
     validate_direction,
@@ -14,6 +20,38 @@ from light_engine.mapping.resolve import (
 )
 
 logger = logging.getLogger(__name__)
+_MISSING = object()
+
+
+def _require_int(
+    item: dict[str, Any],
+    field_name: str,
+    path: str,
+    min_value: int,
+) -> int:
+    value = item.get(field_name, _MISSING)
+    if type(value) is not int or value < min_value:
+        raise ConfigError(path, field_name, value, f"integer >= {min_value}")
+    return value
+
+
+def _require_str(item: dict[str, Any], field_name: str, path: str) -> str:
+    value = item.get(field_name, _MISSING)
+    if not isinstance(value, str) or not value:
+        raise ConfigError(path, field_name, value, "non-empty string")
+    return value
+
+
+def _optional_str(
+    item: dict[str, Any],
+    field_name: str,
+    path: str,
+    default: str,
+) -> str:
+    value = item.get(field_name, default)
+    if not isinstance(value, str) or not value:
+        raise ConfigError(path, field_name, value, "non-empty string")
+    return value
 
 
 @dataclass
@@ -38,6 +76,9 @@ class Layout:
 
     zones: list[ZoneDef] = field(default_factory=list)
     strips: list[ZoneDef] = field(default_factory=list)
+    analog_nodes: list[AnalogNodeMapping] = field(default_factory=list)
+    digital_nodes: list[DigitalNodeMapping] = field(default_factory=list)
+    digital_segments: list[DigitalSegmentMapping] = field(default_factory=list)
     video_zone_map: dict[str, list[str]] = field(default_factory=dict)
 
     @classmethod
@@ -49,7 +90,8 @@ class Layout:
 
         # Load digital strips
         strips_data = config.get("layout.strips", [])
-        for s in strips_data:
+        for idx, s in enumerate(strips_data):
+            path = f"layout.strips[{idx}]"
             vz = s.get("video_zone", "center")
             if vz not in VALID_VIDEO_ZONES:
                 raise ValueError(
@@ -57,10 +99,10 @@ class Layout:
                     f" Must be one of {sorted(VALID_VIDEO_ZONES)}."
                 )
             layout.strips.append(ZoneDef(
-                id=s.get("id", ""),
+                id=_require_str(s, "id", path),
                 label=s.get("label", s.get("id", "")),
                 zone_type=s.get("type", "digital"),
-                pixel_count=s.get("pixel_count", 0),
+                pixel_count=_require_int(s, "pixel_count", path, 1),
                 direction=s.get("direction", "forward"),
                 video_zone=vz,
             ))
@@ -71,7 +113,8 @@ class Layout:
 
         # Load RGB+CCT zones
         zones_data = config.get("layout.zones", [])
-        for z in zones_data:
+        for idx, z in enumerate(zones_data):
+            path = f"layout.zones[{idx}]"
             vz = z.get("video_zone", "center")
             if vz not in VALID_VIDEO_ZONES:
                 raise ValueError(
@@ -79,7 +122,7 @@ class Layout:
                     f" Must be one of {sorted(VALID_VIDEO_ZONES)}."
                 )
             layout.zones.append(ZoneDef(
-                id=z.get("id", ""),
+                id=_require_str(z, "id", path),
                 label=z.get("label", z.get("id", "")),
                 zone_type=z.get("type", "rgbcct"),
                 pixel_count=1,
@@ -93,8 +136,93 @@ class Layout:
 
         # Load video zone map
         layout.video_zone_map = config.get("layout.video_zone_map", {})
+        layout._load_physical_mapping(config)
+        PhysicalMapping(layout)
 
         return layout
+
+    def _load_physical_mapping(self, config: Config) -> None:
+        analog_data = config.get("layout.analog_nodes", [])
+        if analog_data:
+            for idx, item in enumerate(analog_data):
+                path = f"layout.analog_nodes[{idx}]"
+                self.analog_nodes.append(AnalogNodeMapping(
+                    node_id=_require_int(item, "node_id", path, 1),
+                    zone_id=_require_str(item, "zone_id", path),
+                    video_zone=_optional_str(item, "video_zone", path, "center"),
+                    channel_order=_optional_str(
+                        item, "channel_order", path, "RGBWC"
+                    ),
+                    fade_ms=_require_int(item, "fade_ms", path, 0),
+                ))
+        else:
+            for idx, zone in enumerate(self.zones, start=1):
+                self.analog_nodes.append(AnalogNodeMapping(
+                    node_id=idx,
+                    zone_id=zone.id,
+                    video_zone=zone.video_zone,
+                ))
+
+        digital_data = config.get("layout.digital_nodes", [])
+        if digital_data:
+            for idx, item in enumerate(digital_data):
+                path = f"layout.digital_nodes[{idx}]"
+                self.digital_nodes.append(DigitalNodeMapping(
+                    node_id=_require_int(item, "node_id", path, 1),
+                    host=_optional_str(item, "host", path, "127.0.0.1"),
+                    port=_require_int(item, "port", path, 1),
+                    pixel_count=_require_int(item, "pixel_count", path, 1),
+                    max_udp_payload=_require_int(
+                        item, "max_udp_payload", path, 1
+                    ),
+                ))
+        elif self.strips:
+            port = config.get("outputs.udp.port", 9001)
+            max_udp_payload = config.get("outputs.udp.max_packet_size", 4096)
+            if type(port) is not int or port < 1:
+                raise ConfigError("outputs.udp", "port", port, "integer >= 1")
+            if type(max_udp_payload) is not int or max_udp_payload < 1:
+                raise ConfigError(
+                    "outputs.udp",
+                    "max_packet_size",
+                    max_udp_payload,
+                    "integer >= 1",
+                )
+            self.digital_nodes.append(DigitalNodeMapping(
+                node_id=max((node.node_id for node in self.analog_nodes), default=0) + 1,
+                host=config.get("outputs.udp.host", "127.0.0.1"),
+                port=port,
+                pixel_count=sum(strip.pixel_count for strip in self.strips),
+                max_udp_payload=max_udp_payload,
+            ))
+
+        segment_data = config.get("layout.digital_segments", [])
+        if segment_data:
+            for idx, item in enumerate(segment_data):
+                path = f"layout.digital_segments[{idx}]"
+                self.digital_segments.append(DigitalSegmentMapping(
+                    segment_id=_require_str(item, "segment_id", path),
+                    strip_id=_require_str(item, "strip_id", path),
+                    node_id=_require_int(item, "node_id", path, 1),
+                    offset=_require_int(item, "offset", path, 0),
+                    pixel_count=_require_int(item, "pixel_count", path, 1),
+                    direction=_optional_str(item, "direction", path, "forward"),
+                    video_zone=_optional_str(item, "video_zone", path, "center"),
+                ))
+        else:
+            offset = 0
+            node_id = self.digital_nodes[0].node_id if self.digital_nodes else 1
+            for strip in self.strips:
+                self.digital_segments.append(DigitalSegmentMapping(
+                    segment_id=strip.id,
+                    strip_id=strip.id,
+                    node_id=node_id,
+                    offset=offset,
+                    pixel_count=strip.pixel_count,
+                    direction=strip.direction,
+                    video_zone=strip.video_zone,
+                ))
+                offset += strip.pixel_count
 
     def get_zone_ids(self) -> list[str]:
         """Get all RGB+CCT zone IDs."""

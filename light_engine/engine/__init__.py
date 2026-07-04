@@ -11,12 +11,13 @@ import numpy as np
 from light_engine.analysis import AudioAnalyzer, VideoAnalyzer
 from light_engine.config import Config
 from light_engine.effects.base import BaseEffect, create_effect, list_effects
-from light_engine.mapping import Layout, ZoneDef
+from light_engine.mapping import Layout, ZoneDef, PhysicalMapping
 from light_engine.media import AudioReader, VideoReader
 from light_engine.models import (
     AudioFeatures,
     EffectContext,
     PixelFrame,
+    RoutedFrame,
     VideoFeatures,
 )
 from light_engine.outputs import (
@@ -47,6 +48,7 @@ class Engine:
 
         # Layout
         self._layout = Layout.from_config(config)
+        self._physical_mapping = PhysicalMapping(self._layout)
 
         # Analyzers (lazy init)
         self._video_analyzer: Optional[VideoAnalyzer] = None
@@ -237,9 +239,11 @@ class Engine:
                 )
                 frame = self._effect.process(ctx)
                 frame = self._output_transform.apply_to_frame(frame)
+                physical_frame = self._physical_mapping.map(frame)
+                routed_frame = RoutedFrame(logical=frame, physical=physical_frame)
 
                 # Send to outputs
-                send_all(self._outputs, frame)
+                send_all(self._outputs, routed_frame)
 
                 # Update diagnostics
                 self._frame_count += 1

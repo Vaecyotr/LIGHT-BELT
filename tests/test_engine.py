@@ -3,7 +3,9 @@
 import numpy as np
 import pytest
 from light_engine.config import Config
+import light_engine.engine as engine_module
 from light_engine.engine import Engine
+from light_engine.models import RoutedFrame
 from light_engine.outputs import NullOutput
 
 
@@ -54,6 +56,31 @@ class TestFrameSequence:
         engine.run(max_frames=5)
 
         assert [frame.sequence for frame in output.frames] == [1, 2, 3, 4, 5]
+
+    def test_engine_builds_routed_frame_before_output(self, monkeypatch):
+        captured = []
+
+        def capture_send_all(_outputs, frame):
+            captured.append(frame)
+
+        monkeypatch.setattr(engine_module, "send_all", capture_send_all)
+        Config.reset()
+        config = Config()
+        engine = Engine(config)
+        engine.set_effect("static")
+        output = NullOutput()
+        output.open()
+        engine._outputs = {"null": output}
+
+        engine.run(max_frames=1)
+
+        assert len(captured) == 1
+        assert isinstance(captured[0], RoutedFrame)
+        assert captured[0].logical.sequence == 1
+        assert captured[0].physical.sequence == 1
+        assert captured[0].logical.timestamp == captured[0].physical.timestamp
+        assert len(captured[0].physical.analog_commands) == 6
+        assert len(captured[0].physical.digital_frames) == 1
 
 
 class TestMaxFramesLimit:
