@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 class WorktreeError(RuntimeError):
-    """Raised when an isolated agent worktree cannot be prepared safely."""
+    """Raised when an isolated agent worktree cannot be managed safely."""
 
 
 @dataclass(frozen=True)
@@ -98,7 +98,10 @@ def validate_phase_id(value: str) -> str:
     return phase_id
 
 
-def require_task_file(repo_root: Path, task: Path) -> Path:
+def require_task_file(repo_root: Path, task: Path | None) -> Path:
+    if task is None:
+        raise WorktreeError("--task is required with --plan-only or --create.")
+
     task_path = task
 
     if not task_path.is_absolute():
@@ -152,6 +155,30 @@ def build_plan(
         base_branch=base_branch,
         base_commit=commit_result.stdout.strip(),
     )
+
+
+def build_cleanup_target(
+    repo_root: Path,
+    *,
+    phase_id: str,
+) -> tuple[str, Path]:
+    branch_name = f"agent/{phase_id}"
+    worktree_path = (
+        repo_root
+        / ".agent-worktrees"
+        / phase_id
+    ).resolve()
+
+    expected_parent = (repo_root / ".agent-worktrees").resolve()
+
+    try:
+        worktree_path.relative_to(expected_parent)
+    except ValueError as exc:
+        raise WorktreeError(
+            "Refusing cleanup outside .agent-worktrees."
+        ) from exc
+
+    return branch_name, worktree_path
 
 
 def require_available_plan(
@@ -230,9 +257,75 @@ def create_worktree(
     print(f"worktree={plan.worktree_path}")
 
 
+def cleanup_worktree(
+    repo_root: Path,
+    *,
+    phase_id: str,
+    force: bool,
+) -> None:
+    branch_name, worktree_path = build_cleanup_target(
+        repo_root,
+        phase_id=phase_id,
+    )
+
+    if worktree_path.exists():
+        remove_args = ["worktree", "remove", str(worktree_path)]
+        if force:
+            remove_args.append("--force")
+
+        result = run_git(remove_args, cwd=repo_root)
+
+        if result.returncode != 0:
+            raise WorktreeError(
+                "Failed to remove agent worktree.\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
+
+    prune_result = run_git(["worktree", "prune"], cwd=repo_root)
+    if prune_result.returncode != 0:
+        raise WorktreeError(
+            "Failed to prune stale worktree metadata.\n"
+            f"{prune_result.stderr.strip()}"
+        )
+
+    branch_result = run_git(
+        [
+            "show-ref",
+            "--verify",
+            "--quiet",
+            f"refs/heads/{branch_name}",
+        ],
+        cwd=repo_root,
+    )
+
+    if branch_result.returncode == 0:
+        delete_flag = "-D" if force else "-d"
+        delete_result = run_git(
+            ["branch", delete_flag, branch_name],
+            cwd=repo_root,
+        )
+
+        if delete_result.returncode != 0:
+            raise WorktreeError(
+                "Failed to delete agent branch.\n"
+                f"stdout:\n{delete_result.stdout}\n"
+                f"stderr:\n{delete_result.stderr}"
+            )
+    elif branch_result.returncode != 1:
+        raise WorktreeError(
+            "Unable to check whether the agent branch exists."
+        )
+
+    print("AGENT_WORKTREE_CLEANED")
+    print(f"branch={branch_name}")
+    print(f"worktree={worktree_path}")
+    print(f"force={str(force).lower()}")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Prepare a safe isolated LIGHT-BELT agent worktree."
+        description="Manage isolated LIGHT-BELT agent worktrees."
     )
     parser.add_argument(
         "--phase-id",
@@ -241,7 +334,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--task",
-        required=True,
         type=Path,
         help="Task Markdown file inside the repository.",
     )
@@ -262,6 +354,20 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Create the isolated branch and Git worktree.",
     )
+    mode.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="Remove the isolated worktree and its agent branch.",
+    )
+
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "With --cleanup, discard uncommitted agent-worktree changes "
+            "and force-delete the agent branch."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -271,10 +377,21 @@ def main() -> int:
 
     try:
         repo_root = repository_root(Path.cwd())
+        phase_id = validate_phase_id(args.phase_id)
+
+        if args.cleanup:
+            cleanup_worktree(
+                repo_root,
+                phase_id=phase_id,
+                force=args.force,
+            )
+            return 0
+
+        if args.force:
+            raise WorktreeError("--force is valid only with --cleanup.")
+
         require_clean_worktree(repo_root)
         require_branch(repo_root, args.base_branch)
-
-        phase_id = validate_phase_id(args.phase_id)
         task_path = require_task_file(repo_root, args.task)
 
         plan = build_plan(
