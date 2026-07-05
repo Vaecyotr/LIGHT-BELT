@@ -60,7 +60,10 @@ secrets/
 
 
 .agent-worktrees/
+.python_broken_backup/
+.python-build/
 .pip-cache/
+.tmp/
 .python-temp/
 .python-runtime-*/
 .python-runtime-*.zip

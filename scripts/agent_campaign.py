@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -65,6 +65,26 @@ def repo_root(start: Path) -> Path:
     if result.returncode != 0:
         raise CampaignError("Current directory is not inside a Git repository.")
     return Path(result.stdout.strip()).resolve()
+
+
+def project_python_candidates(root: Path) -> tuple[Path, ...]:
+    if os.name == "nt":
+        return (
+            root / ".python" / "Scripts" / "python.exe",
+            root / ".python" / "python.exe",
+        )
+    return (
+        root / ".python" / "bin" / "python",
+        root / ".python" / "python",
+    )
+
+
+def find_project_python(root: Path) -> Path:
+    for candidate in project_python_candidates(root):
+        if candidate.is_file():
+            return candidate
+    expected = "\n".join(f"- {item}" for item in project_python_candidates(root))
+    raise CampaignError("Project Python missing. Expected one of:\n" + expected)
 
 
 def current_branch(root: Path) -> str:
@@ -181,8 +201,9 @@ def run_step(
         )
 
     print(f"\n=== START {step.phase_id} ===")
+    python_executable = find_project_python(root)
     command = [
-        str(root / ".python" / "python.exe"),
+        str(python_executable),
         "scripts/agent_pipeline.py",
         "--run",
         "--phase-id",
@@ -223,10 +244,8 @@ def main() -> int:
         root = repo_root(Path.cwd())
         require_clean(root)
 
-        python_executable = root / ".python" / "python.exe"
+        python_executable = find_project_python(root)
         pipeline = root / "scripts" / "agent_pipeline.py"
-        if not python_executable.is_file():
-            raise CampaignError(f"Project Python missing: {python_executable}")
         if not pipeline.is_file():
             raise CampaignError(f"Pipeline missing: {pipeline}")
 

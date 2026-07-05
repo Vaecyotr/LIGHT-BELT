@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -69,6 +70,35 @@ def resolve_command(name: str) -> str:
     if resolved is None:
         raise PipelineError(f"Required command not found on PATH: {name}")
     return resolved
+
+
+def project_python_candidates(repo_root: Path) -> tuple[Path, ...]:
+    """Return supported project-local Python interpreter paths in priority order."""
+    if os.name == "nt":
+        return (
+            repo_root / ".python" / "Scripts" / "python.exe",
+            repo_root / ".python" / "python.exe",
+        )
+    return (
+        repo_root / ".python" / "bin" / "python",
+        repo_root / ".python" / "python",
+    )
+
+
+def find_project_python(repo_root: Path) -> Path:
+    for candidate in project_python_candidates(repo_root):
+        if candidate.is_file():
+            return candidate
+    expected = "\n".join(f"- {item}" for item in project_python_candidates(repo_root))
+    raise PipelineError("Project Python not found. Expected one of:\n" + expected)
+
+
+def is_windows_reparse_point(path: Path) -> bool:
+    try:
+        attributes = path.stat().st_file_attributes
+    except AttributeError:
+        return False
+    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
 def run_process(
@@ -294,11 +324,7 @@ def parse_task(
 
 
 def verify_project_python(repo_root: Path) -> Path:
-    python_executable = repo_root / ".python" / "python.exe"
-    if not python_executable.is_file():
-        raise PipelineError(
-            f"Bundled project Python not found: {python_executable}"
-        )
+    python_executable = find_project_python(repo_root)
 
     result = run_process(
         [
@@ -310,8 +336,10 @@ def verify_project_python(repo_root: Path) -> Path:
                 "cwd=pathlib.Path.cwd().resolve();"
                 "pkg=pathlib.Path(light_engine.__file__).resolve();"
                 "assert exe.name.lower()=='python.exe';"
-                "assert exe.parent.name=='.python';"
-                "assert exe.parent.parent==cwd;"
+                "standard=(exe.parent.name.lower()=='scripts' and "
+                "exe.parent.parent.name=='.python' and exe.parent.parent.parent==cwd);"
+                "legacy=(exe.parent.name=='.python' and exe.parent.parent==cwd);"
+                "assert standard or legacy;"
                 "assert str(pkg).startswith(str(cwd));"
                 "print('PROJECT_PYTHON_OK')"
             ),
@@ -366,11 +394,11 @@ def ensure_worktree_python(repo_root: Path, worktree_path: Path) -> Path:
     destination = worktree_path / ".python"
 
     if destination.exists():
-        python_executable = destination / (
-            "python.exe" if os.name == "nt" else "bin/python"
-        )
-        if python_executable.exists():
+        try:
+            python_executable = find_project_python(worktree_path)
             return python_executable
+        except PipelineError:
+            pass
         raise PipelineError(
             f"Existing worktree Python path is incomplete: {destination}"
         )
@@ -397,14 +425,13 @@ def ensure_worktree_python(repo_root: Path, worktree_path: Path) -> Path:
     else:
         destination.symlink_to(source, target_is_directory=True)
 
-    python_executable = destination / (
-        "python.exe" if os.name == "nt" else "bin/python"
-    )
-    if not python_executable.exists():
+    try:
+        python_executable = find_project_python(worktree_path)
+    except PipelineError as exc:
         raise PipelineError(
             f"Worktree Python link is missing its interpreter: "
-            f"{python_executable}"
-        )
+            f"{destination}"
+        ) from exc
 
     verification = run_process(
         [
@@ -900,6 +927,11 @@ def remove_success_worktree(ctx: PipelineContext) -> None:
 
     if python_path.exists():
         if os.name == "nt":
+            if not is_windows_reparse_point(python_path):
+                raise PipelineError(
+                    "Commit succeeded, but worktree .python is not a junction "
+                    "or symlink. Refusing to delete a Python environment path."
+                )
             unlink_result = run_process(
                 ["cmd", "/c", "rmdir", str(python_path)],
                 cwd=ctx.worktree_path,
@@ -908,14 +940,18 @@ def remove_success_worktree(ctx: PipelineContext) -> None:
             if unlink_result.returncode != 0 and python_path.exists():
                 raise PipelineError(
                     "Commit succeeded, but the worktree .python junction "
-                    "could not be removed.\n"
+                    "could not be removed. Refusing to recursively delete a "
+                    "Python environment path.\n"
                     f"stdout:\n{unlink_result.stdout}\n"
                     f"stderr:\n{unlink_result.stderr}"
                 )
         elif python_path.is_symlink():
             python_path.unlink()
-        elif python_path.is_dir():
-            shutil.rmtree(python_path)
+        else:
+            raise PipelineError(
+                "Commit succeeded, but worktree .python is not a symlink. "
+                "Refusing to recursively delete a Python environment path."
+            )
 
     result = run_git(
         ["worktree", "remove", str(ctx.worktree_path), "--force"],

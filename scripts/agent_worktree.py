@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -166,14 +167,28 @@ def create_worktree(repo_root: Path, plan: WorktreePlan) -> None:
     print(f"worktree={plan.worktree_path}")
 
 
+def _is_windows_reparse_point(path: Path) -> bool:
+    try:
+        attributes = path.stat().st_file_attributes
+    except AttributeError:
+        return False
+    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
 def _remove_python_link_if_present(worktree_path: Path) -> None:
     python_path = worktree_path / ".python"
     if not python_path.exists():
         return
 
-    # Old pipeline versions created a Windows junction. Remove the junction
-    # itself without touching the real project interpreter.
+    # The pipeline shares the project venv into worktrees via a junction or
+    # symlink. Never recursively delete this path; if it is a real directory,
+    # it may be the actual environment.
     if os.name == "nt":
+        if not _is_windows_reparse_point(python_path):
+            raise WorktreeError(
+                "Refusing to delete worktree .python because it is not a "
+                "junction or symlink."
+            )
         result = subprocess.run(
             ["cmd", "/c", "rmdir", str(python_path)],
             text=True,
@@ -184,12 +199,18 @@ def _remove_python_link_if_present(worktree_path: Path) -> None:
         )
         if result.returncode == 0:
             return
+        raise WorktreeError(
+            "Refusing to recursively delete worktree .python after junction "
+            "removal failed."
+        )
 
-    # New pipeline versions create a real mirrored directory.
-    if python_path.is_dir():
-        shutil.rmtree(python_path)
-    else:
+    if python_path.is_symlink():
         python_path.unlink(missing_ok=True)
+        return
+    raise WorktreeError(
+        "Refusing to recursively delete worktree .python because it is not a "
+        "symlink."
+    )
 
 
 def cleanup_worktree(
