@@ -5,7 +5,7 @@ import pytest
 from light_engine.config import Config
 import light_engine.engine as engine_module
 from light_engine.engine import Engine
-from light_engine.models import RoutedFrame
+from light_engine.mapping.physical import PhysicalFrame
 from light_engine.outputs import NullOutput
 
 
@@ -58,7 +58,7 @@ class TestFrameSequence:
         assert [frame.sequence for frame in output.frames] == [1, 2, 3, 4, 5, 6]
         assert output.frames[-1].metadata["SAFE_STATE"] is True
 
-    def test_engine_builds_routed_frame_before_output(self, monkeypatch):
+    def test_engine_sends_physical_frame_to_output(self, monkeypatch):
         captured = []
 
         def capture_send_all(_outputs, frame):
@@ -76,21 +76,19 @@ class TestFrameSequence:
         engine.run(max_frames=1)
 
         assert len(captured) == 2
-        assert isinstance(captured[0], RoutedFrame)
-        assert captured[0].logical.sequence == 1
-        assert captured[0].physical.sequence == 1
-        assert captured[0].logical.timestamp == captured[0].physical.timestamp
-        assert len(captured[0].physical.analog_commands) == 6
-        assert len(captured[0].physical.digital_frames) == 1
-        assert captured[1].logical.sequence == 2
-        assert captured[1].logical.metadata["SAFE_STATE"] is True
+        assert isinstance(captured[0], PhysicalFrame)
+        assert captured[0].sequence == 1
+        assert len(captured[0].analog_commands) == 6
+        assert len(captured[0].digital_frames) == 1
+        assert captured[1].sequence == 2
+        assert captured[1].metadata["SAFE_STATE"] is True
         assert all(
             command.color.r == 0.0
             and command.color.g == 0.0
             and command.color.b == 0.0
             and command.color.warm_white == 0.0
             and command.color.cool_white == 0.0
-            for command in captured[1].physical.analog_commands
+            for command in captured[1].analog_commands
         )
 
     def test_shutdown_closes_outputs_when_safe_frame_send_fails(self, monkeypatch):

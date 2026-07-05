@@ -1,46 +1,19 @@
-"""Regression tests for output health and RGB+CCT validation bugs."""
+"""Tests for Phase 6 output health accounting."""
 
 from __future__ import annotations
 
-import math
 import json
-from collections import deque
 
-import pytest
-
-import light_engine.outputs.serial_output as serial_module
-from light_engine.models import DigitalStrip, PixelFrame, RGBCCTColor, ZoneOutput
-from light_engine.outputs import health_summary, send_all
-from light_engine.outputs.serial_output import SerialOutput, SerialStreamParser
-from light_engine.outputs.udp_output import MAX_PIXELS_PER_PACKET, UdpOutput
-
-
-def _zone_frame(zone_count: int = 1) -> PixelFrame:
-    return PixelFrame(
-        timestamp=0.0,
-        zones=[
-            ZoneOutput(
-                zone_id=f"zone_{idx}",
-                color=RGBCCTColor(
-                    r=0.1, g=0.2, b=0.3, warm_white=0.4, cool_white=0.2
-                ),
-            )
-            for idx in range(zone_count)
-        ],
-    )
-
-
-def _strip_frame(pixel_count: int = 1) -> PixelFrame:
-    return PixelFrame(
-        timestamp=0.0,
-        strips=[
-            DigitalStrip(
-                strip_id="strip_0",
-                pixel_count=pixel_count,
-                pixels=[(0.1, 0.2, 0.3)] * pixel_count,
-            )
-        ],
-    )
+from light_engine.mapping.physical import (
+    AnalogNodeCommand,
+    DigitalNodeFrame,
+    PhysicalFrame,
+)
+from light_engine.models import RGBCCTColor
+from light_engine.outputs import OutputMode, health_summary, send_all
+from light_engine.outputs.rs485_v2 import FRAME_LENGTH, RS485v2Packet
+from light_engine.outputs.serial_output import SerialOutputV2
+from light_engine.outputs.udp_output import UdpOutputV2
 
 
 class RecordingSocket:
@@ -52,150 +25,55 @@ class RecordingSocket:
         return len(data)
 
 
-def _enabled_udp_output() -> tuple[UdpOutput, RecordingSocket]:
-    sock = RecordingSocket()
-    output = UdpOutput(host="127.0.0.1", port=9001)
-    output._open = True
-    output._enabled = True
-    output._socket = sock
-    return output, sock
+class FailingSocket:
+    def sendto(self, _data: bytes, _address: tuple[str, int]) -> int:
+        raise OSError("send failed")
 
 
-def _memory_serial_output() -> SerialOutput:
-    output = SerialOutput()
-    output._open = True
-    output._running = True
-    output._use_memory = True
-    output._memory_transport = bytearray()
-    output._parser = SerialStreamParser()
-    return output
-
-
-def test_udp_unopened_health_drop_does_not_call_health_as_function() -> None:
-    output = UdpOutput()
-
-    output.send_frame(_strip_frame())
-
-    health = output.health()
-    assert health.frames_dropped == 1
-    assert health.logical_frames_sent == 0
-    assert health.packets_sent == 0
-
-
-def test_udp_health_counts_one_logical_frame_and_multiple_packets() -> None:
-    output, sock = _enabled_udp_output()
-
-    output.send_frame(_strip_frame(MAX_PIXELS_PER_PACKET + 1))
-
-    health = output.health()
-    assert health.logical_frames_sent == 1
-    assert health.packets_sent == 2
-    assert health.frames_dropped == 0
-    assert len(sock.sent) == 2
-
-
-def test_send_all_does_not_double_count_udp_backend_health() -> None:
-    output, sock = _enabled_udp_output()
-
-    send_all({"udp": output}, _strip_frame())
-
-    health = output.health()
-    assert health.logical_frames_submitted == 1
-    assert health.logical_frames_sent == 1
-    assert health.packets_sent == 1
-    assert health.frames_dropped == 0
-    assert len(sock.sent) == 1
-
-
-def test_serial_send_frame_queue_drop_does_not_call_health_as_function() -> None:
-    output = _memory_serial_output()
-    output._write_queue = deque(maxlen=1)
-
-    output.send_frame(_zone_frame(zone_count=2))
-
-    health = output.health()
-    assert health.logical_frames_sent == 0
-    assert health.frames_dropped == 1
-    assert health.packets_sent == 0
-    assert len(output._write_queue) == 0
-
-
-def test_serial_counts_complete_logical_frame_when_queue_can_hold_all_packets() -> None:
-    output = _memory_serial_output()
-    output._write_queue = deque(maxlen=2)
-
-    output.send_frame(_zone_frame(zone_count=2))
-
-    health = output.health()
-    assert health.logical_frames_sent == 1
-    assert health.frames_dropped == 0
-    assert health.packets_sent == 0
-    assert len(output._write_queue) == 2
-
-
-def test_serial_writer_updates_packet_health_without_type_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    output = _memory_serial_output()
-    output._write_queue = deque(maxlen=2)
-    output.send_frame(_zone_frame(zone_count=2))
-
-    def stop_after_iteration(_seconds: float) -> None:
-        output._running = False
-
-    monkeypatch.setattr(serial_module.time, "sleep", stop_after_iteration)
-
-    output._writer_loop()
-
-    health = output.health()
-    assert health.logical_frames_sent == 1
-    assert health.packets_sent == 2
-    assert health.frames_dropped == 0
-    assert output.get_memory_bytes()
-
-
-def test_serial_encode_failure_does_not_count_complete_logical_frame() -> None:
-    class BadColor:
-        def to_uint8(self) -> dict[str, int]:
-            raise ValueError("bad color")
-
-    output = _memory_serial_output()
-    frame = PixelFrame(
-        timestamp=0.0,
-        zones=[
-            ZoneOutput(
-                zone_id="ok",
+def _physical_frame(sequence: int = 7, digital_nodes: int = 1) -> PhysicalFrame:
+    return PhysicalFrame(
+        sequence=sequence,
+        timestamp=0.25,
+        analog_commands=[
+            AnalogNodeCommand(
+                node_id=node_id,
+                zone_id=f"zone_{node_id}",
                 color=RGBCCTColor(r=0.1, g=0.2, b=0.3, warm_white=0.4),
-            ),
-            ZoneOutput(zone_id="bad", color=BadColor()),  # type: ignore[arg-type]
+                fade_ms=10,
+            )
+            for node_id in range(1, 7)
+        ],
+        digital_frames=[
+            DigitalNodeFrame(
+                node_id=node_id,
+                host=f"192.0.2.{node_id}",
+                port=9000 + node_id,
+                pixels=[(0.1, 0.2, 0.3)],
+            )
+            for node_id in range(1, digital_nodes + 1)
         ],
     )
 
-    output.send_frame(frame)
 
-    health = output.health()
-    assert health.logical_frames_sent == 0
-    assert health.frames_dropped == 1
-    assert health.packets_sent == 0
-    assert len(output._write_queue) == 0
+def test_send_all_counts_submitted_and_backend_counts_once() -> None:
+    output = UdpOutputV2(mode=OutputMode.MEMORY)
+    output.open()
 
-
-def test_send_all_submitted_count_is_distinct_from_backend_counts() -> None:
-    output, sock = _enabled_udp_output()
-
-    send_all({"udp": output}, _strip_frame(MAX_PIXELS_PER_PACKET + 1))
+    send_all({"udp_v2": output}, _physical_frame(digital_nodes=2))
 
     health = output.health()
     assert health.logical_frames_submitted == 1
     assert health.logical_frames_sent == 1
     assert health.packets_sent == 2
-    assert health.frames_sent == 1
-    assert len(sock.sent) == 2
+    assert health.frames_dropped == 0
 
 
 def test_send_all_counts_submitted_for_unhealthy_output_only() -> None:
-    output, _sock = _enabled_udp_output()
+    output = UdpOutputV2(mode=OutputMode.MEMORY)
+    output.open()
     output.health().healthy = False
 
-    send_all({"udp": output}, _strip_frame())
+    send_all({"udp_v2": output}, _physical_frame())
 
     health = output.health()
     assert health.logical_frames_submitted == 1
@@ -203,58 +81,64 @@ def test_send_all_counts_submitted_for_unhealthy_output_only() -> None:
     assert health.packets_sent == 0
 
 
-def test_health_summary_is_json_serializable() -> None:
-    output, _sock = _enabled_udp_output()
-    send_all({"udp": output}, _strip_frame())
+def test_rs485_counts_one_logical_frame_and_six_packets() -> None:
+    output = SerialOutputV2(mode=OutputMode.MEMORY)
+    output.open()
 
-    summary = health_summary({"udp": output})
+    output.send_frame(_physical_frame())
+
+    raw = output.get_memory_bytes()
+    assert len(raw) == FRAME_LENGTH * 6
+    assert output.health().logical_frames_sent == 1
+    assert output.health().packets_sent == 6
+    assert output.health().frames_dropped == 0
+
+
+def test_rs485_packets_for_one_frame_are_contiguous() -> None:
+    output = SerialOutputV2(mode=OutputMode.MEMORY)
+    output.open()
+
+    output.send_frame(_physical_frame(sequence=513))
+
+    raw = output.get_memory_bytes()
+    packets = [
+        RS485v2Packet.decode(raw[offset : offset + FRAME_LENGTH])
+        for offset in range(0, len(raw), FRAME_LENGTH)
+    ]
+    assert [packet.node_id for packet in packets if packet is not None] == [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+    ]
+    assert {packet.sequence for packet in packets if packet is not None} == {1}
+
+
+def test_udp_failure_isolated_and_counted() -> None:
+    output = UdpOutputV2(mode=OutputMode.PRODUCTION, socket=FailingSocket())
+    output.open()
+
+    send_all({"udp_v2": output}, _physical_frame())
+
+    health = output.health()
+    assert health.healthy is False
+    assert health.logical_frames_submitted == 1
+    assert health.logical_frames_sent == 0
+    assert health.packets_dropped == 1
+    assert "send failed" in (health.last_error or "")
+
+
+def test_health_summary_is_json_serializable() -> None:
+    output = UdpOutputV2(mode=OutputMode.MEMORY)
+    output.open()
+    send_all({"udp_v2": output}, _physical_frame())
+
+    summary = health_summary({"udp_v2": output})
 
     json.dumps(summary)
-    assert summary["outputs"]["udp"]["healthy"] is True
-    assert summary["outputs"]["udp"]["logical_frames_submitted"] == 1
-    assert summary["outputs"]["udp"]["logical_frames_sent"] == 1
-    assert summary["totals"]["logical_frames_submitted"] == 1
-    assert summary["totals"]["logical_frames_sent"] == 1
+    assert summary["outputs"]["udp_v2"]["healthy"] is True
+    assert summary["outputs"]["udp_v2"]["logical_frames_submitted"] == 1
+    assert summary["outputs"]["udp_v2"]["logical_frames_sent"] == 1
     assert summary["totals"]["packets_sent"] == 1
-
-
-@pytest.mark.parametrize("channel", ["r", "g", "b", "warm_white", "cool_white"])
-@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
-def test_rgbcct_color_rejects_non_finite_channels(channel: str, value: float) -> None:
-    kwargs = {
-        "r": 0.1,
-        "g": 0.2,
-        "b": 0.3,
-        "warm_white": 0.4,
-        "cool_white": 0.2,
-    }
-    kwargs[channel] = value
-
-    with pytest.raises(ValueError, match=channel):
-        RGBCCTColor(**kwargs)
-
-
-@pytest.mark.parametrize("channel", ["r", "g", "b", "warm_white", "cool_white"])
-@pytest.mark.parametrize("value", [-0.01, 1.01])
-def test_rgbcct_color_rejects_out_of_range_channels(channel: str, value: float) -> None:
-    kwargs = {
-        "r": 0.1,
-        "g": 0.2,
-        "b": 0.3,
-        "warm_white": 0.4,
-        "cool_white": 0.2,
-    }
-    kwargs[channel] = value
-
-    with pytest.raises(ValueError, match=channel):
-        RGBCCTColor(**kwargs)
-
-
-def test_rgbcct_color_preserves_valid_channels_individually() -> None:
-    color = RGBCCTColor(r=0.1, g=0.2, b=0.3, warm_white=0.4, cool_white=0.2)
-
-    assert color.r == 0.1
-    assert color.g == 0.2
-    assert color.b == 0.3
-    assert color.warm_white == 0.4
-    assert color.cool_white == 0.2

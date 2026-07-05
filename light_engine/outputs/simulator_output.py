@@ -6,7 +6,7 @@ import threading
 from collections import deque
 from typing import Optional
 
-from light_engine.models import PixelFrame
+from light_engine.mapping.physical import PhysicalFrame
 from light_engine.outputs import LightOutput
 
 
@@ -22,7 +22,7 @@ class SimulatorOutput(LightOutput):
 
     def __init__(self, max_frames: int = 64):
         super().__init__()
-        self._buffer: deque[PixelFrame] = deque(maxlen=max_frames)
+        self._buffer: deque[PhysicalFrame] = deque(maxlen=max_frames)
         self._max_frames = max_frames
         self._lock = threading.Lock()
 
@@ -34,7 +34,7 @@ class SimulatorOutput(LightOutput):
     def open(self) -> None:
         self._open = True
 
-    def send_frame(self, frame: PixelFrame) -> None:
+    def send_frame(self, frame: PhysicalFrame) -> None:
         """Thread-safe: enqueue a frame from the engine thread."""
         with self._lock:
             self._buffer.append(frame)
@@ -45,11 +45,11 @@ class SimulatorOutput(LightOutput):
                 self._frames_dropped += 1
                 self._health.frames_dropped += 1
 
-    def pop_latest(self) -> Optional[PixelFrame]:
+    def pop_latest(self) -> Optional[PhysicalFrame]:
         """Thread-safe: get the latest frame and drain all older ones.
 
         Returns:
-            The most recent PixelFrame, or None if buffer is empty.
+            The most recent PhysicalFrame, or None if buffer is empty.
             Each frame is returned at most once.
         """
         with self._lock:

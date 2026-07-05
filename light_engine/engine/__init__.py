@@ -17,7 +17,6 @@ from light_engine.models import (
     AudioFeatures,
     EffectContext,
     PixelFrame,
-    RoutedFrame,
     VideoFeatures,
 )
 from light_engine.outputs import (
@@ -241,10 +240,9 @@ class Engine:
                 frame = self._effect.process(ctx)
                 frame = self._output_transform.apply_to_frame(frame)
                 physical_frame = self._physical_mapping.map(frame)
-                routed_frame = RoutedFrame(logical=frame, physical=physical_frame)
 
                 # Send to outputs
-                send_all(self._outputs, routed_frame)
+                send_all(self._outputs, physical_frame)
 
                 # Update diagnostics
                 self._frame_count += 1
@@ -303,10 +301,7 @@ class Engine:
                 strips=self._strip_defs,
             )
             physical_safe_frame = self._physical_mapping.map(safe_frame)
-            send_all(
-                self._outputs,
-                RoutedFrame(logical=safe_frame, physical=physical_safe_frame),
-            )
+            send_all(self._outputs, physical_safe_frame)
         except Exception as e:
             logger.exception("Failed to send shutdown safe frame")
             self._diagnostics["last_error"] = str(e)
