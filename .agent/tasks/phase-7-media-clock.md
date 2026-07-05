@@ -1,4 +1,4 @@
-# Phase 7 — Media Clock Integration
+﻿# Phase 7 鈥?Media Clock Integration
 
 ## Phase ID
 
@@ -48,16 +48,17 @@ Complete Phase 7 from `docs/IMPLEMENTATION_PLAN.md`: injectable clock ownership,
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_clock.py tests/test_clock_integration.py tests/test_engine.py -q
+.\.python\Scripts\python.exe -m pytest tests/test_clock.py tests/test_clock_integration.py tests/test_engine.py -q
 ```
 
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q
 git diff --check
 ```
 
 ## Commit Message
 
 Phase 7: Media clock integration with mpv IPC support
+

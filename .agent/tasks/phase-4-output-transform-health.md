@@ -1,4 +1,4 @@
-# Phase 4 — Extended OutputTransform and Three-Tier Health Statistics
+﻿# Phase 4 鈥?Extended OutputTransform and Three-Tier Health Statistics
 
 ## Phase ID
 
@@ -54,16 +54,17 @@ Complete Phase 4 from `docs/IMPLEMENTATION_PLAN.md`: extend `OutputTransform`, i
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_output_transform.py tests/test_output_health.py tests/test_engine.py tests/test_serial.py tests/test_udp.py tests/test_simulator.py -q
+.\.python\Scripts\python.exe -m pytest tests/test_output_transform.py tests/test_output_health.py tests/test_engine.py tests/test_serial.py tests/test_udp.py tests/test_simulator.py -q
 ```
 
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q
 git diff --check
 ```
 
 ## Commit Message
 
 Phase 4: Extended OutputTransform and three-tier health statistics
+

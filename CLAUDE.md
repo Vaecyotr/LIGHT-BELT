@@ -1,4 +1,4 @@
-# LIGHT-BELT project instructions
+﻿# LIGHT-BELT project instructions
 
 ## Mission
 
@@ -131,10 +131,10 @@ For repository-wide changes, explore and produce a plan before implementation. A
 
 When project documents conflict, use this order of authority:
 
-1. CLAUDE.md — permanent project facts and invariants
-2. docs/CLOSED_LOOP_SPEC.md — target architecture and acceptance criteria
-3. Current source code and tests — current implementation truth
-4. Other files under docs/ — legacy/current-state reference only
+1. CLAUDE.md 鈥?permanent project facts and invariants
+2. docs/CLOSED_LOOP_SPEC.md 鈥?target architecture and acceptance criteria
+3. Current source code and tests 鈥?current implementation truth
+4. Other files under docs/ 鈥?legacy/current-state reference only
 
 The following documents describe the legacy v1 implementation and are not
 the target architecture:
@@ -147,3 +147,4 @@ the target architecture:
 Do not implement RGBW, 11-byte serial v1, per-strip UDP fragmentation, or
 WS2812B as the new target merely because they appear in legacy documents.
 Preserve them only where explicitly required for migration or legacy mode.
+

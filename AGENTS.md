@@ -1,4 +1,4 @@
-# LIGHT-BELT Codex Instructions
+﻿# LIGHT-BELT Codex Instructions
 
 This file defines stable repository-level constraints for future Codex
 sessions. Keep it concise, executable, and aligned with the current approved
@@ -21,7 +21,7 @@ references or details likely to drift.
 On Windows, use only the bundled interpreter:
 
 ```powershell
-.\.python\python.exe
+.\.python\Scripts\python.exe
 ```
 
 Never use bare `python`, `python3`, `py`, a Python executable from `C:`, or any
@@ -34,10 +34,10 @@ require `sys.executable` to contain the original drive path or repository
 directory name.
 
 ```powershell
-.\.python\python.exe -c "import sys, pathlib, light_engine; exe=pathlib.Path(sys.executable).resolve(); pkg=pathlib.Path(light_engine.__file__).resolve(); cwd=pathlib.Path.cwd().resolve(); print('executable=', exe); print('package=', pkg); assert exe.name.lower() == 'python.exe'; assert exe.parent.name == '.python'; assert exe.parent.parent == cwd; assert str(pkg).startswith(str(cwd)); print('PROJECT_PYTHON_OK')"
+.\.python\Scripts\python.exe -c "import sys, pathlib, light_engine; exe=pathlib.Path(sys.executable).resolve(); pkg=pathlib.Path(light_engine.__file__).resolve(); cwd=pathlib.Path.cwd().resolve(); print('executable=', exe); print('package=', pkg); assert exe.name.lower() == 'python.exe'; assert exe.parent.name == '.python'; assert exe.parent.parent == cwd; assert str(pkg).startswith(str(cwd)); print('PROJECT_PYTHON_OK')"
 ```
 
-The command is valid when it was invoked as `.\.python\python.exe`, the
+The command is valid when it was invoked as `.\.python\Scripts\python.exe`, the
 resolved executable is the `.python\python.exe` under the current workspace
 mapping, `light_engine` imports successfully, and the imported package file is
 also under the current workspace mapping.
@@ -53,7 +53,7 @@ not fall back to another Python.
 - Before modifying files, run the baseline tests with the bundled interpreter:
 
   ```powershell
-  .\.python\python.exe -m pytest -q
+  .\.python\Scripts\python.exe -m pytest -q
   ```
 
 - After each coherent change, run relevant tests and then the full test suite.
@@ -110,3 +110,4 @@ At the end of a task, report:
 If the final required benchmark or firmware build is in scope for the approved
 Phase, also report its command, return code, and measured output. Never claim
 hardware verification without real evidence.
+

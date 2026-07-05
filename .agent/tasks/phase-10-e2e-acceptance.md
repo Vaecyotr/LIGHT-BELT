@@ -1,4 +1,4 @@
-# Phase 10 — End-to-End Acceptance
+﻿# Phase 10 鈥?End-to-End Acceptance
 
 ## Phase ID
 
@@ -32,7 +32,7 @@ Complete Phase 10 from `docs/IMPLEMENTATION_PLAN.md`: a deterministic ten-second
 
 - Generate or use deterministic ten-second video and audio fixtures.
 - Run `video_audio_fusion` through fake RS-485 v2, fake UDP v2, and JSON outputs.
-- Produce approximately 300–301 logical frames at 30 FPS.
+- Produce approximately 300鈥?01 logical frames at 30 FPS.
 - Each normal frame produces six RS-485 packets and one UDP datagram.
 - Same-frame sequence values agree across protocols.
 - All protocol packets decode successfully.
@@ -46,14 +46,14 @@ Complete Phase 10 from `docs/IMPLEMENTATION_PLAN.md`: a deterministic ten-second
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_e2e_acceptance.py -v
+.\.python\Scripts\python.exe -m pytest tests/test_e2e_acceptance.py -v
 ```
 
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
-.\.python\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
+.\.python\Scripts\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
 pio run -d firmware/stm32_rgbcct_node
 pio run -d firmware/esp32_ws2811_node
 git diff --check
@@ -62,3 +62,4 @@ git diff --check
 ## Commit Message
 
 Phase 10: End-to-end acceptance tests
+

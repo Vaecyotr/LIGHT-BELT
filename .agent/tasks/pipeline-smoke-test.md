@@ -1,4 +1,4 @@
-# Dual-Agent Pipeline Smoke Test
+﻿# Dual-Agent Pipeline Smoke Test
 
 ## Phase ID
 
@@ -55,13 +55,13 @@ This is a low-risk end-to-end pipeline test. It must not modify LIGHT-BELT runti
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_models.py -q
+.\.python\Scripts\python.exe -m pytest tests/test_models.py -q
 ```
 
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q
 git diff --check
 ```
 
@@ -84,3 +84,4 @@ status: automated-pipeline-ready
 application-code-changed: no
 hardware-verified: no
 ```
+

@@ -1,4 +1,4 @@
-# Phase 9 — STM32 and ESP32-S3 Firmware Projects
+﻿# Phase 9 鈥?STM32 and ESP32-S3 Firmware Projects
 
 ## Phase ID
 
@@ -42,7 +42,7 @@ Complete Phase 9 from `docs/IMPLEMENTATION_PLAN.md`: independently buildable Pla
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_golden_consistency.py -q
+.\.python\Scripts\python.exe -m pytest tests/test_golden_consistency.py -q
 pio run -d firmware/stm32_rgbcct_node
 pio run -d firmware/esp32_ws2811_node
 ```
@@ -50,7 +50,7 @@ pio run -d firmware/esp32_ws2811_node
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q
 pio run -d firmware/stm32_rgbcct_node
 pio run -d firmware/esp32_ws2811_node
 git diff --check
@@ -59,3 +59,4 @@ git diff --check
 ## Commit Message
 
 Phase 9: STM32 and ESP32-S3 firmware projects
+

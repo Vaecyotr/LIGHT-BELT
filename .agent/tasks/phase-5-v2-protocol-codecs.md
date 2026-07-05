@@ -1,4 +1,4 @@
-# Phase 5 — RS-485 v2 and UDP v2 Protocol Codecs
+﻿# Phase 5 鈥?RS-485 v2 and UDP v2 Protocol Codecs
 
 ## Phase ID
 
@@ -52,17 +52,18 @@ Implement Phase 5 from `docs/IMPLEMENTATION_PLAN.md`: pure RS-485 v2 and UDP v2 
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_rs485_v2.py tests/test_udp_v2.py tests/test_golden_consistency.py tests/test_serial.py tests/test_udp.py -q
+.\.python\Scripts\python.exe -m pytest tests/test_rs485_v2.py tests/test_udp_v2.py tests/test_golden_consistency.py tests/test_serial.py tests/test_udp.py -q
 ```
 
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
-.\.python\python.exe firmware/shared/generate_golden_headers.py
+.\.python\Scripts\python.exe -m pytest -q
+.\.python\Scripts\python.exe firmware/shared/generate_golden_headers.py
 git diff --check
 ```
 
 ## Commit Message
 
 Phase 5: RS-485 v2 and UDP v2 protocol codecs with golden vectors
+

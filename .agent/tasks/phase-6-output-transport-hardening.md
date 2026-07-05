@@ -1,4 +1,4 @@
-# Phase 6 — Output Transport Hardening and v1 Removal
+﻿# Phase 6 鈥?Output Transport Hardening and v1 Removal
 
 ## Phase ID
 
@@ -52,16 +52,17 @@ Complete Phase 6 from `docs/IMPLEMENTATION_PLAN.md`: production/memory/fake mode
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_output_safety.py tests/test_output_health.py tests/test_engine.py tests/test_serial.py tests/test_udp.py -q
+.\.python\Scripts\python.exe -m pytest tests/test_output_safety.py tests/test_output_health.py tests/test_engine.py tests/test_serial.py tests/test_udp.py -q
 ```
 
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q
 git diff --check
 ```
 
 ## Commit Message
 
 Phase 6: Harden output transport, delete v1 outputs and RoutedFrame
+

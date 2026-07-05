@@ -46,12 +46,12 @@ Explain why this Phase exists and what previous approved behavior must remain un
 
 ## Required Targeted Tests
 
-.\.python\python.exe -m pytest tests/test_x.py -v
+.\.python\Scripts\python.exe -m pytest tests/test_x.py -v
 
 ## Required Full Verification
 
-.\.python\python.exe -m pytest -q
-.\.python\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
+.\.python\Scripts\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
 git diff --check
 git status --short
 git diff --stat
@@ -75,3 +75,4 @@ The implementation or repair agent must report:
 ## Notes
 
 Do not claim hardware verification unless real hardware was connected and tested.
+

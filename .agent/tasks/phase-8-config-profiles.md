@@ -1,4 +1,4 @@
-# Phase 8 — Configuration Upgrade and Dual Profiles
+﻿# Phase 8 鈥?Configuration Upgrade and Dual Profiles
 
 ## Phase ID
 
@@ -49,16 +49,17 @@ Complete Phase 8 from `docs/IMPLEMENTATION_PLAN.md`: strict v2 configuration val
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_config.py tests/test_config_validation.py tests/test_json_output.py tests/test_simulator.py -q
+.\.python\Scripts\python.exe -m pytest tests/test_config.py tests/test_config_validation.py tests/test_json_output.py tests/test_simulator.py -q
 ```
 
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q
 git diff --check
 ```
 
 ## Commit Message
 
 Phase 8: Configuration upgrade with dual profiles and PhysicalFrame views
+

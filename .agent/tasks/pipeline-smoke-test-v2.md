@@ -1,4 +1,4 @@
-# Dual-Agent Pipeline Smoke Test
+﻿# Dual-Agent Pipeline Smoke Test
 
 ## Phase ID
 
@@ -51,13 +51,13 @@ Verify the complete Codex implementation, deterministic verification, Claude rev
 ## Required Targeted Tests
 
 ```powershell
-.\.python\python.exe -m pytest tests/test_models.py -q
+.\.python\Scripts\python.exe -m pytest tests/test_models.py -q
 ```
 
 ## Required Full Verification
 
 ```powershell
-.\.python\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q
 git diff --check
 ```
 
@@ -80,3 +80,4 @@ status: automated-pipeline-ready
 application-code-changed: no
 hardware-verified: no
 ```
+
