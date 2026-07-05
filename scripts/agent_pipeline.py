@@ -761,26 +761,30 @@ def build_review_prompt(
 
 def extract_json_object(text: str) -> dict[str, Any]:
     stripped = text.strip()
-    try:
-        value = json.loads(stripped)
+
+    fenced = re.findall(
+        r"```(?:json)?\s*(\{.*?\})\s*```",
+        stripped,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for candidate in fenced:
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
         if isinstance(value, dict):
             return value
-    except json.JSONDecodeError:
-        pass
 
-    start = stripped.find("{")
-    end = stripped.rfind("}")
-    if start >= 0 and end > start:
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", stripped):
         try:
-            value = json.loads(stripped[start : end + 1])
-            if isinstance(value, dict):
-                return value
-        except json.JSONDecodeError as exc:
-            raise PipelineError(
-                "Claude output contained invalid JSON."
-            ) from exc
+            value, _ = decoder.raw_decode(stripped[match.start():])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
 
-    raise PipelineError("Claude output did not contain a JSON object.")
+    raise PipelineError("Claude output did not contain a valid JSON object.")
 
 
 def validate_review(review: dict[str, Any]) -> None:
