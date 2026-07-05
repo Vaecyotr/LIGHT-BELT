@@ -896,16 +896,58 @@ def commit_success(ctx: PipelineContext) -> str:
 
 
 def remove_success_worktree(ctx: PipelineContext) -> None:
+    python_path = ctx.worktree_path / ".python"
+
+    if python_path.exists():
+        if os.name == "nt":
+            unlink_result = run_process(
+                ["cmd", "/c", "rmdir", str(python_path)],
+                cwd=ctx.worktree_path,
+                timeout=120,
+            )
+            if unlink_result.returncode != 0 and python_path.exists():
+                raise PipelineError(
+                    "Commit succeeded, but the worktree .python junction "
+                    "could not be removed.\n"
+                    f"stdout:\n{unlink_result.stdout}\n"
+                    f"stderr:\n{unlink_result.stderr}"
+                )
+        elif python_path.is_symlink():
+            python_path.unlink()
+        elif python_path.is_dir():
+            shutil.rmtree(python_path)
+
     result = run_git(
         ["worktree", "remove", str(ctx.worktree_path), "--force"],
         cwd=ctx.repo_root,
     )
+
     if result.returncode != 0:
-        raise PipelineError(
-            "Commit succeeded, but worktree removal failed.\n"
-            f"{result.stderr.strip()}"
+        registered = run_git(
+            ["worktree", "list", "--porcelain"],
+            cwd=ctx.repo_root,
         )
-    run_git(["worktree", "prune"], cwd=ctx.repo_root)
+        still_registered = (
+            registered.returncode == 0
+            and str(ctx.worktree_path).replace("\\", "/")
+            in registered.stdout.replace("\\", "/")
+        )
+
+        if still_registered:
+            raise PipelineError(
+                "Commit succeeded, but Git could not remove the worktree.\n"
+                f"{result.stderr.strip()}"
+            )
+
+        if ctx.worktree_path.exists():
+            shutil.rmtree(ctx.worktree_path)
+
+    prune = run_git(["worktree", "prune"], cwd=ctx.repo_root)
+    if prune.returncode != 0:
+        raise PipelineError(
+            "Commit succeeded and the worktree was removed, but "
+            f"`git worktree prune` failed: {prune.stderr.strip()}"
+        )
 
 
 def cleanup_failure(ctx: PipelineContext, timeout: int) -> None:
