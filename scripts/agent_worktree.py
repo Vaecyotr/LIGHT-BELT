@@ -168,9 +168,14 @@ def create_worktree(repo_root: Path, plan: WorktreePlan) -> None:
 
 
 def _is_windows_reparse_point(path: Path) -> bool:
+    """Return True when *path itself* is a Windows reparse point.
+
+    ``Path.stat()`` follows junctions and reports the target directory, while
+    ``Path.lstat()`` inspects the junction entry itself.
+    """
     try:
-        attributes = path.stat().st_file_attributes
-    except AttributeError:
+        attributes = path.lstat().st_file_attributes
+    except (AttributeError, OSError):
         return False
     return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 

@@ -94,9 +94,15 @@ def find_project_python(repo_root: Path) -> Path:
 
 
 def is_windows_reparse_point(path: Path) -> bool:
+    """Return True when *path itself* is a Windows reparse point.
+
+    ``Path.stat()`` follows junctions and reports the target directory, so it
+    can hide the reparse-point flag. ``Path.lstat()`` inspects the directory
+    entry itself and is therefore required for safe junction detection.
+    """
     try:
-        attributes = path.stat().st_file_attributes
-    except AttributeError:
+        attributes = path.lstat().st_file_attributes
+    except (AttributeError, OSError):
         return False
     return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 

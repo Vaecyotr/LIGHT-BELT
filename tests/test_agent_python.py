@@ -75,3 +75,40 @@ def test_worktree_cleanup_refuses_real_python_directory(tmp_path: Path) -> None:
         agent_worktree._remove_python_link_if_present(tmp_path)
 
     assert python_dir.is_dir()
+
+
+class _FakeReparseStat:
+    st_file_attributes = getattr(
+        agent_pipeline.stat,
+        "FILE_ATTRIBUTE_REPARSE_POINT",
+        0x400,
+    )
+
+
+class _FakePath:
+    def __init__(self, result):
+        self.result = result
+        self.stat_called = False
+        self.lstat_called = False
+
+    def stat(self):
+        self.stat_called = True
+        raise AssertionError("stat() must not be used for junction detection")
+
+    def lstat(self):
+        self.lstat_called = True
+        return self.result
+
+
+def test_pipeline_reparse_detection_uses_lstat() -> None:
+    fake = _FakePath(_FakeReparseStat())
+    assert agent_pipeline.is_windows_reparse_point(fake)
+    assert fake.lstat_called
+    assert not fake.stat_called
+
+
+def test_worktree_reparse_detection_uses_lstat() -> None:
+    fake = _FakePath(_FakeReparseStat())
+    assert agent_worktree._is_windows_reparse_point(fake)
+    assert fake.lstat_called
+    assert not fake.stat_called
