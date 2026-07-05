@@ -338,15 +338,20 @@ def verify_project_python(repo_root: Path) -> Path:
             "-c",
             (
                 "import pathlib,sys,light_engine;"
-                "exe=pathlib.Path(sys.executable).resolve();"
                 "cwd=pathlib.Path.cwd().resolve();"
+                "exe=pathlib.Path(sys.executable).resolve();"
                 "pkg=pathlib.Path(light_engine.__file__).resolve();"
+                "candidates=["
+                "cwd/'.python'/'Scripts'/'python.exe',"
+                "cwd/'.python'/'python.exe'"
+                "];"
+                "existing=[c for c in candidates if c.is_file()];"
+                "assert existing,'No project Python found';"
+                "assert any(c.resolve()==exe for c in existing),"
+                "'Executable does not match project Python';"
                 "assert exe.name.lower()=='python.exe';"
-                "standard=(exe.parent.name.lower()=='scripts' and "
-                "exe.parent.parent.name=='.python' and exe.parent.parent.parent==cwd);"
-                "legacy=(exe.parent.name=='.python' and exe.parent.parent==cwd);"
-                "assert standard or legacy;"
-                "assert str(pkg).startswith(str(cwd));"
+                "assert pkg.is_relative_to(cwd),"
+                "'light_engine was not imported from current workspace';"
                 "print('PROJECT_PYTHON_OK')"
             ),
         ],
@@ -466,6 +471,11 @@ def write_json(path: Path, payload: Any) -> None:
     )
 
 
+def write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
 def save_process(
     path: Path,
     command: list[str] | str,
@@ -565,8 +575,24 @@ def build_implement_prompt(ctx: PipelineContext, iteration: int) -> str:
         f"- Iteration: {iteration}\n"
         f"- Required report path: `{report_relative}`\n\n"
         "Do not commit, stage, switch branches, or modify files outside this "
-        "worktree. Finish by writing the required report file."
+        "worktree. Treat the task file as the primary specification. Do not read "
+        "docs/CLOSED_LOOP_SPEC.md or docs/IMPLEMENTATION_PLAN.md in full. Use "
+        "targeted searches and read only the current Phase section when additional "
+        "context is genuinely required. Finish by writing the required report file."
     )
+
+
+def write_repair_diff_artifact(ctx: PipelineContext, iteration: int) -> str:
+    relative = (
+        Path(".agent")
+        / "reports"
+        / ctx.task.phase_id
+        / f"current-diff-for-repair-{iteration}.patch"
+    )
+    diff = git_diff_text(ctx)
+    write_text(ctx.report_dir / relative.name, diff)
+    write_text(ctx.worktree_path / relative, diff)
+    return relative.as_posix()
 
 
 def build_repair_prompt(ctx: PipelineContext, iteration: int, review: dict[str, Any]) -> str:
@@ -578,15 +604,33 @@ def build_repair_prompt(ctx: PipelineContext, iteration: int, review: dict[str, 
         / ctx.task.phase_id
         / f"codex-repair-{iteration}.md"
     ).as_posix()
+    quality_iteration = iteration - 1
+    quality_relative = (
+        Path(".agent")
+        / "reports"
+        / ctx.task.phase_id
+        / f"quality-gate-{quality_iteration}.json"
+    ).as_posix()
+    diff_relative = write_repair_diff_artifact(ctx, iteration)
 
     return (
         f"{base}\n\n"
-        f"Task file: `{ctx.task.task_relative.as_posix()}`\n"
-        f"Repair iteration: {iteration}\n"
-        f"Required repair report path: `{report_relative}`\n\n"
+        "Orchestrator inputs:\n"
+        f"- Task file: `{ctx.task.task_relative.as_posix()}`\n"
+        f"- Repair iteration: {iteration}\n"
+        f"- Latest quality-gate report: `{quality_relative}`\n"
+        f"- Current diff artifact: `{diff_relative}`\n"
+        f"- Required repair report path: `{report_relative}`\n\n"
         "Independent review JSON:\n"
         + json.dumps(review, indent=2, ensure_ascii=False)
-        + "\n\nDo not commit, stage, or switch branches."
+        + (
+            "\n\nDo not commit, stage, or switch branches. "
+            "Use the supplied review JSON, latest quality-gate report, current "
+            "diff, and task file as the primary context. Do not reread "
+            "docs/CLOSED_LOOP_SPEC.md or docs/IMPLEMENTATION_PLAN.md in full. "
+            "Consult only the exact relevant section when the required action "
+            "cannot be understood from the task and review."
+        )
     )
 
 
@@ -751,6 +795,14 @@ def run_quality_gate(
     }
     write_json(
         ctx.report_dir / f"quality-gate-{iteration}.json",
+        payload,
+    )
+    write_json(
+        ctx.worktree_path
+        / ".agent"
+        / "reports"
+        / ctx.task.phase_id
+        / f"quality-gate-{iteration}.json",
         payload,
     )
     return payload
