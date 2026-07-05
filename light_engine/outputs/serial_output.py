@@ -21,8 +21,10 @@ import time
 from collections import deque
 from typing import Optional, Tuple
 
+from light_engine.mapping.physical import PhysicalFrame
 from light_engine.models import PixelFrame
 from light_engine.outputs import LightOutput
+from light_engine.outputs.rs485_v2 import RS485v2Packet
 
 
 # Protocol constants
@@ -429,5 +431,66 @@ class SerialOutput(LightOutput):
             "checksum": "8-bit sum (not CRC)",
             "frame_length": FRAME_LENGTH,
             "transport": "memory" if self._use_memory else "serial",
+        })
+        return caps
+
+
+class SerialOutputV2(LightOutput):
+    """RS-485 v2 output for physical analog node commands."""
+
+    def __init__(self, transport: Optional[object] = None):
+        super().__init__()
+        self._transport = transport
+        self._memory_transport = bytearray()
+
+    def open(self) -> None:
+        self._open = True
+
+    def send_frame(self, frame: PhysicalFrame) -> None:  # type: ignore[override]
+        if not self._open:
+            return
+        try:
+            packets = []
+            for command in frame.analog_commands:
+                channels = command.color.to_uint8()
+                packets.append(
+                    RS485v2Packet(
+                        node_id=command.node_id,
+                        sequence=frame.sequence & 0xFF,
+                        r=channels["r"],
+                        g=channels["g"],
+                        b=channels["b"],
+                        warm_white=channels["warm_white"],
+                        cool_white=channels["cool_white"],
+                        fade_ms=command.fade_ms,
+                    ).encode()
+                )
+        except Exception as exc:
+            self._health.frames_dropped += 1
+            self._health.last_error = f"RS-485 v2 encode error: {exc}"
+            return
+
+        for packet in packets:
+            if self._transport is not None:
+                self._transport.write(packet)  # type: ignore[attr-defined]
+            else:
+                self._memory_transport.extend(packet)
+            self._health.packets_sent += 1
+        self._health.logical_frames_sent += 1
+        self._health.mark_success()
+
+    def close(self) -> None:
+        self._open = False
+
+    def get_memory_bytes(self) -> bytes:
+        return bytes(self._memory_transport)
+
+    def capabilities(self) -> dict:
+        caps = super().capabilities()
+        caps.update({
+            "supports_rgbcct": True,
+            "protocol": "RS-485 RGB+CCT fixed frame v2",
+            "frame_length": 16,
+            "transport": "injected" if self._transport is not None else "memory",
         })
         return caps

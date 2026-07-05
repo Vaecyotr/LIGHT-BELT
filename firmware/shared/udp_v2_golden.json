@@ -1,0 +1,17 @@
+{
+  "protocol": "udp_v2",
+  "vectors": [
+    {
+      "name": "node_7_key_frame_two_pixels",
+      "message_type": 1,
+      "digital_node_id": 7,
+      "flags": 2,
+      "sequence": 16909060,
+      "pixels": [
+        [1, 2, 3],
+        [254, 128, 0]
+      ],
+      "encoded_hex": "4c45020107020102030400020006010203fe80001d568f8f"
+    }
+  ]
+}

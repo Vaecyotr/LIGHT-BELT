@@ -94,8 +94,8 @@ class LightOutput(ABC):
 from light_engine.outputs.null_output import NullOutput
 from light_engine.outputs.json_output import JsonOutput
 from light_engine.outputs.simulator_output import SimulatorOutput
-from light_engine.outputs.udp_output import UdpOutput
-from light_engine.outputs.serial_output import SerialOutput
+from light_engine.outputs.udp_output import UdpOutput, UdpOutputV2
+from light_engine.outputs.serial_output import SerialOutput, SerialOutputV2
 
 
 def create_outputs(config: Any) -> dict[str, LightOutput]:
@@ -125,11 +125,15 @@ def create_outputs(config: Any) -> dict[str, LightOutput]:
             port=config.get("outputs.udp.port", 9001),
             max_packet_size=config.get("outputs.udp.max_packet_size", 1400),
         )
+    if "udp_v2" in enabled:
+        outputs["udp_v2"] = UdpOutputV2()
     if "serial" in enabled:
         outputs["serial"] = SerialOutput(
             port=config.get("outputs.serial.port", "COM3"),
             baudrate=config.get("outputs.serial.baudrate", 115200),
         )
+    if "rs485_v2" in enabled:
+        outputs["rs485_v2"] = SerialOutputV2()
 
     return outputs
 
@@ -151,6 +155,15 @@ def _legacy_frame(frame: PixelFrame | RoutedFrame) -> PixelFrame:
     return frame
 
 
+def _output_frame(output: LightOutput, frame: PixelFrame | RoutedFrame) -> PixelFrame | Any:
+    """Route transition frames to legacy or v2 backends."""
+    if isinstance(frame, RoutedFrame):
+        if isinstance(output, (SerialOutputV2, UdpOutputV2)):
+            return frame.physical
+        return frame.logical
+    return frame
+
+
 def send_all(outputs: dict[str, LightOutput], frame: PixelFrame | RoutedFrame) -> None:
     """Send frame to all open outputs, isolating failures."""
     for name, output in outputs.items():
@@ -159,7 +172,7 @@ def send_all(outputs: dict[str, LightOutput], frame: PixelFrame | RoutedFrame) -
         if not health.healthy:
             continue
         try:
-            output.send_frame(_legacy_frame(frame))
+            output.send_frame(_output_frame(output, frame))
         except Exception as e:
             health.healthy = False
             health.last_error = str(e)

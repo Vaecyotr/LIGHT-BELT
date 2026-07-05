@@ -10,8 +10,10 @@ import struct
 import time
 from typing import Optional
 
+from light_engine.mapping.physical import PhysicalFrame
 from light_engine.models import PixelFrame
 from light_engine.outputs import LightOutput
+from light_engine.outputs.udp_v2 import UdpV2Packet
 
 
 # Protocol constants
@@ -162,5 +164,63 @@ class UdpOutput(LightOutput):
             "supports_digital": True,
             "max_pixels": 65535,
             "protocol": f"UDP binary v{PROTOCOL_VERSION}",
+        })
+        return caps
+
+
+class UdpOutputV2(LightOutput):
+    """UDP v2 output that sends one complete datagram per digital node frame."""
+
+    def __init__(self, socket: Optional[object] = None):
+        super().__init__()
+        self._socket = socket
+        self._sent_datagrams: list[tuple[bytes, tuple[str, int]]] = []
+
+    def open(self) -> None:
+        self._open = True
+
+    def send_frame(self, frame: PhysicalFrame) -> None:  # type: ignore[override]
+        if not self._open:
+            return
+        frame_ok = True
+        for digital_frame in frame.digital_frames:
+            try:
+                pixels_uint8 = [
+                    (round(r * 255), round(g * 255), round(b * 255))
+                    for r, g, b in digital_frame.pixels
+                ]
+                packet = UdpV2Packet(
+                    digital_node_id=digital_frame.node_id,
+                    sequence=frame.sequence,
+                    pixels=pixels_uint8,
+                ).encode()
+                address = (digital_frame.host, digital_frame.port)
+                if self._socket is not None:
+                    self._socket.sendto(packet, address)  # type: ignore[attr-defined]
+                self._sent_datagrams.append((packet, address))
+                self._health.packets_sent += 1
+                self._health.mark_success()
+            except Exception as exc:
+                frame_ok = False
+                self._health.packets_dropped += 1
+                self._health.last_error = f"UDP v2 encode/send error: {exc}"
+        if frame_ok:
+            self._health.logical_frames_sent += 1
+            self._health.mark_success()
+        else:
+            self._health.frames_dropped += 1
+
+    def close(self) -> None:
+        self._open = False
+
+    def get_sent_datagrams(self) -> list[tuple[bytes, tuple[str, int]]]:
+        return list(self._sent_datagrams)
+
+    def capabilities(self) -> dict:
+        caps = super().capabilities()
+        caps.update({
+            "supports_digital": True,
+            "protocol": "UDP complete physical frame v2",
+            "max_pixels": 65535,
         })
         return caps
