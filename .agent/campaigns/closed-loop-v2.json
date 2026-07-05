@@ -1,0 +1,41 @@
+{
+  "campaign_branch": "campaign/closed-loop-v2",
+  "start_branch": "main",
+  "steps": [
+    {
+      "phase_id": "phase-4-output-transform-health",
+      "task": ".agent/tasks/phase-4-output-transform-health.md",
+      "max_repairs": 2
+    },
+    {
+      "phase_id": "phase-5-v2-protocol-codecs",
+      "task": ".agent/tasks/phase-5-v2-protocol-codecs.md",
+      "max_repairs": 2
+    },
+    {
+      "phase_id": "phase-6-output-transport-hardening",
+      "task": ".agent/tasks/phase-6-output-transport-hardening.md",
+      "max_repairs": 2
+    },
+    {
+      "phase_id": "phase-7-media-clock",
+      "task": ".agent/tasks/phase-7-media-clock.md",
+      "max_repairs": 2
+    },
+    {
+      "phase_id": "phase-8-config-profiles",
+      "task": ".agent/tasks/phase-8-config-profiles.md",
+      "max_repairs": 2
+    },
+    {
+      "phase_id": "phase-9-firmware-projects",
+      "task": ".agent/tasks/phase-9-firmware-projects.md",
+      "max_repairs": 2
+    },
+    {
+      "phase_id": "phase-10-e2e-acceptance",
+      "task": ".agent/tasks/phase-10-e2e-acceptance.md",
+      "max_repairs": 2
+    }
+  ]
+}
