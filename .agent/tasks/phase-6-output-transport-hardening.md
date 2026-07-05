@@ -25,6 +25,9 @@ Complete Phase 6 from `docs/IMPLEMENTATION_PLAN.md`: production/memory/fake mode
 - tests/test_phased_output_matrix.py
 - docs/IMPLEMENTATION_PLAN.md
 - docs/architecture.md
+- tests/test_golden_consistency.py
+- tests/test_rs485_v2.py
+- tests/test_udp_v2.py
 
 ## Forbidden Files
 
