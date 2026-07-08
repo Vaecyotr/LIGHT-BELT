@@ -33,7 +33,7 @@ TARGET_KINDS = frozenset(
         "all",
     }
 )
-BLEND_MODES = frozenset({"replace", "add", "max", "alpha"})
+BLEND_MODES = frozenset({"replace", "add"})
 EFFECT_MODES = frozenset({"fixed", "adaptive"})
 AUDIO_STATES = frozenset(
     {

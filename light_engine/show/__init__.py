@@ -12,6 +12,7 @@ from light_engine.show.compositor import (
     compose_frame,
     frame_to_contribution,
     make_scoped_context,
+    transition_weight,
 )
 from light_engine.show.loader import (
     ShowValidationError,
@@ -49,5 +50,6 @@ __all__ = [
     "frame_to_contribution",
     "load_show",
     "make_scoped_context",
+    "transition_weight",
     "validate_show_data",
 ]

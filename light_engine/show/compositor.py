@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import math
+import random
 from dataclasses import dataclass, replace
+from hashlib import sha256
 from types import MappingProxyType
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from light_engine.effects.base import BaseEffect, create_effect
 from light_engine.mapping import Layout, ZoneDef
@@ -62,6 +64,7 @@ class FrameContribution:
     blend: str
     timestamp: float
     sequence: int
+    weight: float = 1.0
     digital: tuple[DigitalContribution, ...] = ()
     analog: tuple[AnalogContribution, ...] = ()
 
@@ -224,6 +227,8 @@ def make_scoped_context(
         mode_parameters["cue_id"] = cue.id
         mode_parameters["priority"] = cue.priority
         mode_parameters["blend"] = cue.transition.blend
+        mode_parameters["show_time"] = ctx.timestamp
+        mode_parameters["cue_local_time"] = ctx.timestamp - cue.start
     if declaration_index is not None:
         mode_parameters["declaration_index"] = declaration_index
     return replace(ctx, mode_parameters=MappingProxyType(mode_parameters))
@@ -237,11 +242,13 @@ def frame_to_contribution(
     priority: int,
     declaration_index: int,
     blend: str,
+    weight: float = 1.0,
 ) -> FrameContribution:
     """Convert an effect frame into target-scoped typed contributions."""
 
     if blend not in {"replace", "add"}:
         raise ValueError(f"unsupported V1 blend mode {blend!r}")
+    weight = _validate_weight(weight)
     if resolved.virtual_path is None:
         digital = tuple(
             DigitalContribution(
@@ -264,6 +271,7 @@ def frame_to_contribution(
         blend=blend,
         timestamp=frame.timestamp,
         sequence=frame.sequence,
+        weight=weight,
         digital=digital,
         analog=analog,
     )
@@ -300,18 +308,22 @@ def compose_frame(base: PixelFrame, contributions: Iterable[FrameContribution]) 
                     continue
                 incoming_rgb = _validate_rgb(incoming, "incoming pixel")
                 if contribution.blend == "replace":
-                    pixels[index] = incoming_rgb
+                    pixels[index] = _replace_rgb(pixels[index], incoming_rgb, contribution.weight)
                 else:
-                    pixels[index] = _add_rgb(pixels[index], incoming_rgb)
+                    pixels[index] = _add_rgb(pixels[index], incoming_rgb, contribution.weight)
             strips[digital.strip_id] = pixels
         for analog in contribution.analog:
             if analog.zone_id not in zones:
                 continue
             incoming_color = _copy_rgbcct(analog.color)
             if contribution.blend == "replace":
-                zones[analog.zone_id] = incoming_color
+                zones[analog.zone_id] = _replace_rgbcct(
+                    zones[analog.zone_id], incoming_color, contribution.weight
+                )
             else:
-                zones[analog.zone_id] = _add_rgbcct(zones[analog.zone_id], incoming_color)
+                zones[analog.zone_id] = _add_rgbcct(
+                    zones[analog.zone_id], incoming_color, contribution.weight
+                )
 
     return PixelFrame(
         timestamp=base.timestamp,
@@ -338,13 +350,18 @@ class CueRenderJob:
         resolver: TargetResolver,
         *,
         effect: BaseEffect | None = None,
+        effect_factory: Callable[[str], BaseEffect] = create_effect,
+        cue_seed: int = 0,
     ):
         if cue.effect.mode != "fixed" or cue.effect.name is None:
             raise ValueError("Phase 13 renderer supports fixed effect cues only")
         self.cue = cue
         self.declaration_index = declaration_index
         self.resolved = resolver.resolve(cue.target)
-        self.effect = effect if effect is not None else create_effect(cue.effect.name)
+        self._effect_factory = effect_factory
+        self._injected_effect = effect is not None
+        self._cue_seed = cue_seed
+        self.effect = effect if effect is not None else self._create_effect()
 
     def render(self, ctx: EffectContext) -> FrameContribution:
         scoped = make_scoped_context(
@@ -361,41 +378,115 @@ class CueRenderJob:
             priority=self.cue.priority,
             declaration_index=self.declaration_index,
             blend=self.cue.transition.blend,
+            weight=transition_weight(self.cue, ctx.timestamp),
         )
 
     def reset(self) -> None:
-        self.effect.reset()
+        if self._injected_effect:
+            self.effect.reset()
+        else:
+            self.effect = self._create_effect()
+
+    def _create_effect(self) -> BaseEffect:
+        assert self.cue.effect.name is not None
+        state = random.getstate()
+        try:
+            random.seed(self._cue_seed)
+            return self._effect_factory(self.cue.effect.name)
+        finally:
+            random.setstate(state)
 
 
 class ShowRuntime:
     """Render active cue jobs and compose a deterministic logical frame."""
 
-    def __init__(self, show: ShowDefinition, resolver: TargetResolver):
+    def __init__(
+        self,
+        show: ShowDefinition,
+        resolver: TargetResolver,
+        *,
+        seed: int = 0,
+        effect_factory: Callable[[str], BaseEffect] = create_effect,
+    ):
         self.show = show
         self._resolver = resolver
+        self._seed = seed
+        self._effect_factory = effect_factory
         self._jobs = tuple(
-            CueRenderJob(cue, index, resolver) for index, cue in enumerate(show.cues)
+            CueRenderJob(
+                cue,
+                index,
+                resolver,
+                effect_factory=effect_factory,
+                cue_seed=_cue_seed(show.id, cue.id, seed),
+            )
+            for index, cue in enumerate(show.cues)
         )
+        self._last_timestamp: float | None = None
+        self._last_frame: PixelFrame | None = None
 
     @classmethod
-    def from_layout(cls, show: ShowDefinition, layout: Layout) -> "ShowRuntime":
-        return cls(show, TargetResolver.from_layout(layout))
+    def from_layout(
+        cls,
+        show: ShowDefinition,
+        layout: Layout,
+        *,
+        seed: int = 0,
+        effect_factory: Callable[[str], BaseEffect] = create_effect,
+    ) -> "ShowRuntime":
+        return cls(
+            show,
+            TargetResolver.from_layout(layout),
+            seed=seed,
+            effect_factory=effect_factory,
+        )
 
     @property
     def jobs(self) -> tuple[CueRenderJob, ...]:
         return self._jobs
 
     def render(self, ctx: EffectContext, base: PixelFrame) -> PixelFrame:
+        if ctx.timestamp < 0.0 or ctx.timestamp >= self.show.duration:
+            return base
+        if self._last_timestamp is not None and ctx.timestamp < self._last_timestamp:
+            raise RuntimeError(
+                "show runtime received backward timestamp; call reset() and replay from the beginning"
+            )
+        if self._last_timestamp == ctx.timestamp and self._last_frame is not None:
+            return _copy_frame_with_identity(self._last_frame, base)
         active = [
             job.render(ctx)
             for job in self._jobs
             if job.cue.start <= ctx.timestamp < job.cue.end
         ]
-        return compose_frame(base, active)
+        frame = compose_frame(base, active)
+        self._last_timestamp = ctx.timestamp
+        self._last_frame = frame
+        return frame
 
     def reset(self) -> None:
-        for job in self._jobs:
-            job.reset()
+        self._jobs = tuple(
+            CueRenderJob(
+                job.cue,
+                job.declaration_index,
+                self._resolver,
+                effect_factory=self._effect_factory,
+                cue_seed=_cue_seed(self.show.id, job.cue.id, self._seed),
+            )
+            for job in self._jobs
+        )
+        self._last_timestamp = None
+        self._last_frame = None
+
+
+def transition_weight(cue: Cue, t: float) -> float:
+    """Return the exact V1 linear transition weight for ``cue`` at show time ``t``."""
+
+    fade_in = cue.transition.fade_in
+    fade_out = cue.transition.fade_out
+    fade_in_factor = 1.0 if fade_in == 0.0 else _clamp01((t - cue.start) / fade_in)
+    fade_out_factor = 1.0 if fade_out == 0.0 else _clamp01((cue.end - t) / fade_out)
+    return min(fade_in_factor, fade_out_factor)
 
 
 def _strip_def(strip: ZoneDef) -> Mapping[str, Any]:
@@ -452,6 +543,16 @@ def _validate_frame_identity(base: PixelFrame, contribution: FrameContribution) 
             f"contribution {contribution.cue_id!r} sequence {contribution.sequence} "
             f"does not match base sequence {base.sequence}"
         )
+    _validate_weight(contribution.weight)
+
+
+def _validate_weight(weight: float) -> float:
+    value = float(weight)
+    if not math.isfinite(value):
+        raise ValueError(f"contribution weight must be finite, got {weight}")
+    if value < 0.0 or value > 1.0:
+        raise ValueError(f"contribution weight must be in [0, 1], got {weight}")
+    return value
 
 
 def _validate_rgb(pixel: Sequence[float], label: str) -> ColorRGB:
@@ -476,15 +577,58 @@ def _copy_rgbcct(color: RGBCCTColor) -> RGBCCTColor:
     )
 
 
-def _add_rgb(base: ColorRGB, incoming: ColorRGB) -> ColorRGB:
-    return tuple(min(1.0, max(0.0, base[index] + incoming[index])) for index in range(3))  # type: ignore[return-value]
+def _replace_rgb(base: ColorRGB, incoming: ColorRGB, weight: float) -> ColorRGB:
+    return tuple(base[index] * (1.0 - weight) + incoming[index] * weight for index in range(3))  # type: ignore[return-value]
 
 
-def _add_rgbcct(base: RGBCCTColor, incoming: RGBCCTColor) -> RGBCCTColor:
+def _add_rgb(base: ColorRGB, incoming: ColorRGB, weight: float) -> ColorRGB:
+    return tuple(min(1.0, max(0.0, base[index] + incoming[index] * weight)) for index in range(3))  # type: ignore[return-value]
+
+
+def _replace_rgbcct(base: RGBCCTColor, incoming: RGBCCTColor, weight: float) -> RGBCCTColor:
     return RGBCCTColor(
-        r=min(1.0, max(0.0, base.r + incoming.r)),
-        g=min(1.0, max(0.0, base.g + incoming.g)),
-        b=min(1.0, max(0.0, base.b + incoming.b)),
-        warm_white=min(1.0, max(0.0, base.warm_white + incoming.warm_white)),
-        cool_white=min(1.0, max(0.0, base.cool_white + incoming.cool_white)),
+        r=base.r * (1.0 - weight) + incoming.r * weight,
+        g=base.g * (1.0 - weight) + incoming.g * weight,
+        b=base.b * (1.0 - weight) + incoming.b * weight,
+        warm_white=base.warm_white * (1.0 - weight) + incoming.warm_white * weight,
+        cool_white=base.cool_white * (1.0 - weight) + incoming.cool_white * weight,
+    )
+
+
+def _add_rgbcct(base: RGBCCTColor, incoming: RGBCCTColor, weight: float) -> RGBCCTColor:
+    return RGBCCTColor(
+        r=min(1.0, max(0.0, base.r + incoming.r * weight)),
+        g=min(1.0, max(0.0, base.g + incoming.g * weight)),
+        b=min(1.0, max(0.0, base.b + incoming.b * weight)),
+        warm_white=min(1.0, max(0.0, base.warm_white + incoming.warm_white * weight)),
+        cool_white=min(1.0, max(0.0, base.cool_white + incoming.cool_white * weight)),
+    )
+
+
+def _clamp01(value: float) -> float:
+    return min(1.0, max(0.0, value))
+
+
+def _cue_seed(show_id: str, cue_id: str, seed: int) -> int:
+    digest = sha256(f"{seed}:{show_id}:{cue_id}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def _copy_frame_with_identity(frame: PixelFrame, base: PixelFrame) -> PixelFrame:
+    return PixelFrame(
+        timestamp=base.timestamp,
+        sequence=base.sequence,
+        strips=[
+            DigitalStrip(
+                strip_id=strip.strip_id,
+                pixel_count=strip.pixel_count,
+                pixels=list(strip.pixels),
+            )
+            for strip in frame.strips
+        ],
+        zones=[
+            ZoneOutput(zone_id=zone.zone_id, color=_copy_rgbcct(zone.color))
+            for zone in frame.zones
+        ],
+        metadata=dict(frame.metadata),
     )

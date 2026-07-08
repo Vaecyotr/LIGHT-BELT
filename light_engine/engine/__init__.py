@@ -152,6 +152,12 @@ class Engine:
         self._effect_name = runtime.show.id
         self._diagnostics["mode"] = runtime.show.id
 
+    def reset(self) -> None:
+        """Explicitly reset stateful runtime components before replaying from start."""
+        self._handle_timeline_reset()
+        self._timestamp = 0.0
+        self._last_clock_time = self._clock.now()
+
     def init_outputs(self) -> None:
         """Initialize output backends from config."""
         self._outputs = create_outputs(self._config)
@@ -197,7 +203,11 @@ class Engine:
                 clock_delta = self._timestamp - self._last_clock_time
                 if dt <= 0.0:
                     dt = max(0.0, clock_delta)
-                seek_detected = clock_delta < -frame_period or dt > frame_period * 2
+                if clock_delta < -frame_period:
+                    raise RuntimeError(
+                        "engine clock moved backward; call reset/replay before rendering earlier show time"
+                    )
+                seek_detected = dt > frame_period * 2
                 paused = self._clock.paused or dt < frame_period * 0.1
                 if self._clock.ended:
                     break
