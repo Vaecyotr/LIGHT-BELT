@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from light_engine.config import Config
+from light_engine.mapping import Layout
 from light_engine.show import (
     ShowValidationError,
     TargetCatalog,
@@ -250,3 +252,25 @@ def test_valid_300_second_example_round_trips_to_typed_values() -> None:
     assert show.cues[2].effect.mode == "adaptive"
     assert show.cues[2].audio_control is not None
     assert show.cues[2].audio_control.tempo_confidence_min == 0.75
+
+
+def test_example_show_resolves_virtual_paths_from_actual_layout() -> None:
+    Config.reset()
+    layout = Layout.from_config(Config())
+    catalog = TargetCatalog.from_layout(layout)
+
+    show = load_show(Path("config/show.example.yaml"), catalog)
+
+    assert catalog.virtual_paths == frozenset({"screen_to_wall"})
+    assert show.cues[0].target.kind == "virtual_path"
+    assert show.cues[0].target.id == "screen_to_wall"
+
+
+def test_missing_actual_virtual_path_reference_fails() -> None:
+    data = deepcopy(_valid_show())
+    data["show"]["cues"][0]["target"] = {
+        "type": "virtual_path",
+        "id": "missing_path",
+    }
+
+    _assert_invalid(data, "show.cues[0].target.id", "unknown virtual_path")

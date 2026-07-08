@@ -32,6 +32,21 @@
 4. **Effect**: Active effect processes context → PixelFrame
 5. **Output**: PixelFrame sent to all enabled output backends
 
+## Virtual Paths
+
+Virtual paths concatenate authored logical digital-strip subranges into one
+continuous integer coordinate space. A virtual-path effect renders one complete
+path-sized buffer in global coordinates, then the mapping layer splits that
+buffer into sparse strip-range contributions. Reversed segments reverse only
+the destination pixel order; they do not restart or reverse global animation
+phase.
+
+Authored `gap_after_pixels` values create unmapped virtual coordinates that
+advance animation phase and time while producing no physical destination
+contribution. Pixels outside selected partial-strip ranges remain absent/no
+contribution. ESP32 node assignment and UDP routing are handled later by
+physical mapping and do not affect virtual path coordinates.
+
 ## Thread Model
 
 Current implementation is single-threaded. Engine time is owned by an injectable

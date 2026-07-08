@@ -88,6 +88,15 @@ class TargetCatalog:
         )
         object.__setattr__(self, "virtual_paths", frozenset(virtual_paths))
 
+    @classmethod
+    def from_layout(cls, layout: Any) -> "TargetCatalog":
+        """Build a show target catalog from a validated layout."""
+        return cls(
+            analog_zones=(zone.id for zone in layout.zones),
+            digital_strips=(strip.id for strip in layout.strips),
+            virtual_paths=(path.id for path in layout.virtual_paths),
+        )
+
     @staticmethod
     def _freeze_groups(
         groups: Mapping[str, Iterable[str]] | Iterable[str],
