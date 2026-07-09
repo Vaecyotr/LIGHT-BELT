@@ -72,3 +72,6 @@ secrets/
 
 # Local firmware credentials
 firmware/**/src/config.local.h
+
+# Local generated certificates - never commit private keys
+certs/
