@@ -1,0 +1,36 @@
+{
+  "campaign_branch": "campaign/authoring-modulation-v1",
+  "start_branch": "campaign/closed-loop-v2",
+  "steps": [
+    {
+      "phase_id": "phase-18-cue-parameter-runtime",
+      "task": ".agent/tasks/phase-18-cue-parameter-runtime.md",
+      "max_repairs": 3
+    },
+    {
+      "phase_id": "phase-19-color-timeline-authoring",
+      "task": ".agent/tasks/phase-19-color-timeline-authoring.md",
+      "max_repairs": 3
+    },
+    {
+      "phase_id": "phase-20-engine-music-control-state",
+      "task": ".agent/tasks/phase-20-engine-music-control-state.md",
+      "max_repairs": 3
+    },
+    {
+      "phase_id": "phase-21-audio-modulation-layer",
+      "task": ".agent/tasks/phase-21-audio-modulation-layer.md",
+      "max_repairs": 3
+    },
+    {
+      "phase_id": "phase-22-authoring-modulation-acceptance",
+      "task": ".agent/tasks/phase-22-authoring-modulation-acceptance.md",
+      "max_repairs": 2
+    },
+    {
+      "phase_id": "phase-23-authoring-docs-host-api-alignment",
+      "task": ".agent/tasks/phase-23-authoring-docs-host-api-alignment.md",
+      "max_repairs": 2
+    }
+  ]
+}

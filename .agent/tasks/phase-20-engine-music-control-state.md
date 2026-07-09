@@ -1,4 +1,4 @@
-# Phase 20 — Engine Music Control State Integration
+# Phase 20 — Engine MusicControlState Runtime Wiring
 
 ## Phase ID
 
@@ -6,11 +6,11 @@ phase-20-engine-music-control-state
 
 ## Goal
 
-Wire the existing `MusicControlAnalyzer` into the main Engine runtime so every show-rendered frame can receive a real `EffectContext.music_control_state` derived from current audio features.
+Wire the existing `MusicControlAnalyzer` into the Engine/show runtime so every show frame can receive a real `EffectContext.music_control_state` derived from current `AudioFeatures`.
 
 ## Background
 
-Phase 15 added deterministic music-control features and `MusicControlState`. Phase 16 added cue-bounded adaptive selection that can use `MusicControlState`. Current `EffectContext` already has a `music_control_state` field, but the main Engine path updates only `AudioFeatures`; it does not consistently compute and pass `MusicControlState` into show rendering. Independent audio modulation depends on this runtime data path, so it must be connected before adding `audio_modulation`.
+Phase 15 created deterministic `MusicControlState`. Phase 16 uses it for adaptive selection policy. The next `audio_modulation` phase requires the Engine to populate music-control state during normal show rendering. This phase adds the runtime data path only; it does not introduce new show schema.
 
 ## Binding Contract References
 
@@ -18,107 +18,110 @@ Phase 15 added deterministic music-control features and `MusicControlState`. Pha
 - `docs/contracts/TIME_CONTRACT.md`
 - `docs/contracts/QUALITY_GATE_CONTRACT.md`
 
+
+## Vocabulary and Naming Lock
+
+This phase MUST NOT add show schema fields. It only wires existing music-control analysis into existing runtime context. Use the exact existing names:
+
+- `MusicControlAnalyzer`
+- `MusicControlState`
+- `EffectContext.music_control_state`
+- `AudioFeatures`
+- `audio_features`
+
+The only allowed `MusicControlState` field names are the existing model fields: `tempo_bpm`, `tempo_confidence`, `beat_phase`, `beat_strength`, `beat_regularity`, `energy`, `energy_trend`, `transient`, `bass_ambient`, `bass_pulse`, and `spectral_motion`.
+
+Do not introduce `music_state`, `audio_state`, `audio_driver`, `music_driver`, `dynamic_state`, or any Host API names in production code.
+
 ## In Scope
 
-- Instantiate and maintain `MusicControlAnalyzer` inside Engine when audio or synthetic audio features are available.
-- Update `MusicControlState` whenever new `AudioFeatures` are produced.
-- Pass the latest `MusicControlState` into `EffectContext.music_control_state` for both single-effect and show-runtime paths.
-- Reset music-control analyzer state on Engine reset, seek/timeline reset, and replay.
-- Preserve existing `AudioFeatures` behavior.
-- Preserve no-audio behavior without crashes or fabricated high-confidence music state.
-- Add tests proving Engine runtime receives real music-control state and resets it correctly.
+- Instantiate and retain `MusicControlAnalyzer` in the relevant Engine/show runtime path.
+- On each audio-feature update, produce a bounded `MusicControlState` and pass it through `EffectContext.music_control_state`.
+- Preserve the existing `EffectContext.audio_features` path.
+- Define no-audio behavior: no audio MUST produce a safe `None` or documented neutral state, and must not crash.
+- Reset/seek/show-runtime reset MUST reset music-control analyzer state consistently.
+- Repeated timestamps/pause MUST not fabricate extra musical progress.
+- Keep memory bounded; do not store unbounded audio history in Engine.
+- Expose enough test hooks or deterministic fixtures to prove the state reaches fixed/adaptive rendering paths.
+- Preserve backward-compatible direct effect workflows.
 
 ## Out of Scope
 
-- Adding `audio_modulation` show schema.
-- Changing music feature algorithms.
-- Changing adaptive selector policy beyond enabling it to receive real state.
-- Changing effect parameter behavior.
-- Changing output protocols or firmware.
-- Host API implementation.
-- Real hardware verification.
-- Git commit, push, merge, tag, or PR creation.
+- Adding `audio_modulation` schema or behavior.
+- Changing `MusicControlAnalyzer` algorithms unless a small integration bug fix is required.
+- Reworking adaptive selector policy.
+- Host API changes.
+- Firmware/protocol/hardware changes.
 
 ## Allowed Files
 
-- `light_engine/engine/**`
-- `light_engine/analysis/__init__.py`
-- `light_engine/analysis/music_control.py`
-- `light_engine/models.py`
-- `tests/test_engine_music_control_state.py`
-- `tests/test_music_control.py`
-- `tests/test_show_engine.py`
-- `tests/test_engine.py`
-- `docs/architecture.md`
-- `docs/algorithms.md`
+- light_engine/engine/**
+- light_engine/show/**
+- light_engine/analysis/**
+- light_engine/effects/**
+- light_engine/models.py
+- tests/test_engine_music_control_state.py
+- tests/test_show_engine.py
+- tests/test_music_control.py
+- tests/test_adaptive_selector.py
+- tests/test_engine.py
+- docs/architecture.md
+- docs/algorithms.md
 
 ## Forbidden Files
 
-- `firmware/**`
-- `light_engine/outputs/**`
-- `light_engine/show/loader.py`
-- `light_engine/show/models.py`
-- `light_engine/effects/**`
-- `light_engine/media/**`
-- `docs/contracts/**`
-- `.agent/**`
-- `scripts/agent_*.py`
-- `tests/fixtures/audio/show_orchestration_v1/**`
-- `tests/goldens/show_orchestration/v1/**`
-- Any file not required by this Phase
+- firmware/**
+- light_engine/outputs/**
+- light_engine/protocols/**
+- tests/fixtures/audio/show_orchestration_v1/**
+- tests/goldens/show_orchestration/v1/**
+- docs/contracts/**
+- .agent/**
+- scripts/agent_*.py
+
 
 ## Binding Quality Constraints
 
 These constraints are part of acceptance, not suggestions:
 
-- MUST follow the planning-baseline contracts listed above. If implementation requires changing a contract, stop and report a BLOCKER; do not edit the contract inside this Phase.
+- MUST follow the referenced contracts. If implementation requires changing a contract, stop and report a BLOCKER; do not edit the contract inside this Phase.
 - MUST NOT modify `docs/contracts/**`, `.agent/contracts/**`, `tests/goldens/show_orchestration/v1/**`, `tests/fixtures/audio/show_orchestration_v1/**`, or `scripts/verify_show_orchestration_baseline.py`.
-- The report MUST include audit evidence conforming to `.agent/contracts/phase-audit.schema.json`: base/head SHA, changed files, tests added/modified, skip/xfail counts before/after, golden manifest SHA-256, exact command return codes, traceability, artifacts, and blockers.
+- The report MUST include audit evidence conforming to `.agent/contracts/phase-audit.schema.json`: base/head SHA, changed files, tests added/modified, skip/xfail counts before/after, golden manifest SHA-256 when applicable, exact command return codes, traceability, artifacts, and blockers.
 - MUST NOT add or broaden `pytest.skip`, `pytest.mark.skip`, `xfail`, or equivalent bypasses.
 - MUST NOT delete existing tests, weaken assertions, reduce test coverage intentionally, or change expected values merely to match an incorrect implementation.
 - MUST NOT add production branches that detect tests, fixture names, or CI environments.
 - MUST NOT silently accept invalid configuration or silently fall back after a validation error.
-- New tests MUST assert concrete `MusicControlState` fields, reset behavior, timestamps, and bounded values. `is not None` alone is insufficient.
+- New tests MUST assert concrete domain outputs: colors, pixels, channels, target IDs, cue IDs, speed/intensity values, transition weights, selected states, sequences, or exact validation errors. `is not None`/"does not crash" alone is insufficient.
 - Existing backward-compatible behavior MUST be covered by regression tests.
 - If a requirement cannot be satisfied within Allowed Files, stop and report a BLOCKER instead of modifying a forbidden file.
 - The phase report MUST include a traceability table: `Requirement | Implementation | Test | Evidence`.
 - Automated success proves software behavior only. It MUST NOT claim hardware verification unless the phase explicitly performs documented hardware tests.
 
-## Required Runtime Semantics
-
-- Engine MUST maintain a latest music-control state separate from latest raw audio features.
-- When `_get_audio_features()` or synthetic audio returns `AudioFeatures`, Engine MUST feed it into `MusicControlAnalyzer` and store the resulting `MusicControlState`.
-- `EffectContext` construction MUST include the latest `music_control_state`.
-- Repeated timestamps/paused frames MUST not create artificial analysis advancement.
-- Engine reset and seek-detected timeline reset MUST reset both raw audio analyzer state and music-control analyzer state.
-- No audio source means `music_control_state` stays `None`, unless existing contracts require an explicit low-energy state. If using an explicit low-energy state, document and test it.
-- Music-control state memory MUST remain bounded as required by the music-control contract.
 
 ## Acceptance Criteria
 
-- With audio input, show-rendered effects can observe non-None `ctx.music_control_state` whose timestamp tracks the latest audio feature timestamp.
-- With synthetic audio input, Engine produces deterministic music-control states across repeated runs with the same seed.
-- With no audio input, Engine renders without errors and does not fabricate strong tempo/beat evidence.
-- Reset/replay clears music-control history and reproduces the same initial sequence.
-- Seek/timeline reset clears music-control analyzer state.
-- Adaptive selector integration benefits from real `MusicControlState` without changing fixed cue behavior.
-- Existing `AudioFeatures` tests and Engine tests remain green.
+- With audio features present, Engine/show runtime provides non-`None` `music_control_state` to rendering/selector paths.
+- With no audio, rendering remains deterministic and does not crash.
+- Reset clears analyzer state so a second run from the same seed/input reproduces the same music-control state sequence.
+- Adaptive cues use the Engine-provided `music_control_state` rather than a fabricated or stale value.
+- Existing audio feature behavior is unchanged.
+- History and retained state remain bounded.
 
 ## Required Gold Tests
 
-At minimum, tests MUST prove:
+At minimum:
 
-1. A spy/recording effect receives `ctx.music_control_state` when Engine is run with audio features.
-2. The state contains finite bounded fields such as `energy`, `beat_strength`, and `tempo_confidence`.
-3. Engine reset clears the analyzer such that replay from start is deterministic.
-4. No-audio Engine runs with `music_control_state is None` or documented safe low-energy state, and the choice is tested.
-5. A seek/backward-time reset calls the music-control reset path.
-6. Existing single-effect path and show-runtime path both receive consistent context behavior.
+1. A deterministic audio-features sequence produces a deterministic `MusicControlState` sequence inside Engine/show runtime.
+2. A fixed cue can observe the same music-control state in its context without selecting a new effect.
+3. An adaptive cue receives music-control state and produces a decision using it.
+4. `reset()` reproduces the same first N music-control states.
+5. No-audio show render keeps `music_control_state` neutral/None and output valid.
+6. Repeating the same timestamp does not advance music-control state spuriously.
 
 ## Required Targeted Tests
 
 ```powershell
-.\.python\Scripts\python.exe -m pytest tests/test_engine_music_control_state.py tests/test_music_control.py tests/test_show_engine.py tests/test_engine.py -v
+.\.python\Scripts\python.exe -m pytest tests/test_engine_music_control_state.py tests/test_show_engine.py tests/test_music_control.py tests/test_adaptive_selector.py -v
 ```
 
 ## Required Full Verification
@@ -134,25 +137,8 @@ git diff --stat
 
 ## Required Report
 
-The implementation or repair agent must report:
-
-- Modified files
-- Engine data-flow summary: `AudioFeatures -> MusicControlAnalyzer -> MusicControlState -> EffectContext`
-- Reset/seek behavior evidence
-- No-audio behavior decision
-- Tests added or updated
-- Exact commands run
-- Return codes
-- Targeted test results
-- Full test result
-- Benchmark result
-- Skip/xfail counts before and after
-- Golden manifest SHA-256 or explanation if no locked manifest is used by this phase
-- Traceability table: `Requirement | Implementation | Test | Evidence`
-- `git diff --stat`
-- Unresolved issues or BLOCKERs
-- Suggested commit message
+Report the runtime data path, no-audio behavior, reset semantics, bounded-state evidence, adaptive selector evidence, exact commands/return codes, test totals, audit-schema fields, traceability table, and suggested commit message.
 
 ## Commit Message
 
-Phase 20: Feed music control state through Engine
+Phase 20: Wire music control state into engine

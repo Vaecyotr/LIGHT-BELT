@@ -1,4 +1,4 @@
-# Phase 22 — Authoring Modulation Acceptance
+# Phase 22 — Authoring Modulation Software Acceptance
 
 ## Phase ID
 
@@ -6,11 +6,11 @@ phase-22-authoring-modulation-acceptance
 
 ## Goal
 
-Create a deterministic software acceptance suite proving authored color timelines and cue-local audio modulation work together across analog zones, digital strips, virtual paths, fixed cues, adaptive cues, transitions, and composition.
+Produce deterministic software-only acceptance evidence that cue parameter binding, color timelines, Engine music-control state, audio modulation, adaptive selection, transitions, and virtual-path rendering work together.
 
 ## Background
 
-Phases 18-21 add runtime cue parameter semantics, color timelines, Engine music-control state, and `audio_modulation`. Those features must be validated together before they are used in the real 5:06 show. This phase produces fixture shows, offline artifacts, frame digests, and tests. It remains software-only and must not claim hardware validation.
+Phases 18 through 21 add authoring features. This phase is integration evidence only. It MUST NOT repair production architecture; a production defect discovered here is a BLOCKER assigned back to the responsible phase.
 
 ## Binding Contract References
 
@@ -20,152 +20,126 @@ Phases 18-21 add runtime cue parameter semantics, color timelines, Engine music-
 - `docs/contracts/MUSIC_CONTROL_CONTRACT.md`
 - `docs/contracts/QUALITY_GATE_CONTRACT.md`
 
+
+## Vocabulary and Naming Lock
+
+This phase may only use field names and values implemented by Phases 18-21 plus existing show/orchestration terms. It MUST NOT invent new target IDs, effect names, modulation names, APP fields, or physical IDs.
+
+Use existing public test names where possible. For virtual-path evidence, use the existing `screen_to_wall` path unless the previous phases have explicitly added another path. Do not introduce `screen_right_to_right_wave`, `screen_top_to_ceiling`, or other physical-layout-specific path IDs in this acceptance phase. Those belong to later physical-layout planning.
+
+All generated artifacts MUST remain software-only and MUST include `NOT HARDWARE VERIFIED`.
+
 ## In Scope
 
-- Add a deterministic acceptance show fixture exercising color timelines and audio modulation.
-- Add deterministic procedural or existing fixture inputs sufficient to trigger modulation paths without regenerating locked audio fixtures.
-- Add an acceptance script that renders fixed sample windows and emits JSON evidence artifacts.
-- Add tests validating the artifacts and frame digests.
-- Verify color interpolation, brightness modulation, speed/intensity context modulation, transitions, virtual-path mapping, and no-audio fallback.
-- Measure software performance capacity.
-- Document the acceptance evidence as software-only.
+- Add a representative software-only acceptance show fixture using:
+  - cue-authored effect parameters;
+  - `color_timeline`;
+  - `audio_modulation` brightness/speed/intensity;
+  - fixed cues;
+  - adaptive cues;
+  - transitions and overlaps;
+  - at least one virtual-path effect crossing a seam.
+- Add deterministic generated/procedural audio/video inputs if needed; do not modify locked fixtures.
+- Render a bounded deterministic frame set twice and require matching digests.
+- Capture sample frames proving:
+  - color interpolation;
+  - modulation multiplier effects;
+  - virtual-path seam continuity;
+  - transition/overlap behavior;
+  - no-audio fallback behavior.
+- Produce hashed artifacts under `artifacts/authoring_modulation_acceptance/**`.
+- Produce a concise acceptance report with the exact phrase `NOT HARDWARE VERIFIED`.
+- Keep runtime short enough for the automated agent loop while still exercising the full integration surface.
 
 ## Out of Scope
 
-- Final 306-second teacher show authoring.
-- Hardware or real ESP32/STM32 tests.
-- Firmware changes.
-- Host API implementation.
-- RK3588 deployment.
-- Changing core schemas except for small fixture-support fixes if a BLOCKER is found and the prior phase missed it.
-- Git commit, push, merge, tag, or PR creation.
+- Production-code changes except a BLOCKER report; this phase should mainly add tests, fixtures, scripts, and artifacts.
+- Real hardware claims.
+- Firmware changes or builds unless already required by the existing full test suite.
+- Host API service implementation.
+- Aesthetic approval or final 306-second show authoring.
 
 ## Allowed Files
 
-- `config/show_authoring_modulation_acceptance.yaml`
-- `scripts/show_authoring_modulation_acceptance.py`
-- `tests/test_show_authoring_modulation_acceptance.py`
-- `tests/fixtures/show/**`
-- `tests/fixtures/audio/acceptance/**`
-- `tests/fixtures/video/**`
-- `artifacts/show_authoring_modulation_acceptance/**`
-- `docs/show_acceptance_report.md`
-- `docs/architecture.md`
-- `docs/configuration.md`
-- `light_engine/show/**` only for BLOCKER fixes directly tied to Phase 18-21 regressions
-- `light_engine/effects/**` only for BLOCKER fixes directly tied to Phase 18-21 regressions
+- tests/test_authoring_modulation_acceptance.py
+- tests/fixtures/show/**
+- tests/fixtures/audio/acceptance/**
+- tests/fixtures/video/**
+- config/show_authoring_modulation_acceptance.yaml
+- config/layout_authoring_modulation_acceptance.yaml
+- scripts/authoring_modulation_acceptance.py
+- docs/authoring_modulation_acceptance_report.md
+- docs/show_306/**
+- artifacts/authoring_modulation_acceptance/**
 
 ## Forbidden Files
 
-- `firmware/**`
-- `light_engine/outputs/rs485_v2.py`
-- `light_engine/outputs/udp_v2.py`
-- `light_engine/analysis/music_control.py` unless reporting a BLOCKER that Phase 20 is incomplete
-- `docs/contracts/**`
-- `.agent/**`
-- `scripts/agent_*.py`
-- `tests/fixtures/audio/show_orchestration_v1/**`
-- `tests/goldens/show_orchestration/v1/**`
-- Any file not required by this Phase
+- light_engine/**
+- firmware/**
+- .agent/**
+- AGENTS.md
+- CLAUDE.md
+- scripts/agent_*.py
+- scripts/agent_worktree.py
+- scripts/verify_show_orchestration_baseline.py
+- tests/fixtures/audio/show_orchestration_v1/**
+- tests/goldens/show_orchestration/v1/**
+- docs/contracts/**
+
 
 ## Binding Quality Constraints
 
 These constraints are part of acceptance, not suggestions:
 
-- MUST follow the planning-baseline contracts listed above. If implementation requires changing a contract, stop and report a BLOCKER; do not edit the contract inside this Phase.
+- MUST follow the referenced contracts. If implementation requires changing a contract, stop and report a BLOCKER; do not edit the contract inside this Phase.
 - MUST NOT modify `docs/contracts/**`, `.agent/contracts/**`, `tests/goldens/show_orchestration/v1/**`, `tests/fixtures/audio/show_orchestration_v1/**`, or `scripts/verify_show_orchestration_baseline.py`.
-- The report MUST include audit evidence conforming to `.agent/contracts/phase-audit.schema.json`: base/head SHA, changed files, tests added/modified, skip/xfail counts before/after, golden manifest SHA-256, exact command return codes, traceability, artifacts, and blockers.
+- The report MUST include audit evidence conforming to `.agent/contracts/phase-audit.schema.json`: base/head SHA, changed files, tests added/modified, skip/xfail counts before/after, golden manifest SHA-256 when applicable, exact command return codes, traceability, artifacts, and blockers.
 - MUST NOT add or broaden `pytest.skip`, `pytest.mark.skip`, `xfail`, or equivalent bypasses.
 - MUST NOT delete existing tests, weaken assertions, reduce test coverage intentionally, or change expected values merely to match an incorrect implementation.
 - MUST NOT add production branches that detect tests, fixture names, or CI environments.
 - MUST NOT silently accept invalid configuration or silently fall back after a validation error.
-- New tests MUST assert concrete samples, frame digests, timestamps, colors, multipliers, and exact acceptance metrics.
+- New tests MUST assert concrete domain outputs: colors, pixels, channels, target IDs, cue IDs, speed/intensity values, transition weights, selected states, sequences, or exact validation errors. `is not None`/"does not crash" alone is insufficient.
 - Existing backward-compatible behavior MUST be covered by regression tests.
 - If a requirement cannot be satisfied within Allowed Files, stop and report a BLOCKER instead of modifying a forbidden file.
 - The phase report MUST include a traceability table: `Requirement | Implementation | Test | Evidence`.
 - Automated success proves software behavior only. It MUST NOT claim hardware verification unless the phase explicitly performs documented hardware tests.
 
-## Acceptance Show Requirements
-
-Add `config/show_authoring_modulation_acceptance.yaml` with at least:
-
-1. An RGB+CCT analog target using `static + color_timeline`.
-2. A digital strip target using `chase + color_timeline`.
-3. A virtual path target using `comet + color_timeline + audio_modulation`.
-4. A fixed cue using brightness modulation.
-5. A fixed cue using speed modulation.
-6. A fixed cue using intensity modulation.
-7. An adaptive cue using existing `audio_control` to prove compatibility.
-8. At least one overlap proving transition/blend semantics still work.
-9. A no-audio fallback case or separately rendered no-audio variant.
-
-## Acceptance Script Requirements
-
-Add `scripts/show_authoring_modulation_acceptance.py` or equivalent. It MUST:
-
-- Validate the acceptance show before rendering.
-- Render deterministic sample frames offline without opening serial, UDP sockets, or hardware outputs.
-- Capture specific sample times for color timeline start/mid/end.
-- Capture modulation multipliers or output evidence for brightness/speed/intensity.
-- Capture virtual-path seam evidence near segment boundaries.
-- Capture no-audio fallback evidence.
-- Emit deterministic artifacts under:
-
-```text
-artifacts/show_authoring_modulation_acceptance/
-```
-
-Required artifact files:
-
-```text
-summary.json
-color_timeline_samples.json
-audio_modulation_samples.json
-virtual_path_samples.json
-frame_digest.json
-```
-
-Each artifact MUST be deterministic across two runs and included in report with SHA-256.
 
 ## Acceptance Criteria
 
-- Acceptance show passes `validate-show`.
-- Offline acceptance script exits with return code 0.
-- Two consecutive runs produce identical `frame_digest.json`.
-- Color timeline samples match expected interpolation values within documented tolerance.
-- Audio modulation samples prove brightness, speed, and intensity paths are active.
-- No-audio fallback produces exact unity modulation multipliers and expected stable output.
-- Virtual-path sample proves the effect crosses a seam without restarting per physical segment.
-- Adaptive cue still respects allowed mapping and does not select outside YAML policy.
-- Processing capacity remains above 30 FPS for the acceptance fixture.
-- No NaN or infinity appears in artifacts.
-- Artifacts and report explicitly state this is software validation only.
+- Acceptance show validates successfully.
+- Two deterministic runs produce identical digest(s).
+- `color_timeline` sample frames match expected interpolation values.
+- `audio_modulation` sample frames prove brightness/speed/intensity changes compared with disabled/neutral modulation.
+- No-audio fallback produces neutral multipliers and valid output.
+- A virtual-path effect crosses a seam continuously.
+- Transitions and overlaps retain Phase 14 semantics.
+- Adaptive selection remains constrained by allowed mappings while modulation remains cue-local.
+- No NaN or infinity appears in logical or physical frames.
+- Report and artifacts explicitly state `NOT HARDWARE VERIFIED`.
 
-## Required Gold Tests
+## Required Evidence Tests
 
-At minimum, tests MUST prove:
-
-1. `summary.json` exists and declares schema/version/phase ID.
-2. `color_timeline_samples.json` contains expected start/mid/end RGB samples.
-3. `audio_modulation_samples.json` contains expected multiplier samples and source values.
-4. `virtual_path_samples.json` contains seam-crossing evidence.
-5. `frame_digest.json` is stable across two acceptance renders.
-6. Acceptance metrics include effective FPS or processing capacity and pass threshold.
-7. No artifact contains NaN/Inf.
-8. The report text does not claim hardware validation.
+1. Exact sample colors at at least three local times in a color timeline.
+2. Exact or bounded multipliers for brightness/speed/intensity modulation.
+3. Selected representative pixels/channels before, at, and after a virtual-path seam.
+4. Transition weights at fade-in midpoint and fade-out midpoint.
+5. A fixed-effect cue proving modulation does not change the effect name.
+6. An adaptive cue proving allowed effect selection plus modulation order.
+7. Digest equality across two runs.
+8. Artifact SHA-256 values are present and internally consistent.
 
 ## Required Targeted Tests
 
 ```powershell
-.\.python\Scripts\python.exe -m pytest tests/test_show_authoring_modulation_acceptance.py -v
-.\.python\Scripts\python.exe scripts\show_authoring_modulation_acceptance.py
+.\.python\Scripts\python.exe -m pytest tests/test_authoring_modulation_acceptance.py -v
+.\.python\Scripts\python.exe scripts/authoring_modulation_acceptance.py --show config/show_authoring_modulation_acceptance.yaml --layout config/layout_authoring_modulation_acceptance.yaml
 ```
 
 ## Required Full Verification
 
 ```powershell
 .\.python\Scripts\python.exe -m pytest -q
-.\.python\Scripts\python.exe -m light_engine validate-show --show config/show.example.yaml
 .\.python\Scripts\python.exe -m light_engine validate-show --show config/show_authoring_modulation_acceptance.yaml
 .\.python\Scripts\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
 git diff --check
@@ -175,28 +149,8 @@ git diff --stat
 
 ## Required Report
 
-The implementation or repair agent must report:
-
-- Modified files
-- Acceptance show cue summary
-- Artifact paths and SHA-256 hashes
-- Color timeline sample table
-- Audio modulation sample table
-- Virtual-path seam evidence
-- No-audio fallback evidence
-- Performance result
-- Tests added or updated
-- Exact commands run
-- Return codes
-- Targeted test results
-- Full test result
-- Skip/xfail counts before and after
-- Golden manifest SHA-256 or explanation if no locked manifest is used by this phase
-- Traceability table: `Requirement | Implementation | Test | Evidence`
-- `git diff --stat`
-- Unresolved issues or BLOCKERs
-- Suggested commit message
+Report exact commands/return codes, base/head SHA, digest evidence, color timeline evidence, modulation evidence, seam evidence, transition evidence, adaptive/fixed evidence, artifact paths/SHA-256, limitations, `NOT HARDWARE VERIFIED`, audit-schema fields, traceability table, and suggested commit message.
 
 ## Commit Message
 
-Phase 22: Add authoring modulation acceptance suite
+Phase 22: Add authoring modulation acceptance evidence
