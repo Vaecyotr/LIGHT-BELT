@@ -8,7 +8,7 @@ from typing import Optional
 
 import numpy as np
 
-from light_engine.analysis import AudioAnalyzer, VideoAnalyzer
+from light_engine.analysis import AudioAnalyzer, MusicControlAnalyzer, VideoAnalyzer
 from light_engine.clock import Clock, ClockError, MediaEnded, OfflineRenderClock
 from light_engine.config import Config
 from light_engine.effects.base import BaseEffect, create_effect, list_effects
@@ -17,6 +17,7 @@ from light_engine.media import AudioReader, VideoReader
 from light_engine.models import (
     AudioFeatures,
     EffectContext,
+    MusicControlState,
     PixelFrame,
     VideoFeatures,
 )
@@ -55,6 +56,7 @@ class Engine:
         # Analyzers (lazy init)
         self._video_analyzer: Optional[VideoAnalyzer] = None
         self._audio_analyzer: Optional[AudioAnalyzer] = None
+        self._music_control_analyzer = MusicControlAnalyzer()
 
         # Media readers
         self._video_reader: Optional[VideoReader] = None
@@ -88,6 +90,7 @@ class Engine:
         # Latest features
         self._latest_video: Optional[VideoFeatures] = None
         self._latest_audio: Optional[AudioFeatures] = None
+        self._latest_music_control_state: Optional[MusicControlState] = None
 
         # Diagnostic state
         self._diagnostics: dict = {
@@ -260,6 +263,9 @@ class Engine:
                 # Audio analysis
                 if not paused and self._timestamp - last_audio_time >= audio_period:
                     self._latest_audio = self._get_audio_features()
+                    self._latest_music_control_state = self._get_music_control_state(
+                        self._latest_audio
+                    )
                     last_audio_time = self._timestamp
 
                 # Build context and run effect
@@ -271,6 +277,7 @@ class Engine:
                     sequence=self._sequence,
                     video_features=self._latest_video,
                     audio_features=self._latest_audio,
+                    music_control_state=self._latest_music_control_state,
                     mode_parameters={
                         "strip_defs": self._strip_defs,
                         "zone_defs": self._zone_defs,
@@ -327,12 +334,14 @@ class Engine:
             self._video_analyzer.reset()
         if self._audio_analyzer is not None and hasattr(self._audio_analyzer, "reset"):
             self._audio_analyzer.reset()
+        self._music_control_analyzer.reset()
         if self._effect is not None:
             self._effect.reset()
         if self._show_runtime is not None:
             self._show_runtime.reset()
         self._latest_video = None
         self._latest_audio = None
+        self._latest_music_control_state = None
 
     def _get_video_features(self) -> Optional[VideoFeatures]:
         """Get latest video features from reader or synthetic source."""
@@ -356,6 +365,14 @@ class Engine:
         if self._data_source:
             return self._data_source.get_audio_features(self._timestamp)
         return None
+
+    def _get_music_control_state(
+        self, audio_features: Optional[AudioFeatures]
+    ) -> Optional[MusicControlState]:
+        """Derive bounded music-control state from the latest audio features."""
+        if audio_features is None:
+            return None
+        return self._music_control_analyzer.update(audio_features)
 
     def _shutdown(self) -> None:
         """Clean shutdown of all resources."""

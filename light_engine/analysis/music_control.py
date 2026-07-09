@@ -76,6 +76,13 @@ class MusicControlAnalyzer:
         self._last_state = MusicControlState(timestamp=0.0)
 
     def update(self, features: AudioFeatures) -> MusicControlState:
+        if self.history_size > 0 and features.timestamp < self._last_state.timestamp:
+            raise ValueError(
+                "music control timestamps must be non-decreasing; reset before replay"
+            )
+        if self.history_size > 0 and features.timestamp == self._last_state.timestamp:
+            return self._last_state
+
         self._short.append(features)
         self._medium.append(features)
         self._long.append(features)
