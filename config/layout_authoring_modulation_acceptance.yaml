@@ -1,0 +1,35 @@
+layout:
+  total_strips: 2
+  zones:
+    - {id: ceiling_left, type: rgbcct, video_zone: top, direction: forward}
+    - {id: ceiling_right, type: rgbcct, video_zone: top, direction: forward}
+    - {id: wall_left, type: rgbcct, video_zone: left, direction: forward}
+    - {id: wall_right, type: rgbcct, video_zone: right, direction: forward}
+    - {id: front, type: rgbcct, video_zone: center, direction: forward}
+    - {id: rear, type: rgbcct, video_zone: center, direction: reverse}
+  analog_nodes:
+    - {node_id: 1, zone_id: ceiling_left, channel_order: RGBWC, fade_ms: 0}
+    - {node_id: 2, zone_id: ceiling_right, channel_order: RGBWC, fade_ms: 0}
+    - {node_id: 3, zone_id: wall_left, channel_order: RGBWC, fade_ms: 0}
+    - {node_id: 4, zone_id: wall_right, channel_order: RGBWC, fade_ms: 0}
+    - {node_id: 5, zone_id: front, channel_order: RGBWC, fade_ms: 0}
+    - {node_id: 6, zone_id: rear, channel_order: RGBWC, fade_ms: 0}
+  strips:
+    - {id: front, type: digital, pixel_count: 4, video_zone: center, direction: forward}
+    - {id: wall_right, type: digital, pixel_count: 4, video_zone: right, direction: forward}
+  digital_nodes:
+    - {node_id: 7, host: 127.0.0.1, port: 19017, pixel_count: 8, max_udp_payload: 24}
+  digital_segments:
+    - {segment_id: front_main, strip_id: front, node_id: 7, offset: 0, pixel_count: 4, direction: forward, video_zone: center}
+    - {segment_id: wall_right_main, strip_id: wall_right, node_id: 7, offset: 4, pixel_count: 4, direction: forward, video_zone: right}
+  virtual_paths:
+    - id: screen_to_wall
+      segments:
+        - {strip_id: front, source_start: 0, pixel_count: 4, direction: forward, gap_after_pixels: 0}
+        - {strip_id: wall_right, source_start: 0, pixel_count: 4, direction: reverse, gap_after_pixels: 0}
+  video_zone_map:
+    left: [wall_left]
+    right: [wall_right]
+    top: [ceiling_left, ceiling_right]
+    bottom: []
+    center: [front, rear]
