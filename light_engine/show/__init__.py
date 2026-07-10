@@ -29,6 +29,8 @@ from light_engine.show.loader import (
 )
 from light_engine.show.models import (
     AudioControlSpec,
+    AudioModulationChannelSpec,
+    AudioModulationSpec,
     Cue,
     EffectSpec,
     ShowDefinition,
@@ -40,6 +42,8 @@ __all__ = [
     "AnalogContribution",
     "AdaptiveEffectSelector",
     "AudioControlSpec",
+    "AudioModulationChannelSpec",
+    "AudioModulationSpec",
     "Cue",
     "CueRenderJob",
     "DigitalContribution",

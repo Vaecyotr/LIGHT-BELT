@@ -11,8 +11,11 @@ import yaml
 
 from light_engine.effects import list_effects
 from light_engine.effects.base import get_effect_parameter_keys
+from light_engine.show.audio_modulation import SOURCE_FIELDS
 from light_engine.show.models import (
     AudioControlSpec,
+    AudioModulationChannelSpec,
+    AudioModulationSpec,
     Cue,
     EffectSpec,
     ShowDefinition,
@@ -47,6 +50,7 @@ AUDIO_STATES = frozenset(
         "transition",
     }
 )
+MODULATION_CHANNELS = frozenset({"brightness", "speed", "intensity"})
 
 
 class ShowValidationError(ValueError):
@@ -154,6 +158,7 @@ def _cues(
                 "effect",
                 "transition",
                 "audio_control",
+                "audio_modulation",
             },
             path,
         )
@@ -179,6 +184,13 @@ def _cues(
                     None
                     if "audio_control" not in cue
                     else _audio_control(cue["audio_control"], f"{path}.audio_control")
+                ),
+                audio_modulation=(
+                    None
+                    if "audio_modulation" not in cue
+                    else _audio_modulation(
+                        cue["audio_modulation"], f"{path}.audio_modulation"
+                    )
                 ),
             )
         )
@@ -373,6 +385,56 @@ def _audio_control(value: Any, path: str) -> AudioControlSpec:
         state_confirmation_seconds=_number(audio.get("state_confirmation_seconds", 0.0), f"{path}.state_confirmation_seconds", minimum=0.0),
         min_effect_hold=_number(audio.get("min_effect_hold", 0.0), f"{path}.min_effect_hold", minimum=0.0),
         switch_cooldown=_number(audio.get("switch_cooldown", 0.0), f"{path}.switch_cooldown", minimum=0.0),
+    )
+
+
+def _audio_modulation(value: Any, path: str) -> AudioModulationSpec:
+    modulation = _mapping(value, path)
+    _unknown(modulation, {"enabled", *MODULATION_CHANNELS}, path)
+    enabled = modulation.get("enabled", True)
+    if type(enabled) is not bool:
+        raise ShowValidationError(f"{path}.enabled", enabled, "must be a boolean")
+    channels = {
+        name: _audio_modulation_channel(modulation[name], f"{path}.{name}")
+        for name in MODULATION_CHANNELS
+        if name in modulation
+    }
+    if enabled and not channels:
+        raise ShowValidationError(path, modulation, "must define at least one modulation channel when enabled")
+    return AudioModulationSpec(enabled=enabled, **channels)
+
+
+def _audio_modulation_channel(value: Any, path: str) -> AudioModulationChannelSpec:
+    channel = _mapping(value, path)
+    _unknown(
+        channel,
+        {"source", "amount", "min_multiplier", "max_multiplier", "smoothing_seconds"},
+        path,
+    )
+    required = ("source", "amount", "min_multiplier", "max_multiplier", "smoothing_seconds")
+    for field_name in required:
+        if field_name not in channel:
+            raise ShowValidationError(f"{path}.{field_name}", None, "is required")
+    source = _choice(channel["source"], f"{path}.source", SOURCE_FIELDS)
+    amount = _number(channel["amount"], f"{path}.amount", minimum=0.0, maximum=1.0)
+    minimum = _number(channel["min_multiplier"], f"{path}.min_multiplier", minimum=0.0, maximum=10.0)
+    maximum = _number(channel["max_multiplier"], f"{path}.max_multiplier", minimum=0.0, maximum=10.0)
+    if minimum > maximum:
+        raise ShowValidationError(
+            f"{path}.max_multiplier",
+            maximum,
+            "must be >= min_multiplier",
+        )
+    return AudioModulationChannelSpec(
+        source=source,
+        amount=amount,
+        min_multiplier=minimum,
+        max_multiplier=maximum,
+        smoothing_seconds=_number(
+            channel["smoothing_seconds"],
+            f"{path}.smoothing_seconds",
+            minimum=0.0,
+        ),
     )
 
 

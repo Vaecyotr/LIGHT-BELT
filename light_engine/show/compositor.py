@@ -22,6 +22,7 @@ from light_engine.models import (
     ZoneOutput,
 )
 from light_engine.show.adaptive_selector import AdaptiveEffectSelector, fixed_decision
+from light_engine.show.audio_modulation import CueAudioModulator
 from light_engine.show.models import Cue, ShowDefinition, TargetSelector
 
 
@@ -368,6 +369,7 @@ class CueRenderJob:
         self._selector = (
             AdaptiveEffectSelector(cue) if cue.effect.mode == "adaptive" else None
         )
+        self._audio_modulator = CueAudioModulator(cue.audio_modulation)
         self.effect = effect if effect is not None else self._create_effect()
 
     def render(self, ctx: EffectContext) -> FrameContribution:
@@ -390,6 +392,7 @@ class CueRenderJob:
             cue=self.cue,
             declaration_index=self.declaration_index,
         )
+        multipliers = self._audio_modulator.multipliers(ctx)
         scoped_params = dict(scoped.mode_parameters)
         scoped_params.update(
             {
@@ -397,6 +400,7 @@ class CueRenderJob:
                 "music_state": decision.music_state,
                 "sync_mode": decision.sync_mode,
                 "tempo_period": decision.tempo_period,
+                "audio_modulation_multipliers": multipliers,
             }
         )
         if "color_timeline" in scoped_params:
@@ -407,10 +411,12 @@ class CueRenderJob:
             )
         scoped = replace(
             scoped,
-            speed=speed,
+            speed=min(10.0, speed * multipliers.speed),
+            intensity=min(10.0, ctx.intensity * multipliers.intensity),
             mode_parameters=MappingProxyType(scoped_params),
         )
         frame = effect.process(scoped)
+        frame = _scale_frame_brightness(frame, multipliers.brightness)
         return frame_to_contribution(
             frame,
             resolved=self.resolved,
@@ -424,6 +430,7 @@ class CueRenderJob:
     def reset(self) -> None:
         if self._selector is not None:
             self._selector.reset()
+        self._audio_modulator.reset()
         if self._injected_effect:
             self.effect.reset()
         else:
@@ -557,6 +564,40 @@ def _zone_def(zone: ZoneDef) -> Mapping[str, Any]:
 
 def _virtual_strip_id(path_id: str) -> str:
     return f"__virtual_path__:{path_id}"
+
+
+def _scale_frame_brightness(frame: PixelFrame, multiplier: float) -> PixelFrame:
+    """Scale one cue's effect output before transition and blend composition."""
+
+    def scale(value: float) -> float:
+        return _clamp01(value * multiplier)
+
+    return PixelFrame(
+        timestamp=frame.timestamp,
+        sequence=frame.sequence,
+        strips=[
+            DigitalStrip(
+                strip_id=strip.strip_id,
+                pixel_count=strip.pixel_count,
+                pixels=[tuple(scale(channel) for channel in pixel) for pixel in strip.pixels],
+            )
+            for strip in frame.strips
+        ],
+        zones=[
+            ZoneOutput(
+                zone_id=zone.zone_id,
+                color=RGBCCTColor(
+                    r=scale(zone.color.r),
+                    g=scale(zone.color.g),
+                    b=scale(zone.color.b),
+                    warm_white=scale(zone.color.warm_white),
+                    cool_white=scale(zone.color.cool_white),
+                ),
+            )
+            for zone in frame.zones
+        ],
+        metadata=dict(frame.metadata),
+    )
 
 
 def _virtual_frame_to_digital(

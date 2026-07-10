@@ -56,6 +56,31 @@ class AudioControlSpec:
 
 
 @dataclass(frozen=True)
+class AudioModulationChannelSpec:
+    """One continuous music/audio-driven cue modulation channel."""
+
+    source: str
+    amount: float
+    min_multiplier: float
+    max_multiplier: float
+    smoothing_seconds: float
+
+
+@dataclass(frozen=True)
+class AudioModulationSpec:
+    """Cue-local audio modulation policy.
+
+    Channels are optional so an author can modulate only the dimensions that
+    preserve the intended identity of a particular effect.
+    """
+
+    enabled: bool = True
+    brightness: AudioModulationChannelSpec | None = None
+    speed: AudioModulationChannelSpec | None = None
+    intensity: AudioModulationChannelSpec | None = None
+
+
+@dataclass(frozen=True)
 class Cue:
     id: str
     start: float
@@ -65,6 +90,7 @@ class Cue:
     priority: int = 0
     transition: TransitionSpec = field(default_factory=TransitionSpec)
     audio_control: AudioControlSpec | None = None
+    audio_modulation: AudioModulationSpec | None = None
 
 
 @dataclass(frozen=True)
