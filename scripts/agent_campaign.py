@@ -18,7 +18,12 @@ class CampaignError(RuntimeError):
 class CampaignStep:
     phase_id: str
     task: Path
+    model: str | None = None
+    reasoning_effort: str | None = None
     max_repairs: int = 2
+
+
+REASONING_EFFORTS = frozenset({"medium", "high", "xhigh"})
 
 
 def run(
@@ -140,10 +145,35 @@ def load_manifest(root: Path, manifest_path: Path) -> tuple[str, str, list[Campa
 
     steps: list[CampaignStep] = []
     for item in data["steps"]:
+        model_value = item.get("model")
+        if model_value is not None and not isinstance(model_value, str):
+            raise CampaignError("Campaign step model must be a non-empty string.")
+        model = None if model_value is None else model_value.strip()
+        if model_value is not None and not model:
+            raise CampaignError("Campaign step model must be a non-empty string.")
+
+        effort_value = item.get("reasoning_effort")
+        if effort_value is not None and not isinstance(effort_value, str):
+            raise CampaignError(
+                "Campaign step reasoning_effort must be a string."
+            )
+        reasoning_effort = (
+            None if effort_value is None else effort_value.strip()
+        )
+        if (
+            reasoning_effort is not None
+            and reasoning_effort not in REASONING_EFFORTS
+        ):
+            allowed = ", ".join(sorted(REASONING_EFFORTS))
+            raise CampaignError(
+                f"Campaign step reasoning_effort must be one of: {allowed}."
+            )
         steps.append(
             CampaignStep(
                 phase_id=str(item["phase_id"]),
                 task=Path(str(item["task"])),
+                model=model,
+                reasoning_effort=reasoning_effort,
                 max_repairs=int(item.get("max_repairs", 2)),
             )
         )
@@ -215,6 +245,10 @@ def run_step(
         "--max-repairs",
         str(step.max_repairs),
     ]
+    if step.model is not None:
+        command.extend(["--model", step.model])
+    if step.reasoning_effort is not None:
+        command.extend(["--reasoning-effort", step.reasoning_effort])
     result = run(command, cwd=root)
     if result.returncode != 0:
         raise CampaignError(f"Phase failed: {step.phase_id}")

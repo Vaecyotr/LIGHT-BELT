@@ -17,6 +17,7 @@ from typing import Any
 
 DEFAULT_TIMEOUT_SECONDS = 3600
 DEFAULT_MAX_REPAIRS = 3
+REASONING_EFFORTS = frozenset({"medium", "high", "xhigh"})
 
 REQUIRED_FILES = (
     "AGENTS.md",
@@ -59,6 +60,8 @@ class PipelineContext:
     report_dir: Path
     project_python: Path
     task: TaskSpec
+    model: str | None = None
+    reasoning_effort: str | None = None
 
 
 def now_utc() -> str:
@@ -519,6 +522,8 @@ def build_context(
     task: TaskSpec,
     project_python: Path,
     timeout: int,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> PipelineContext:
     report_dir = (repo_root / ".agent" / "reports" / task.phase_id).resolve()
     if report_dir.exists():
@@ -545,6 +550,8 @@ def build_context(
         report_dir=report_dir,
         project_python=project_python,
         task=task,
+        model=model,
+        reasoning_effort=reasoning_effort,
     )
 
 
@@ -647,26 +654,38 @@ def run_codex(
     )
     worktree_report.parent.mkdir(parents=True, exist_ok=True)
 
-    result = run_process(
+    command = [
+        "codex",
+        "exec",
+        "--ephemeral",
+        "--sandbox",
+        "workspace-write",
+    ]
+    if ctx.model is not None:
+        command.extend(["--model", ctx.model])
+    if ctx.reasoning_effort is not None:
+        command.extend(
+            ["--config", f'model_reasoning_effort="{ctx.reasoning_effort}"']
+        )
+    command.extend(
         [
-            "codex",
-            "exec",
-            "--ephemeral",
-            "--sandbox",
-            "workspace-write",
             "--cd",
             str(ctx.worktree_path),
             "--output-last-message",
             str(worktree_report),
             "-",
-        ],
+        ]
+    )
+
+    result = run_process(
+        command,
         cwd=ctx.worktree_path,
         timeout=timeout,
         input_text=prompt,
     )
     save_process(
         ctx.report_dir / process_name,
-        "codex exec --ephemeral --sandbox workspace-write ...",
+        command,
         result,
     )
 
@@ -1072,6 +1091,8 @@ def run_pipeline(
     timeout: int,
     max_repairs: int,
     keep_failed_worktree: bool,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> int:
     repo_root = find_repo_root(Path.cwd())
     require_files_and_commands(repo_root)
@@ -1097,6 +1118,8 @@ def run_pipeline(
             task,
             project_python,
             timeout,
+            model,
+            reasoning_effort,
         )
 
         write_json(
@@ -1109,6 +1132,8 @@ def run_pipeline(
                 "task": task_relative.as_posix(),
                 "started_at_utc": now_utc(),
                 "max_repairs": max_repairs,
+                "model": model,
+                "reasoning_effort": reasoning_effort,
             },
         )
 
@@ -1165,6 +1190,8 @@ def run_pipeline(
                         "branch": ctx.agent_branch,
                         "commit": commit_hash,
                         "repairs_used": repairs_used,
+                        "model": model,
+                        "reasoning_effort": reasoning_effort,
                         "finished_at_utc": now_utc(),
                     },
                 )
@@ -1197,6 +1224,8 @@ def run_pipeline(
                 {
                     "status": "FAIL",
                     "phase_id": phase_id,
+                    "model": model,
+                    "reasoning_effort": reasoning_effort,
                     "error": str(exc),
                     "finished_at_utc": now_utc(),
                 },
@@ -1236,6 +1265,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--phase-id")
     parser.add_argument("--task", type=Path)
     parser.add_argument("--base-branch", default="main")
+    parser.add_argument("--model")
+    parser.add_argument("--reasoning-effort")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument(
         "--max-repairs",
@@ -1262,6 +1293,17 @@ def main() -> int:
             raise PipelineError("--timeout must be greater than zero.")
         if args.max_repairs < 0 or args.max_repairs > 10:
             raise PipelineError("--max-repairs must be between 0 and 10.")
+        model = None if args.model is None else args.model.strip()
+        if args.model is not None and not model:
+            raise PipelineError("--model must be a non-empty string.")
+        if (
+            args.reasoning_effort is not None
+            and args.reasoning_effort not in REASONING_EFFORTS
+        ):
+            allowed = ", ".join(sorted(REASONING_EFFORTS))
+            raise PipelineError(
+                f"--reasoning-effort must be one of: {allowed}."
+            )
 
         return run_pipeline(
             task_path_arg=args.task,
@@ -1270,6 +1312,8 @@ def main() -> int:
             timeout=args.timeout,
             max_repairs=args.max_repairs,
             keep_failed_worktree=args.keep_failed_worktree,
+            model=model,
+            reasoning_effort=args.reasoning_effort,
         )
 
     except PipelineError as exc:
