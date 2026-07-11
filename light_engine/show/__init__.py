@@ -31,11 +31,14 @@ from light_engine.show.models import (
     AudioControlSpec,
     AudioModulationChannelSpec,
     AudioModulationSpec,
+    ColorSpec,
     Cue,
+    CueBranchSpec,
     EffectSpec,
     ShowDefinition,
     TargetSelector,
     TransitionSpec,
+    VirtualPathSpec,
 )
 
 __all__ = [
@@ -44,7 +47,9 @@ __all__ = [
     "AudioControlSpec",
     "AudioModulationChannelSpec",
     "AudioModulationSpec",
+    "ColorSpec",
     "Cue",
+    "CueBranchSpec",
     "CueRenderJob",
     "DigitalContribution",
     "EffectSpec",
@@ -59,6 +64,7 @@ __all__ = [
     "TargetResolver",
     "TargetSelector",
     "TransitionSpec",
+    "VirtualPathSpec",
     "black_base_frame",
     "classify_music_state",
     "compose_frame",

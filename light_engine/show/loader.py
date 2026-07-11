@@ -9,18 +9,21 @@ from typing import Any, Iterable, Mapping
 
 import yaml
 
-from light_engine.effects import list_effects
+from light_engine.effects import list_effects, validate_effect_params
 from light_engine.effects.base import get_effect_parameter_keys
 from light_engine.show.audio_modulation import SOURCE_FIELDS
 from light_engine.show.models import (
     AudioControlSpec,
     AudioModulationChannelSpec,
     AudioModulationSpec,
+    ColorSpec,
     Cue,
+    CueBranchSpec,
     EffectSpec,
     ShowDefinition,
     TargetSelector,
     TransitionSpec,
+    VirtualPathSpec,
 )
 
 
@@ -36,6 +39,11 @@ TARGET_KINDS = frozenset(
         "all",
     }
 )
+V2_TARGET_KINDS = frozenset(
+    {"analog_zone", "digital_strip", "digital_set", "digital_group", "virtual_path"}
+)
+ORIGINS = frozenset({"start", "end", "center", "edges"})
+COLOR_MODES = frozenset({"effect_default", "solid", "palette"})
 BLEND_MODES = frozenset({"replace", "add"})
 EFFECT_MODES = frozenset({"fixed", "adaptive"})
 AUDIO_STATES = frozenset(
@@ -121,20 +129,67 @@ def validate_show_data(data: Any, target_catalog: TargetCatalog) -> ShowDefiniti
     root = _mapping(data, "show")
     _unknown(root, {"schema_version", "show"}, "show")
     version = _int(root.get("schema_version"), "show.schema_version", minimum=1)
-    if version != 1:
-        raise ShowValidationError("show.schema_version", version, "must be 1")
+    if version not in {1, 2}:
+        raise ShowValidationError("show.schema_version", version, "must be 1 or 2")
     show = _mapping(root.get("show"), "show.show")
-    _unknown(show, {"id", "duration", "defaults", "cues"}, "show.show")
+    allowed_show = {"id", "duration", "defaults", "cues"}
+    if version == 2:
+        allowed_show.add("virtual_paths")
+    _unknown(show, allowed_show, "show.show")
     show_id = _nonempty_str(show.get("id"), "show.show.id")
     duration = _number(show.get("duration"), "show.show.duration", min_exclusive=0.0)
     defaults = _transition(show.get("defaults", {}), "show.show.defaults")
-    cues = _cues(show.get("cues"), duration, target_catalog, defaults)
+    virtual_paths = (
+        _virtual_paths(show.get("virtual_paths", []), target_catalog)
+        if version == 2
+        else ()
+    )
+    cue_catalog = TargetCatalog(
+        analog_zones=target_catalog.analog_zones,
+        digital_strips=target_catalog.digital_strips,
+        analog_groups=target_catalog.analog_groups,
+        digital_groups=target_catalog.digital_groups,
+        virtual_paths=target_catalog.virtual_paths | frozenset(path.id for path in virtual_paths),
+    )
+    cues = _cues(show.get("cues"), duration, cue_catalog, defaults, version=version)
+    if version == 2:
+        paths_by_id = {path.id: path for path in virtual_paths}
+        for cue_index, cue in enumerate(cues):
+            if cue.branches and cue.effect.mode != "fixed":
+                raise ShowValidationError(
+                    f"show.cues[{cue_index}].effect.mode",
+                    cue.effect.mode,
+                    "bounded branches require a fixed effect",
+                )
+            for branch_index, branch in enumerate(cue.branches):
+                if branch.target.kind != "digital_set":
+                    raise ShowValidationError(
+                        f"show.cues[{cue_index}].branches[{branch_index}].target.type",
+                        branch.target.kind,
+                        "bounded branch target must be digital_set",
+                    )
+                path_spec = paths_by_id.get(branch.path_id)
+                if path_spec is None:
+                    # Layout-defined v1 paths have no logical member contract and
+                    # therefore cannot drive deterministic v2 branch timing.
+                    raise ShowValidationError(
+                        f"show.cues[{cue_index}].branches[{branch_index}].after.virtual_path",
+                        branch.path_id,
+                        "branch trigger requires a Show v2 virtual_path",
+                    )
+                if branch.after_target_id not in {target.id for target in path_spec.targets}:
+                    raise ShowValidationError(
+                        f"show.cues[{cue_index}].branches[{branch_index}].after.target",
+                        branch.after_target_id,
+                        "must be a member of the trigger virtual_path",
+                    )
     return ShowDefinition(
         schema_version=version,
         id=show_id,
         duration=duration,
         defaults=defaults,
         cues=tuple(cues),
+        virtual_paths=tuple(virtual_paths),
     )
 
 
@@ -143,6 +198,8 @@ def _cues(
     duration: float,
     target_catalog: TargetCatalog,
     defaults: TransitionSpec,
+    *,
+    version: int,
 ) -> list[Cue]:
     cues_value = _list(value, "show.cues")
     cue_ids: set[str] = set()
@@ -150,19 +207,15 @@ def _cues(
     for index, raw_cue in enumerate(cues_value):
         path = f"show.cues[{index}]"
         cue = _mapping(raw_cue, path)
+        allowed_cue = {
+            "id", "start", "end", "priority", "target", "effect", "transition",
+            "audio_control", "audio_modulation",
+        }
+        if version == 2:
+            allowed_cue.update({"color", "origin", "branches"})
         _unknown(
             cue,
-            {
-                "id",
-                "start",
-                "end",
-                "priority",
-                "target",
-                "effect",
-                "transition",
-                "audio_control",
-                "audio_modulation",
-            },
+            allowed_cue,
             path,
         )
         cue_id = _nonempty_str(cue.get("id"), f"{path}.id")
@@ -180,8 +233,21 @@ def _cues(
                 start=start,
                 end=end,
                 priority=priority,
-                target=_target(cue.get("target"), f"{path}.target", target_catalog),
-                effect=_effect(cue.get("effect"), f"{path}.effect"),
+                target=_target(cue.get("target"), f"{path}.target", target_catalog, version=version),
+                effect=_effect(cue.get("effect"), f"{path}.effect", version=version),
+                color=(
+                    _color_spec(cue.get("color", {"mode": "effect_default"}), f"{path}.color")
+                    if version == 2 else ColorSpec()
+                ),
+                origin=(
+                    _choice(cue["origin"], f"{path}.origin", ORIGINS)
+                    if version == 2 and "origin" in cue else
+                    (None if version == 2 else "start")
+                ),
+                branches=(
+                    _branches(cue.get("branches", []), f"{path}.branches", target_catalog)
+                    if version == 2 else ()
+                ),
                 transition=_transition(
                     cue.get("transition", {}), f"{path}.transition", defaults
                 ),
@@ -202,10 +268,34 @@ def _cues(
     return cues
 
 
-def _target(value: Any, path: str, catalog: TargetCatalog) -> TargetSelector:
+def _target(
+    value: Any, path: str, catalog: TargetCatalog, *, version: int = 1
+) -> TargetSelector:
     target = _mapping(value, path)
     _unknown(target, {"type", "id", "ids"}, path)
-    kind = _choice(target.get("type"), f"{path}.type", TARGET_KINDS)
+    kinds = V2_TARGET_KINDS if version == 2 else TARGET_KINDS
+    kind = _choice(target.get("type"), f"{path}.type", kinds)
+    if version == 2:
+        if kind == "digital_set":
+            if "id" in target:
+                raise ShowValidationError(f"{path}.id", target["id"], "not allowed for digital_set")
+            ids = tuple(
+                _nonempty_str(item, f"{path}.ids[{idx}]")
+                for idx, item in enumerate(_list(target.get("ids"), f"{path}.ids"))
+            )
+            if not ids:
+                raise ShowValidationError(f"{path}.ids", [], "must be non-empty")
+            if len(set(ids)) != len(ids):
+                raise ShowValidationError(f"{path}.ids", list(ids), "must contain unique IDs")
+            for idx, item in enumerate(ids):
+                if item not in catalog.digital_strips:
+                    raise ShowValidationError(f"{path}.ids[{idx}]", item, "unknown digital_strip")
+            return TargetSelector(kind=kind, ids=ids)
+        if "ids" in target:
+            raise ShowValidationError(f"{path}.ids", target["ids"], "not allowed for target type")
+        target_id = _nonempty_str(target.get("id"), f"{path}.id")
+        _validate_target_ref(kind, target_id, path, catalog)
+        return TargetSelector(kind=kind, id=target_id)
     if kind in {"all_analog", "all_digital", "all"}:
         if "id" in target:
             raise ShowValidationError(f"{path}.id", target["id"], "not allowed for target type")
@@ -241,24 +331,31 @@ def _validate_target_ref(
         raise ShowValidationError(f"{path}.id", target_id, f"unknown {kind}")
 
 
-def _effect(value: Any, path: str) -> EffectSpec:
+def _effect(value: Any, path: str, *, version: int = 1) -> EffectSpec:
     effect = _mapping(value, path)
-    _unknown(effect, {"mode", "name", "parameters", "allowed", "fallback"}, path)
+    if version == 2:
+        _unknown(effect, {"mode", "id", "params", "allowed", "fallback"}, path)
+    else:
+        _unknown(effect, {"mode", "name", "parameters", "allowed", "fallback"}, path)
     mode = _choice(effect.get("mode"), f"{path}.mode", EFFECT_MODES)
     if mode == "fixed":
         if "allowed" in effect:
             raise ShowValidationError(f"{path}.allowed", effect["allowed"], "not allowed for fixed effect")
         if "fallback" in effect:
             raise ShowValidationError(f"{path}.fallback", effect["fallback"], "not allowed for fixed effect")
-        name = _effect_name(effect.get("name"), f"{path}.name")
-        parameters = _parameters(effect.get("parameters", {}), f"{path}.parameters", name)
-        return EffectSpec(mode=mode, name=name, parameters=parameters)
-    if "name" in effect:
-        raise ShowValidationError(f"{path}.name", effect["name"], "not allowed for adaptive effect")
-    if "parameters" in effect:
+        id_key = "id" if version == 2 else "name"
+        params_key = "params" if version == 2 else "parameters"
+        effect_id = _effect_name(effect.get(id_key), f"{path}.{id_key}")
+        parameters = _parameters(effect.get(params_key, {}), f"{path}.{params_key}", effect_id)
+        return EffectSpec(mode=mode, id=effect_id, params=parameters)
+    forbidden_id = "id" if version == 2 else "name"
+    forbidden_params = "params" if version == 2 else "parameters"
+    if forbidden_id in effect:
+        raise ShowValidationError(f"{path}.{forbidden_id}", effect[forbidden_id], "not allowed for adaptive effect")
+    if forbidden_params in effect:
         raise ShowValidationError(
-            f"{path}.parameters",
-            effect["parameters"],
+            f"{path}.{forbidden_params}",
+            effect[forbidden_params],
             "not allowed for adaptive effect",
         )
     allowed = _mapping(effect.get("allowed"), f"{path}.allowed")
@@ -270,6 +367,82 @@ def _effect(value: Any, path: str) -> EffectSpec:
     if fallback not in set(resolved.values()):
         raise ShowValidationError(f"{path}.fallback", fallback, "must be one of allowed effects")
     return EffectSpec(mode=mode, allowed=resolved, fallback=fallback)
+
+
+def _virtual_paths(value: Any, catalog: TargetCatalog) -> tuple[VirtualPathSpec, ...]:
+    raw_paths = _list(value, "show.virtual_paths")
+    seen: set[str] = set()
+    paths: list[VirtualPathSpec] = []
+    for index, raw in enumerate(raw_paths):
+        path = f"show.virtual_paths[{index}]"
+        item = _mapping(raw, path)
+        _unknown(item, {"id", "targets", "origin"}, path)
+        path_id = _nonempty_str(item.get("id"), f"{path}.id")
+        if path_id in seen or path_id in catalog.virtual_paths:
+            raise ShowValidationError(f"{path}.id", path_id, "duplicate virtual path id")
+        seen.add(path_id)
+        targets = tuple(
+            _target(target, f"{path}.targets[{target_index}]", catalog, version=2)
+            for target_index, target in enumerate(_list(item.get("targets"), f"{path}.targets"))
+        )
+        if not targets:
+            raise ShowValidationError(f"{path}.targets", [], "must be non-empty")
+        if any(target.kind not in {"analog_zone", "digital_strip"} for target in targets):
+            raise ShowValidationError(f"{path}.targets", item["targets"], "members must be analog_zone or digital_strip")
+        target_ids = [target.id for target in targets]
+        if len(set(target_ids)) != len(target_ids):
+            raise ShowValidationError(f"{path}.targets", item["targets"], "must contain unique logical targets")
+        paths.append(VirtualPathSpec(
+            id=path_id,
+            targets=targets,
+            origin=_choice(item.get("origin", "start"), f"{path}.origin", ORIGINS),
+        ))
+    return tuple(paths)
+
+
+def _branches(value: Any, path: str, catalog: TargetCatalog) -> tuple[CueBranchSpec, ...]:
+    branches: list[CueBranchSpec] = []
+    for index, raw in enumerate(_list(value, path)):
+        item_path = f"{path}[{index}]"
+        item = _mapping(raw, item_path)
+        _unknown(item, {"after", "target", "origin"}, item_path)
+        after = _mapping(item.get("after"), f"{item_path}.after")
+        _unknown(after, {"virtual_path", "target"}, f"{item_path}.after")
+        path_id = _nonempty_str(after.get("virtual_path"), f"{item_path}.after.virtual_path")
+        if path_id not in catalog.virtual_paths:
+            raise ShowValidationError(f"{item_path}.after.virtual_path", path_id, "unknown virtual_path")
+        branches.append(CueBranchSpec(
+            path_id=path_id,
+            after_target_id=_nonempty_str(after.get("target"), f"{item_path}.after.target"),
+            target=_target(item.get("target"), f"{item_path}.target", catalog, version=2),
+            origin=_choice(item.get("origin", "start"), f"{item_path}.origin", ORIGINS),
+        ))
+    return tuple(branches)
+
+
+def _color_spec(value: Any, path: str) -> ColorSpec:
+    item = _mapping(value, path)
+    _unknown(item, {"mode", "color", "colors"}, path)
+    mode = _choice(item.get("mode"), f"{path}.mode", COLOR_MODES)
+    if mode == "effect_default":
+        if "color" in item:
+            raise ShowValidationError(f"{path}.color", item["color"], "not allowed for effect_default")
+        if "colors" in item:
+            raise ShowValidationError(f"{path}.colors", item["colors"], "not allowed for effect_default")
+        return ColorSpec()
+    if mode == "solid":
+        if "colors" in item:
+            raise ShowValidationError(f"{path}.colors", item["colors"], "not allowed for solid")
+        return ColorSpec(mode=mode, color=_rgb_color(item.get("color"), f"{path}.color"))
+    if "color" in item:
+        raise ShowValidationError(f"{path}.color", item["color"], "not allowed for palette")
+    colors = tuple(
+        _rgb_color(raw, f"{path}.colors[{index}]")
+        for index, raw in enumerate(_list(item.get("colors"), f"{path}.colors"))
+    )
+    if not colors:
+        raise ShowValidationError(f"{path}.colors", [], "must be non-empty")
+    return ColorSpec(mode=mode, palette=colors)
 
 
 def _parameters(value: Any, path: str, effect_name: str) -> dict[str, Any]:
@@ -284,7 +457,10 @@ def _parameters(value: Any, path: str, effect_name: str) -> dict[str, Any]:
         else:
             _parameter_value(item, item_path)
             validated[key] = item
-    return validated
+    try:
+        return dict(validate_effect_params(effect_name, validated))
+    except (TypeError, ValueError) as exc:
+        raise ShowValidationError(path, value, str(exc)) from exc
 
 
 def _color_timeline(value: Any, path: str) -> dict[str, Any]:

@@ -113,8 +113,8 @@ def test_schema_version_one_succeeds_and_missing_or_unsupported_fails() -> None:
     _assert_invalid(missing, "show.schema_version")
 
     unsupported = deepcopy(_valid_show())
-    unsupported["schema_version"] = 2
-    _assert_invalid(unsupported, "show.schema_version", "must be 1")
+    unsupported["schema_version"] = 3
+    _assert_invalid(unsupported, "show.schema_version", "must be 1 or 2")
 
 
 @pytest.mark.parametrize(
@@ -279,12 +279,13 @@ def test_duplicate_cue_ids_fail() -> None:
 def test_valid_300_second_example_round_trips_to_typed_values() -> None:
     show = load_show(Path("config/show.example.yaml"), _catalog())
 
-    assert show.schema_version == 1
-    assert show.id == "teacher-demo-v1"
+    assert show.schema_version == 2
+    assert show.id == "teacher-demo-v2"
     assert show.duration == 300.0
     assert show.defaults.fade_in == 1.0
     assert show.cues[0].target.kind == "virtual_path"
     assert show.cues[0].effect.name == "chase"
+    assert show.cues[0].effect.id == "chase"
     assert show.cues[0].effect.parameters["width"] == 6
     assert show.cues[2].effect.mode == "adaptive"
     assert show.cues[2].audio_control is not None

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Callable, Mapping as TypingMapping
 
 from light_engine.models import EffectContext, PixelFrame
 
@@ -32,6 +33,18 @@ class BaseEffect(ABC):
 # Registry of all effects
 _EFFECT_REGISTRY: dict[str, type[BaseEffect]] = {}
 
+
+@dataclass(frozen=True)
+class EffectRegistration:
+    """Complete authoring/runtime contract for one reusable effect ID."""
+
+    id: str
+    validator: Callable[[TypingMapping[str, Any]], TypingMapping[str, Any]]
+    renderer: type[BaseEffect]
+
+
+_EFFECT_CONTRACTS: dict[str, EffectRegistration] = {}
+
 _EFFECT_PARAMETER_KEYS: dict[str, frozenset[str]] = {
     "static": frozenset({"color", "color_timeline"}),
     "breath": frozenset({"period", "min_brightness", "color", "color_timeline"}),
@@ -52,9 +65,23 @@ _EFFECT_PARAMETER_KEYS: dict[str, frozenset[str]] = {
 }
 
 
-def register_effect(name: str, cls: type[BaseEffect]) -> None:
-    """Register an effect class."""
+def register_effect(
+    name: str,
+    cls: type[BaseEffect],
+    validator: Callable[[TypingMapping[str, Any]], TypingMapping[str, Any]] | None = None,
+) -> None:
+    """Register an ID, parameter validator, and renderer without target coupling."""
     _EFFECT_REGISTRY[name] = cls
+    if validator is None:
+        allowed = _EFFECT_PARAMETER_KEYS.get(name, frozenset())
+
+        def validator(values: TypingMapping[str, Any]) -> TypingMapping[str, Any]:
+            unknown = set(values) - set(allowed)
+            if unknown:
+                raise ValueError(f"unknown effect parameters: {sorted(unknown)}")
+            return dict(values)
+
+    _EFFECT_CONTRACTS[name] = EffectRegistration(name, validator, cls)
 
 
 def create_effect(name: str) -> BaseEffect:
@@ -69,6 +96,17 @@ def create_effect(name: str) -> BaseEffect:
 def list_effects() -> list[str]:
     """List all registered effect names."""
     return list(_EFFECT_REGISTRY.keys())
+
+
+def get_effect_registration(name: str) -> EffectRegistration:
+    """Return the complete registered contract for an effect ID."""
+    if name not in _EFFECT_CONTRACTS:
+        raise KeyError(f"Unknown effect: {name}")
+    return _EFFECT_CONTRACTS[name]
+
+
+def validate_effect_params(name: str, values: TypingMapping[str, Any]) -> TypingMapping[str, Any]:
+    return get_effect_registration(name).validator(values)
 
 
 def get_effect_parameter_keys(name: str) -> frozenset[str]:

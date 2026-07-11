@@ -16,6 +16,7 @@ from light_engine.effects.base import (
     runtime_bool,
     runtime_float,
     runtime_int,
+    runtime_rgb,
     runtime_str,
 )
 from light_engine.models import (
@@ -58,7 +59,7 @@ class ChaseEffect(BaseEffect):
         if color_source == "rainbow":
             hue = (pos / max(1, pixel_count) * 360 + self._hue_offset) % 360
             return colorsys.hsv_to_rgb(hue / 360, 1.0, 1.0)
-        elif color_source == "video" and base_rgb:
+        elif color_source in {"video", "static"} and base_rgb:
             return base_rgb
         else:
             return (1.0, 0.6, 0.0)  # default orange
@@ -92,6 +93,8 @@ class ChaseEffect(BaseEffect):
         video_rgb = None
         if ctx.video_features:
             video_rgb = ctx.video_features.average_rgb
+        authored_rgb = runtime_rgb(ctx, "color", (1.0, 0.6, 0.0))
+        base_rgb = video_rgb if color_source == "video" else authored_rgb
 
         strips = []
 
@@ -122,7 +125,7 @@ class ChaseEffect(BaseEffect):
 
                 if width > 0 and dist <= width:
                     intensity = 1.0 - (dist / width) * (1.0 - trail)
-                    r, g, b = self._chase_color(i, n, video_rgb, color_source)
+                    r, g, b = self._chase_color(i, n, base_rgb, color_source)
                     pixels.append((r * intensity, g * intensity, b * intensity))
                 else:
                     pixels.append((0.0, 0.0, 0.0))

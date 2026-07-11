@@ -7,10 +7,13 @@ P0 minimum: STATIC, VIDEO_AMBIENT, AUDIO_PULSE, COLOR_WAVE, CHASE, BREATH,
 
 from light_engine.effects.base import (
     BaseEffect,
+    EffectRegistration,
     _EFFECT_REGISTRY,
     create_effect,
+    get_effect_registration,
     list_effects,
     register_effect,
+    validate_effect_params,
 )
 
 

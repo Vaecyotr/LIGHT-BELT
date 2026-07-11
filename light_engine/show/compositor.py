@@ -9,7 +9,7 @@ from hashlib import sha256
 from types import MappingProxyType
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
-from light_engine.color import evaluate_rgb_linear_timeline
+from light_engine.color import evaluate_rgb_linear_timeline, rgb_to_rgbcct
 from light_engine.effects.base import BaseEffect, create_effect
 from light_engine.mapping import Layout, ZoneDef
 from light_engine.mapping.virtual import VirtualPath
@@ -23,7 +23,7 @@ from light_engine.models import (
 )
 from light_engine.show.adaptive_selector import AdaptiveEffectSelector, fixed_decision
 from light_engine.show.audio_modulation import CueAudioModulator
-from light_engine.show.models import Cue, ShowDefinition, TargetSelector
+from light_engine.show.models import Cue, ShowDefinition, TargetSelector, VirtualPathSpec
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,7 @@ class ResolvedTarget:
     analog_zones: tuple[ZoneDef, ...] = ()
     digital_strips: tuple[ZoneDef, ...] = ()
     virtual_path: VirtualPath | None = None
+    authored_path: VirtualPathSpec | None = None
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,11 @@ class TargetResolver:
             for group_id, member_ids in (digital_groups or {}).items()
         }
         self._virtual_by_id = {path.id: path for path in virtual_paths}
+        self._authored_virtual_by_id: dict[str, VirtualPathSpec] = {}
+
+    def register_authored_paths(self, paths: Iterable[VirtualPathSpec]) -> None:
+        """Attach validated logical paths from one Show v2 definition."""
+        self._authored_virtual_by_id = {path.id: path for path in paths}
 
     @classmethod
     def from_layout(
@@ -120,11 +126,34 @@ class TargetResolver:
             return ResolvedTarget(selector, analog_zones=(self._analog(selector.id),))
         if kind == "digital_strip":
             return ResolvedTarget(selector, digital_strips=(self._digital(selector.id),))
+        if kind == "digital_set":
+            return ResolvedTarget(
+                selector,
+                digital_strips=tuple(self._digital(strip_id) for strip_id in selector.ids),
+            )
         if kind == "analog_group":
             return ResolvedTarget(selector, analog_zones=self._resolve_analog_group(selector))
         if kind == "digital_group":
             return ResolvedTarget(selector, digital_strips=self._resolve_digital_group(selector))
         if kind == "virtual_path":
+            if selector.id in self._authored_virtual_by_id:
+                authored = self._authored_virtual_by_id[selector.id]
+                zones = tuple(
+                    self._analog(member.id)
+                    for member in authored.targets
+                    if member.kind == "analog_zone"
+                )
+                strips = tuple(
+                    self._digital(member.id)
+                    for member in authored.targets
+                    if member.kind == "digital_strip"
+                )
+                return ResolvedTarget(
+                    selector,
+                    analog_zones=zones,
+                    digital_strips=strips,
+                    authored_path=authored,
+                )
             path = self._virtual(selector.id)
             strip_ids = tuple(dict.fromkeys(segment.strip_id for segment in path.segments))
             strips = tuple(self._digital(strip_id) for strip_id in strip_ids)
@@ -140,6 +169,39 @@ class TargetResolver:
                 digital_strips=self._digital_order,
             )
         raise ValueError(f"unknown target kind {kind!r}")
+
+    def release_progress(self, path_id: str, target_id: str) -> float:
+        """Return deterministic cue progress when one logical member completes."""
+        path = self._authored_virtual_by_id.get(path_id)
+        if path is None:
+            raise KeyError(f"unknown authored virtual path {path_id!r}")
+        weights: list[int] = []
+        for member in path.targets:
+            if member.kind == "digital_strip":
+                weights.append(self._digital(member.id).pixel_count)
+            else:
+                weights.append(1)
+        total = sum(weights)
+        cursor = 0
+        for member, weight in zip(path.targets, weights):
+            start = cursor
+            cursor += weight
+            if member.id == target_id:
+                end = cursor
+                if path.origin == "start":
+                    return end / total
+                if path.origin == "end":
+                    return (total - start) / total
+                midpoint = total / 2.0
+                if path.origin == "center":
+                    return max(abs(start - midpoint), abs(end - midpoint)) / midpoint
+                # edges: both ends advance inward; a member completes when
+                # its point farthest from either edge has been reached.
+                if start <= midpoint <= end:
+                    return 1.0
+                inner_distance = min(end, total - start)
+                return inner_distance / midpoint
+        raise KeyError(f"target {target_id!r} is not a member of path {path_id!r}")
 
     def _analog(self, zone_id: str | None) -> ZoneDef:
         if zone_id not in self._analog_by_id:
@@ -203,8 +265,27 @@ def make_scoped_context(
 ) -> EffectContext:
     """Return an immutable per-target context view for one effect render."""
 
-    if resolved.virtual_path is None:
+    if resolved.authored_path is not None:
+        pixel_count = 0
+        for member in resolved.authored_path.targets:
+            if member.kind == "digital_strip":
+                pixel_count += next(strip.pixel_count for strip in resolved.digital_strips if strip.id == member.id)
+            else:
+                pixel_count += 1
+        strip_defs = (
+            MappingProxyType(
+                {
+                    "id": _virtual_strip_id(resolved.authored_path.id),
+                    "pixel_count": pixel_count,
+                    "video_zone": "center",
+                    "direction": "forward",
+                }
+            ),
+        )
+        zone_defs = ()
+    elif resolved.virtual_path is None:
         strip_defs = tuple(_strip_def(strip) for strip in resolved.digital_strips)
+        zone_defs = tuple(_zone_def(zone) for zone in resolved.analog_zones)
     else:
         strip_defs = (
             MappingProxyType(
@@ -216,7 +297,7 @@ def make_scoped_context(
                 }
             ),
         )
-    zone_defs = tuple(_zone_def(zone) for zone in resolved.analog_zones)
+        zone_defs = tuple(_zone_def(zone) for zone in resolved.analog_zones)
     mode_parameters = dict(ctx.mode_parameters)
     mode_parameters.update(
         {
@@ -227,11 +308,18 @@ def make_scoped_context(
     )
     if cue is not None:
         mode_parameters.update(dict(cue.effect.parameters))
+        mode_parameters["origin"] = cue.origin
         mode_parameters["cue_id"] = cue.id
         mode_parameters["priority"] = cue.priority
         mode_parameters["blend"] = cue.transition.blend
         mode_parameters["show_time"] = ctx.timestamp
         mode_parameters["cue_local_time"] = ctx.timestamp - cue.start
+        if cue.color.mode == "solid":
+            mode_parameters["color"] = cue.color.color
+        elif cue.color.mode == "palette":
+            elapsed = max(0.0, ctx.timestamp - cue.start)
+            mode_parameters["color"] = cue.color.palette[int(elapsed) % len(cue.color.palette)]
+            mode_parameters["palette"] = cue.color.palette
     if declaration_index is not None:
         mode_parameters["declaration_index"] = declaration_index
     return replace(ctx, mode_parameters=MappingProxyType(mode_parameters))
@@ -252,7 +340,9 @@ def frame_to_contribution(
     if blend not in {"replace", "add"}:
         raise ValueError(f"unsupported V1 blend mode {blend!r}")
     weight = _validate_weight(weight)
-    if resolved.virtual_path is None:
+    if resolved.authored_path is not None:
+        digital, analog = _authored_path_contributions(frame, resolved)
+    elif resolved.virtual_path is None:
         digital = tuple(
             DigitalContribution(
                 strip_id=strip.strip_id,
@@ -261,12 +351,16 @@ def frame_to_contribution(
             )
             for strip in frame.strips
         )
+        analog = tuple(
+            AnalogContribution(zone_id=zone.zone_id, color=_copy_rgbcct(zone.color))
+            for zone in frame.zones
+        )
     else:
         digital = _virtual_frame_to_digital(frame, resolved.virtual_path)
-    analog = tuple(
-        AnalogContribution(zone_id=zone.zone_id, color=_copy_rgbcct(zone.color))
-        for zone in frame.zones
-    )
+        analog = tuple(
+            AnalogContribution(zone_id=zone.zone_id, color=_copy_rgbcct(zone.color))
+            for zone in frame.zones
+        )
     return FrameContribution(
         cue_id=cue_id,
         priority=priority,
@@ -363,6 +457,15 @@ class CueRenderJob:
         self.cue = cue
         self.declaration_index = declaration_index
         self.resolved = resolver.resolve(cue.target)
+        self.origin = (
+            cue.origin
+            if cue.origin is not None
+            else (
+                self.resolved.authored_path.origin
+                if self.resolved.authored_path is not None
+                else "start"
+            )
+        )
         self._effect_factory = effect_factory
         self._injected_effect = effect is not None
         self._cue_seed = cue_seed
@@ -371,6 +474,25 @@ class CueRenderJob:
         )
         self._audio_modulator = CueAudioModulator(cue.audio_modulation)
         self.effect = effect if effect is not None else self._create_effect()
+        self._branch_jobs: tuple[tuple[float, CueRenderJob], ...] = tuple(
+            (
+                resolver.release_progress(branch.path_id, branch.after_target_id),
+                CueRenderJob(
+                    replace(
+                        cue,
+                        id=f"{cue.id}:branch:{index}",
+                        target=branch.target,
+                        origin=branch.origin,
+                        branches=(),
+                    ),
+                    declaration_index + index + 1,
+                    resolver,
+                    effect_factory=effect_factory,
+                    cue_seed=cue_seed + index + 1,
+                ),
+            )
+            for index, branch in enumerate(cue.branches)
+        )
 
     def render(self, ctx: EffectContext) -> FrameContribution:
         effect = self.effect
@@ -386,10 +508,13 @@ class CueRenderJob:
             decision = fixed_decision(self.cue, ctx.timestamp)
         if effect is None:
             raise RuntimeError(f"cue {self.cue.id!r} has no active effect")
+        render_cue = self.cue if self.cue.origin is not None else replace(
+            self.cue, origin=self.origin
+        )
         scoped = make_scoped_context(
             ctx,
             self.resolved,
-            cue=self.cue,
+            cue=render_cue,
             declaration_index=self.declaration_index,
         )
         multipliers = self._audio_modulator.multipliers(ctx)
@@ -416,6 +541,7 @@ class CueRenderJob:
             mode_parameters=MappingProxyType(scoped_params),
         )
         frame = effect.process(scoped)
+        frame = _apply_origin(frame, self.origin)
         frame = _scale_frame_brightness(frame, multipliers.brightness)
         return frame_to_contribution(
             frame,
@@ -435,6 +561,20 @@ class CueRenderJob:
             self.effect.reset()
         else:
             self.effect = self._create_effect()
+        for _progress, job in self._branch_jobs:
+            job.reset()
+
+    def render_branches(self, ctx: EffectContext) -> tuple[FrameContribution, ...]:
+        """Render bounded releases; every member of a digital_set shares this frame."""
+        duration = self.cue.end - self.cue.start
+        progress = (ctx.timestamp - self.cue.start) / duration
+        return tuple(
+            job.render(ctx)
+            for release_progress, job in self._branch_jobs
+            if progress > release_progress or math.isclose(
+                progress, release_progress, rel_tol=0.0, abs_tol=1e-12
+            )
+        )
 
     def _create_effect(self, name: str | None = None) -> BaseEffect | None:
         if name is None:
@@ -462,6 +602,7 @@ class ShowRuntime:
     ):
         self.show = show
         self._resolver = resolver
+        resolver.register_authored_paths(show.virtual_paths)
         self._seed = seed
         self._effect_factory = effect_factory
         self._jobs = tuple(
@@ -506,11 +647,11 @@ class ShowRuntime:
             )
         if self._last_timestamp == ctx.timestamp and self._last_frame is not None:
             return _copy_frame_with_identity(self._last_frame, base)
-        active = [
-            job.render(ctx)
-            for job in self._jobs
-            if job.cue.start <= ctx.timestamp < job.cue.end
-        ]
+        active: list[FrameContribution] = []
+        for job in self._jobs:
+            if job.cue.start <= ctx.timestamp < job.cue.end:
+                active.append(job.render(ctx))
+                active.extend(job.render_branches(ctx))
         frame = compose_frame(base, active)
         self._last_timestamp = ctx.timestamp
         self._last_frame = frame
@@ -600,6 +741,41 @@ def _scale_frame_brightness(frame: PixelFrame, multiplier: float) -> PixelFrame:
     )
 
 
+def _apply_origin(frame: PixelFrame, origin: str) -> PixelFrame:
+    """Apply one deterministic logical-coordinate origin to effect pixels."""
+    if origin not in {"start", "end", "center", "edges"}:
+        raise ValueError(f"unknown origin {origin!r}")
+    if origin == "start":
+        return frame
+
+    def remap(pixels: Sequence[ColorRGB]) -> list[ColorRGB]:
+        count = len(pixels)
+        if origin == "end":
+            return list(reversed(pixels))
+        if count <= 1:
+            return list(pixels)
+        if origin == "center":
+            indexes = [min(count - 1, int(abs(index - (count - 1) / 2.0) * 2.0)) for index in range(count)]
+        else:  # edges move inward with a shared phase at both physical ends.
+            indexes = [min(count - 1, min(index, count - 1 - index) * 2) for index in range(count)]
+        return [pixels[index] for index in indexes]
+
+    return PixelFrame(
+        timestamp=frame.timestamp,
+        sequence=frame.sequence,
+        strips=[
+            DigitalStrip(
+                strip_id=strip.strip_id,
+                pixel_count=strip.pixel_count,
+                pixels=remap(strip.pixels),
+            )
+            for strip in frame.strips
+        ],
+        zones=list(frame.zones),
+        metadata=dict(frame.metadata),
+    )
+
+
 def _virtual_frame_to_digital(
     frame: PixelFrame, virtual_path: VirtualPath
 ) -> tuple[DigitalContribution, ...]:
@@ -616,6 +792,51 @@ def _virtual_frame_to_digital(
         )
         for item in ranges
     )
+
+
+def _authored_path_contributions(
+    frame: PixelFrame, resolved: ResolvedTarget
+) -> tuple[tuple[DigitalContribution, ...], tuple[AnalogContribution, ...]]:
+    """Split one continuous Show v2 logical-path buffer back to its members."""
+    path = resolved.authored_path
+    if path is None:
+        raise ValueError("authored path contribution requires an authored path")
+    path_strip = next(
+        (strip for strip in frame.strips if strip.strip_id == _virtual_strip_id(path.id)),
+        None,
+    )
+    if path_strip is None:
+        return (), ()
+    pixels = tuple(
+        _validate_rgb(pixel, "authored virtual path pixel")
+        for pixel in path_strip.pixels
+    )
+    digital_by_id = {strip.id: strip for strip in resolved.digital_strips}
+    cursor = 0
+    digital: list[DigitalContribution] = []
+    analog: list[AnalogContribution] = []
+    for member in path.targets:
+        if member.kind == "digital_strip":
+            count = digital_by_id[member.id].pixel_count
+            digital.append(
+                DigitalContribution(
+                    strip_id=member.id,
+                    source_start=0,
+                    pixels=pixels[cursor : cursor + count],
+                )
+            )
+            cursor += count
+        else:
+            r, g, b = pixels[cursor]
+            analog.append(
+                AnalogContribution(zone_id=member.id, color=rgb_to_rgbcct(r, g, b))
+            )
+            cursor += 1
+    if cursor != len(pixels):
+        raise ValueError(
+            f"authored virtual path {path.id!r} rendered {len(pixels)} pixels; expected {cursor}"
+        )
+    return tuple(digital), tuple(analog)
 
 
 def _validate_frame_identity(base: PixelFrame, contribution: FrameContribution) -> None:

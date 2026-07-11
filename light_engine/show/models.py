@@ -20,16 +20,71 @@ class TargetSelector:
 
 
 @dataclass(frozen=True)
+class ColorSpec:
+    """Cue-authored color policy, independent from the selected effect."""
+
+    mode: str = "effect_default"
+    color: tuple[float, float, float] | None = None
+    palette: tuple[tuple[float, float, float], ...] = ()
+
+
+@dataclass(frozen=True)
+class VirtualPathSpec:
+    """A hardware-agnostic ordered path through logical targets."""
+
+    id: str
+    targets: tuple[TargetSelector, ...]
+    origin: str = "start"
+
+
+@dataclass(frozen=True)
+class CueBranchSpec:
+    """Bounded release from one authored path member to one target set."""
+
+    path_id: str
+    after_target_id: str
+    target: TargetSelector
+    origin: str = "start"
+
+
+@dataclass(frozen=True, init=False)
 class EffectSpec:
     mode: str
-    name: str | None = None
-    parameters: Mapping[str, Any] = field(default_factory=dict)
+    id: str | None = None
+    params: Mapping[str, Any] = field(default_factory=dict)
     allowed: Mapping[str, str] = field(default_factory=dict)
     fallback: str | None = None
 
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "parameters", frozen_mapping(self.parameters))
-        object.__setattr__(self, "allowed", frozen_mapping(self.allowed))
+    def __init__(
+        self,
+        mode: str,
+        id: str | None = None,
+        params: Mapping[str, Any] | None = None,
+        allowed: Mapping[str, str] | None = None,
+        fallback: str | None = None,
+        *,
+        name: str | None = None,
+        parameters: Mapping[str, Any] | None = None,
+    ) -> None:
+        if id is not None and name is not None:
+            raise TypeError("EffectSpec accepts id or legacy name, not both")
+        if params is not None and parameters is not None:
+            raise TypeError("EffectSpec accepts params or legacy parameters, not both")
+        object.__setattr__(self, "mode", mode)
+        object.__setattr__(self, "id", id if id is not None else name)
+        object.__setattr__(self, "params", frozen_mapping(params if params is not None else (parameters or {})))
+        object.__setattr__(self, "allowed", frozen_mapping(allowed or {}))
+        object.__setattr__(self, "fallback", fallback)
+
+    @property
+    def name(self) -> str | None:
+        """Read-only v1 compatibility alias; new authoring uses ``id``."""
+        return self.id
+
+    @property
+    def parameters(self) -> Mapping[str, Any]:
+        """Read-only v1 compatibility alias; new authoring uses ``params``."""
+        return self.params
 
 
 @dataclass(frozen=True)
@@ -86,6 +141,11 @@ class Cue:
     end: float
     target: TargetSelector
     effect: EffectSpec
+    color: ColorSpec = field(default_factory=ColorSpec)
+    # ``None`` means a v2 virtual-path cue inherits its path origin. Runtime
+    # treats it as ``start`` for every other target. V1 loading is explicit.
+    origin: str | None = None
+    branches: tuple[CueBranchSpec, ...] = ()
     priority: int = 0
     transition: TransitionSpec = field(default_factory=TransitionSpec)
     audio_control: AudioControlSpec | None = None
@@ -99,3 +159,4 @@ class ShowDefinition:
     duration: float
     cues: tuple[Cue, ...]
     defaults: TransitionSpec = field(default_factory=TransitionSpec)
+    virtual_paths: tuple[VirtualPathSpec, ...] = ()

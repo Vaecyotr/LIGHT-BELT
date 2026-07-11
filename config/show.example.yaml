@@ -1,7 +1,7 @@
-schema_version: 1
+schema_version: 2
 
 show:
-  id: "teacher-demo-v1"
+  id: "teacher-demo-v2"
   duration: 300.0
   defaults:
     fade_in: 1.0
@@ -20,12 +20,15 @@ show:
         id: "screen_to_wall"
       effect:
         mode: "fixed"
-        name: "chase"
-        parameters:
+        id: "chase"
+        params:
           speed: 9.0
           width: 6
           gap: 12
           color_source: "video"
+      color:
+        mode: "effect_default"
+      origin: "start"
       transition:
         fade_in: 2.0
         fade_out: 2.0
@@ -35,20 +38,23 @@ show:
       end: 30.0
       priority: 5
       target:
-        type: "analog_group"
-        ids: ["ceiling_left", "ceiling_right"]
+        type: "analog_zone"
+        id: "ceiling_left"
       effect:
         mode: "fixed"
-        name: "breath"
-        parameters:
+        id: "breath"
+        params:
           period: 5.0
+      color:
+        mode: "solid"
+        color: [0.4, 0.2, 0.6]
 
     - id: "music-adaptive-wall-digital"
       start: 30.0
       end: 90.0
       priority: 10
       target:
-        type: "digital_group"
+        type: "digital_set"
         ids: ["wall_left", "wall_right"]
       effect:
         mode: "adaptive"
@@ -62,6 +68,11 @@ show:
           impact: "comet"
           transition: "color_wave"
         fallback: "color_wave"
+      color:
+        mode: "palette"
+        colors:
+          - [0.2, 0.4, 0.8]
+          - [0.8, 0.2, 0.4]
       audio_control:
         tempo_sync: "auto"
         tempo_confidence_min: 0.75
