@@ -69,7 +69,7 @@ The cabin is 2100 mm × 1000 mm × 1800 mm. It contains 14 physical light runs: 
 ## Required Targeted Tests
 
 ```powershell
-rg -n "260|strip_41|zone_32|NOT HARDWARE VERIFIED|GPIO4" CLAUDE.md docs/CLOSED_LOOP_SPEC.md docs/IMPLEMENTATION_PLAN.md
+.\.python\Scripts\python.exe -c "from pathlib import Path; paths=[Path('CLAUDE.md'),Path('docs/CLOSED_LOOP_SPEC.md'),Path('docs/IMPLEMENTATION_PLAN.md')]; text='\n'.join(p.read_text(encoding='utf-8-sig') for p in paths); required=['260','strip_41','zone_32','NOT HARDWARE VERIFIED','GPIO4']; missing=[item for item in required if item not in text]; assert not missing, f'Missing contract terms: {missing}'; print('PHASE_24_CONTRACT_TERMS_OK')"
 ```
 
 ## Required Full Verification

@@ -170,6 +170,72 @@ def test_campaign_passes_model_configuration_to_pipeline(
     assert captured[captured.index("--max-repairs") + 1] == "1"
 
 
+def test_failed_report_is_archived_before_phase_retry(
+    tmp_path: Path, monkeypatch
+) -> None:
+    phase_id = "phase-24-authority-topology-contract"
+    report_dir = tmp_path / ".agent" / "reports" / phase_id
+    report_dir.mkdir(parents=True)
+    (report_dir / "final-result.json").write_text(
+        json.dumps({"status": "FAIL", "phase_id": phase_id}),
+        encoding="utf-8",
+    )
+    step = agent_campaign.CampaignStep(
+        phase_id=phase_id,
+        task=Path(f".agent/tasks/{phase_id}.md"),
+        max_repairs=1,
+    )
+    branch_created = False
+
+    def fake_run(command, **_kwargs):
+        nonlocal branch_created
+        branch_created = True
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(agent_campaign, "phase_already_applied", lambda *_: False)
+    monkeypatch.setattr(
+        agent_campaign,
+        "branch_exists",
+        lambda _root, _branch: branch_created,
+    )
+    monkeypatch.setattr(
+        agent_campaign, "find_project_python", lambda _root: Path("python.exe")
+    )
+    monkeypatch.setattr(agent_campaign, "run", fake_run)
+    monkeypatch.setattr(
+        agent_campaign,
+        "git",
+        lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
+    )
+    monkeypatch.setattr(agent_campaign, "require_clean", lambda _root: None)
+
+    agent_campaign.run_step(tmp_path, "campaign/test", step)
+
+    archived = (
+        tmp_path
+        / ".agent"
+        / "reports"
+        / ".failed"
+        / phase_id
+        / "attempt-001"
+    )
+    assert archived.is_dir()
+    assert not report_dir.exists()
+
+
+def test_non_failed_existing_report_blocks_retry(tmp_path: Path) -> None:
+    phase_id = "phase-24-authority-topology-contract"
+    report_dir = tmp_path / ".agent" / "reports" / phase_id
+    report_dir.mkdir(parents=True)
+    (report_dir / "final-result.json").write_text(
+        json.dumps({"status": "PASS", "phase_id": phase_id}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(agent_campaign.CampaignError, match="not a failed run"):
+        agent_campaign.archive_failed_report(tmp_path, phase_id)
+
+
 def test_run_codex_passes_explicit_model_and_reasoning(
     tmp_path: Path, monkeypatch
 ) -> None:

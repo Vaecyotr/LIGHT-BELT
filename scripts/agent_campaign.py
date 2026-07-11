@@ -208,6 +208,38 @@ def phase_already_applied(root: Path, agent_branch: str) -> bool:
     return result.returncode == 0
 
 
+def archive_failed_report(root: Path, phase_id: str) -> Path | None:
+    report_dir = root / ".agent" / "reports" / phase_id
+    if not report_dir.exists():
+        return None
+
+    final_result = report_dir / "final-result.json"
+    if not final_result.is_file():
+        raise CampaignError(
+            f"Report directory exists without final-result.json: {report_dir}"
+        )
+    try:
+        result = json.loads(final_result.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CampaignError(
+            f"Failed to read existing final result: {final_result}"
+        ) from exc
+    if result.get("status") != "FAIL":
+        raise CampaignError(
+            f"Report directory already exists and is not a failed run: {report_dir}"
+        )
+
+    archive_root = root / ".agent" / "reports" / ".failed" / phase_id
+    archive_root.mkdir(parents=True, exist_ok=True)
+    attempt = 1
+    while (archive_root / f"attempt-{attempt:03d}").exists():
+        attempt += 1
+    destination = archive_root / f"attempt-{attempt:03d}"
+    report_dir.replace(destination)
+    print(f"[RETRY] archived failed report: {destination}")
+    return destination
+
+
 def run_step(
     root: Path,
     campaign_branch: str,
@@ -224,11 +256,7 @@ def run_step(
             f"Agent branch already exists but is not merged: {agent_branch}"
         )
 
-    report_dir = root / ".agent" / "reports" / step.phase_id
-    if report_dir.exists():
-        raise CampaignError(
-            f"Report directory already exists: {report_dir}"
-        )
+    archive_failed_report(root, step.phase_id)
 
     print(f"\n=== START {step.phase_id} ===")
     python_executable = find_project_python(root)
