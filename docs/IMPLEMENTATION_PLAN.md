@@ -29,6 +29,92 @@
 
 ---
 
+## 当前增量权威阶段（Phase 24-29）
+
+下方原 Phase 0-23 章节保留已完成开发过程和当时合同，不追溯改写。凡安装数量、示例 ID、连续数字 payload 或单节点拓扑与本节冲突，以 Phase 24-29 为当前目标；兼容协议仍按各版本合同保留。
+
+## Phase 24: 权威舱体拓扑合同
+
+目标舱体为 2100 mm x 1000 mm x 1800 mm，共 14 条物理灯光运行：13 条独立 24V WS2811 RGB 灯带和一个 24V 共阳极 RGB+CCT COB。下表的尺寸、位置、长度和 group 数均为 `NOT HARDWARE VERIFIED`，实现时必须保持可配置。
+
+| 物理标签 | 机器逻辑 ID | 安装位置 | 技术 | 长度 | groups |
+|---|---|---|---|---:|---:|
+| 11 | `strip_11` | 屏幕环绕 | WS2811 | 0.5 m | 10 |
+| 12 | `strip_12` | 顶棚边缘 | WS2811 | 2 m | 40 |
+| 21 | `strip_21` | 屏幕环绕 | WS2811 | 0.5 m | 10 |
+| 22 | `strip_22` | 地板/墙面边缘 | WS2811 | 2 m | 40 |
+| 31 | `strip_31` | 屏幕环绕 | WS2811 | 0.5 m | 10 |
+| 32 | `zone_32` | 左侧舷窗/门 | RGB+CCT COB | 可配置 | n/a |
+| 41 | `strip_41` | 屏幕环绕 | WS2811 | 0.5 m | 10 |
+| 42 | `strip_42` | 右墙波浪 | WS2811 | 1 m | 20 |
+| 43 | `strip_43` | 右墙波浪 | WS2811 | 1 m | 20 |
+| 44 | `strip_44` | 右墙波浪 | WS2811 | 1 m | 20 |
+| 45 | `strip_45` | 右墙波浪 | WS2811 | 1 m | 20 |
+| 91 | `strip_91` | 预留/可拆卸运行 | WS2811 | 1 m | 20 |
+| 92 | `strip_92` | 预留/可拆卸运行 | WS2811 | 1 m | 20 |
+| 93 | `strip_93` | 预留/可拆卸运行 | WS2811 | 1 m | 20 |
+
+十三条数字运行合计 260 个 WS2811 groups。物理标签、逻辑 ID、ESP32 node ID、GPIO、协议 node ID 和 Host API target ID 必须分别配置，禁止互相推导。`DigitalStrip` 继续是纯逻辑模型；node、host、port、offset、GPIO 等物理信息只进入配置、映射、协议、固件和 `PhysicalFrame`。
+
+`zone_32` 使用一个可配置 STM32 RS-485 节点，物理标签 `32` 不强制成为总线地址。暂定五节点分配如下，且为 `NOT HARDWARE VERIFIED`：
+
+| ESP32 node | GPIO4 | GPIO5 | GPIO6 |
+|---:|---|---|---|
+| 1 | `strip_11` | `strip_21` | `strip_31` |
+| 2 | `strip_41` | `strip_42` | `strip_43` |
+| 3 | `strip_44` | `strip_45` | `strip_93` |
+| 4 | `strip_12` | `strip_91` | `strip_92` |
+| 5 | `strip_22` | 未使用 | 未使用 |
+
+每条灯带使用独立数据引脚和 SN74LVC1T45，24V 灯带并联供电，转换器 B 侧使用 5V，所有电源和控制器共地。最终接线、IP、电源分段和实际同步性能均可配置且为 `NOT HARDWARE VERIFIED`。
+
+协议兼容边界：UDP v2 保持已实现 legacy 合同，即一个 `pixel_count` 和一个连续 RGB pixel payload；v2 codec/tests/golden 不删除、不弱化、不改写。多输出节点帧由 Phase 26 新增 UDP v3 承载。
+
+## Phase 25: Show V2 与灯效编写
+
+- 新增严格 Show v2；Show v1 只读归一化兼容，新示例和序列化只输出 v2。
+- 规范 target：`analog_zone+id`、`digital_strip+id`、`digital_set+ids`、`digital_group+id`、`virtual_path+id`。
+- 规范 effect 为 `effect.id + effect.params`；颜色使用独立 ColorSpec：`effect_default`、`solid`、`palette`。
+- 至少三条 virtual path 覆盖全部 14 条运行；支持 `start/end/center/edges` origin。
+- `strip_41` 传播完成后，可在同一逻辑帧同时释放 42/43/44/45/93；本阶段不引入通用 DAG 执行器。
+- 保持 brightness 只在 `OutputTransform` 应用，sequence 只由 Engine 分配。
+
+## Phase 26: 多输出映射与 UDP V3
+
+- 在物理边界把每条 strip 映射到 `node_id + output_id + GPIO + exact group_count`；逻辑 `DigitalStrip` 不增加硬件字段。
+- 新增纯 UDP v3 codec：版本、flags、node ID、uint32 sequence、media timestamp、可选 `apply_at_us`、output count、逐输出 ID/长度/payload、CRC32。
+- 每个 ESP32 每逻辑帧接收一个完整 v3 多输出数据报，不把独立 strip 拼成一个逻辑 strip。
+- 新增 `udp_v3_golden.json` 及生成头；Host 与 firmware 共用 JSON 单一事实来源。
+- 新舱体生产配置默认 v3；UDP v2 codec、tests 和 golden 仅作为 legacy 保留。
+- `apply_at_us` 首版只保留字段，不作为立即刷新路径的依赖。
+
+## Phase 27: ESP32 多输出固件
+
+- ESP32-S3 支持 GPIO4/5/6 最多三条独立输出，每条具有独立 output ID、长度和缓冲区。
+- 完整解码并验证 UDP v3、CRC、node/output 集、长度和 sequence 后，才交换全部输出缓冲并刷新一次。
+- 重复、陈旧、未知、缺失、损坏或超长输出不得显示半帧；超时安全状态为全黑。
+- 使用 UDP v3 Golden Header，运行 native tests 和 ESP32-S3 PlatformIO build。
+- 不改变 STM32 firmware，不宣称实体硬件同步已验证。
+
+## Phase 28: 集成、安全与文档
+
+- 声明 pyserial 等生产依赖；生产 transport 失败必须显式报错，memory/fake 必须显式选择。
+- 更新 Show v2、layout、outputs、开发和生产示例，不写入真实秘密、最终 IP 或串口路径。
+- inspect 输出从验证配置推导 virtual path → 逻辑 ID → node/output/GPIO/长度，不维护第二份硬编码映射表。
+- 文档区分物理标签、逻辑 ID、协议 node ID、GPIO 和 Host API target ID。
+- 保留有开发历史价值的资料；过时内容标记 legacy，只删除已证明无引用的冗余或生成物。
+
+## Phase 29: UDP V3 端到端验收
+
+- 验收 13 条数字 strip 共 260 groups、一个 `zone_32`、至少三条跨节点 virtual path。
+- 验证 `strip_41` 完成后 42/43/44/45/93 同帧启动。
+- 验证完整多输出节点帧、共享 sequence/media timestamp、CRC、未知/缺失输出、重复/乱序/回卷、长度边界、超时和安全黑场。
+- 运行 deterministic replay、完整 pytest、benchmark、Golden 检查、native firmware tests 与 PlatformIO builds。
+- Phase 29 只写验收测试、配置、产物和报告；生产缺陷返回所属 Phase，不在验收阶段补实现。
+- 报告明确分为“软件已验证 / 尚未硬件验证 / 最终接线仍可调整”。
+
+---
+
 ## 核心所有权与边界
 
 ### Sequence 所有权

@@ -2,11 +2,15 @@
 
 ## Mission
 
-Build a reliable RK3588-hosted, video/music-driven lighting controller for:
+Build a reliable RK3588-hosted, video/music-driven lighting controller for the
+2100 mm x 1000 mm x 1800 mm cabin installation:
 
-- 6 analog 24V common-anode RGB+CCT zones
-- 24V WS2811 digital RGB strips through ESP32-S3
-- STM32 nodes over one addressed RS-485 bus
+- 13 independently driven 24V WS2811 RGB strips through ESP32-S3 controllers
+- one 24V common-anode RGB+CCT COB zone through one STM32 RS-485 node
+
+The cabin dimensions, placements, lengths, group counts, controller allocation,
+electrical plan, and synchronization behavior are `NOT HARDWARE VERIFIED`.
+They are the approved configurable contract, not proof of installed wiring.
 
 RK3588 is the only production brain. RK3568 is backup/testing only.
 
@@ -16,16 +20,60 @@ Analog COB is not RGBW. It is six-wire common-anode RGB+CCT:
 
 `+24V / R / G / B / WW / CW`
 
-Logical analog zones and node IDs:
+The only target analog run is physical label `32`, with logical ID `zone_32`.
+It uses one configurable STM32 RS-485 node. Physical label `32` does not force
+the STM32 bus address. This allocation is `NOT HARDWARE VERIFIED`.
 
-1. ceiling_left
-2. ceiling_right
-3. wall_left
-4. wall_right
-5. front
-6. rear
+Target digital logical IDs are `strip_<physical-label>` for physical labels
+`11`, `12`, `21`, `22`, `31`, `41`, `42`, `43`, `44`, `45`, `91`, `92`, and
+`93`. Physical label, logical ID, ESP32 node ID, GPIO, protocol node ID, and
+Host API target ID are distinct concepts and must not be inferred from one
+another.
 
-Current COB and WS2811 stock is 15 m each, but final installed lengths are unknown. Never hardcode lengths, pixel counts, power, IPs, serial paths, or final topology.
+### Cabin topology contract
+
+All placement, length, and WS2811 group values in this table are
+`NOT HARDWARE VERIFIED` and must remain configurable.
+
+| Physical label | Logical ID | Placement | Technology | Length | Groups |
+|---|---|---|---|---:|---:|
+| 11 | `strip_11` | screen surround | WS2811 | 0.5 m | 10 |
+| 12 | `strip_12` | ceiling edge | WS2811 | 2 m | 40 |
+| 21 | `strip_21` | screen surround | WS2811 | 0.5 m | 10 |
+| 22 | `strip_22` | floor/wall edge | WS2811 | 2 m | 40 |
+| 31 | `strip_31` | screen surround | WS2811 | 0.5 m | 10 |
+| 32 | `zone_32` | left porthole/door | RGB+CCT COB | configurable | n/a |
+| 41 | `strip_41` | screen surround | WS2811 | 0.5 m | 10 |
+| 42 | `strip_42` | right-wall wave | WS2811 | 1 m | 20 |
+| 43 | `strip_43` | right-wall wave | WS2811 | 1 m | 20 |
+| 44 | `strip_44` | right-wall wave | WS2811 | 1 m | 20 |
+| 45 | `strip_45` | right-wall wave | WS2811 | 1 m | 20 |
+| 91 | `strip_91` | reserved/removable run | WS2811 | 1 m | 20 |
+| 92 | `strip_92` | reserved/removable run | WS2811 | 1 m | 20 |
+| 93 | `strip_93` | reserved/removable run | WS2811 | 1 m | 20 |
+
+The 13 digital runs total 260 independently addressable WS2811 groups.
+
+### Provisional controller and electrical contract
+
+This five-node allocation is `NOT HARDWARE VERIFIED`, is not final wiring, and
+must remain configurable.
+
+| ESP32 node | GPIO4 | GPIO5 | GPIO6 |
+|---:|---|---|---|
+| 1 | `strip_11` | `strip_21` | `strip_31` |
+| 2 | `strip_41` | `strip_42` | `strip_43` |
+| 3 | `strip_44` | `strip_45` | `strip_93` |
+| 4 | `strip_12` | `strip_91` | `strip_92` |
+| 5 | `strip_22` | unused | unused |
+
+Each strip has an independent data output through an SN74LVC1T45. The strips
+use parallel 24V power, the level shifters use a 5V B-side logic supply, and
+all supplies/controllers require a common ground. This electrical plan is
+`NOT HARDWARE VERIFIED`; final power segmentation is unknown and configurable.
+Final GPIO wiring, IP addresses, protocol node IDs, Host API target IDs, power
+segmentation, and real synchronization performance are also configurable and
+`NOT HARDWARE VERIFIED`.
 
 ## Architectural invariants
 
@@ -55,7 +103,15 @@ RS-485 v2 is the documented 16-byte RGB+CCT frame using:
 - flags
 - CRC-16/CCITT-FALSE
 
-UDP v2 sends one complete physical RGB frame per ESP32 node with version, node ID, sequence, lengths, payload, and CRC32.
+UDP v2 is the implemented legacy codec: one `pixel_count` and one continuous
+RGB pixel payload per ESP32 node, with version, node ID, sequence, payload
+length, and CRC32. Its codec, tests, and golden vectors remain unchanged.
+
+UDP v3 is the target multi-output protocol introduced in Phase 26. It carries
+one complete node frame with independent per-output lengths/payloads. Separate
+strips must not be represented as one electrically concatenated strip; the
+ESP32 applies every output and refreshes once per logical frame. New cabin
+production profiles default to v3 after Phase 26, while v2 remains legacy.
 
 Keep protocol golden vectors shared between host and firmware documentation/tests.
 

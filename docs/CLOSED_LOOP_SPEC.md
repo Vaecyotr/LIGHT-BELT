@@ -1,31 +1,31 @@
-# LIGHT-BELT 六区域实体闭环改造任务书
+# LIGHT-BELT 舱体灯光实体闭环改造任务书
 
 > 本文件用于交给 Claude Code。它定义系统目标、架构边界、协议、约束和验收条件，不规定逐行实现方式。请在 LIGHT-BELT 仓库根目录使用 Plan Mode 阅读本文件。
 
 ## 1. 任务使命
 
-将现有 LIGHT-BELT 从“视频/音频分析与模拟输出原型”改造为可部署到 RK3588 ARM64 Linux 的灯光主脑，并形成以下实体闭环：
+将现有 LIGHT-BELT 从“视频/音频分析与模拟输出原型”改造为可部署到 RK3588 ARM64 Linux 的灯光主脑，并形成以下实体闭环。以下实体拓扑和同步行为均为 `NOT HARDWARE VERIFIED`，所有映射必须可配置：
 
 ```text
 视频/音乐播放与统一时钟
         ↓
 RK3588 上的 LIGHT-BELT
-├─ 视频五区域分析
+├─ 视频区域分析
 ├─ 音频 RMS / Bass / Mid / Treble / Flux / Beat
-├─ 六区域效果生成
+├─ 14 条独立逻辑灯光运行效果生成
 ├─ RGB → RGB+CCT 五通道转换
-├─ 六节点 RS-485 帧生成
-└─ WS2811 完整物理帧生成
+├─ zone_32 的可配置 STM32 RS-485 帧生成
+└─ 13 条 WS2811 独立输出的完整多输出物理帧生成
         │
-        ├─ RS-485 → 6个 STM32 → 6块 YYNMOS-8 → 6个 RGB+CCT COB 区域
-        └─ UDP → ESP32-S3 → RMT → 24V WS2811
+        ├─ RS-485 → 1 个可配置 STM32 节点 → RGB+CCT COB zone_32
+        └─ UDP → 5 个暂定 ESP32-S3 节点 → 独立 GPIO → 24V WS2811
 ```
 
 RK3588 是唯一在线主脑。RK3568 只作为备用、调试或降级主机，本任务不构建 RK3588/RK3568 分布式计算。
 
 ## 2. 已确认的硬件事实
 
-### 2.1 模拟 COB
+### 2.1 舱体和模拟 COB
 
 真实灯带不是 RGBW 四通道，而是：
 
@@ -50,45 +50,45 @@ warm_white
 cool_white
 ```
 
-六个逻辑区域：
-
-```text
-1 ceiling_left
-2 ceiling_right
-3 wall_left
-4 wall_right
-5 front
-6 rear
-```
-
-最终硬件架构为每个区域一个 STM32 节点和一块 YYNMOS-8，每个 STM32 输出五路 PWM。
+目标舱体为 2100 mm x 1000 mm x 1800 mm。唯一模拟运行是物理标签 `32`，机器逻辑 ID 固定为 `zone_32`，位置为左侧舷窗/门区域。它使用一个可配置 STM32 RS-485 节点；物理标签 `32` 不强制成为总线地址。这些尺寸、位置和节点安排均为 `NOT HARDWARE VERIFIED`。
 
 ### 2.2 数字灯带
 
-数字灯带为 24V WS2811 RGB COB。当前共有约 15 米，最终安装长度未确定。
+数字灯带为 13 条独立的 24V WS2811 RGB 运行。机器逻辑 ID 固定为 `strip_<physical-label>`。物理标签、逻辑 ID、ESP32 node ID、GPIO、协议 node ID 和 Host API target ID 是彼此独立的概念，不得互相推导。
 
-当前演示应支持：
+下表的安装位置、长度和 group 数均为 `NOT HARDWARE VERIFIED`，必须可配置：
 
-```text
-一个 ESP32-S3 节点
-一条物理 WS2811 链
-六个连续逻辑区段
-```
+| 物理标签 | 逻辑 ID | 安装位置 | 长度 | WS2811 groups |
+|---|---|---|---:|---:|
+| 11 | `strip_11` | 屏幕环绕 | 0.5 m | 10 |
+| 12 | `strip_12` | 顶棚边缘 | 2 m | 40 |
+| 21 | `strip_21` | 屏幕环绕 | 0.5 m | 10 |
+| 22 | `strip_22` | 地板/墙面边缘 | 2 m | 40 |
+| 31 | `strip_31` | 屏幕环绕 | 0.5 m | 10 |
+| 41 | `strip_41` | 屏幕环绕 | 0.5 m | 10 |
+| 42 | `strip_42` | 右墙波浪 | 1 m | 20 |
+| 43 | `strip_43` | 右墙波浪 | 1 m | 20 |
+| 44 | `strip_44` | 右墙波浪 | 1 m | 20 |
+| 45 | `strip_45` | 右墙波浪 | 1 m | 20 |
+| 91 | `strip_91` | 预留/可拆卸安装运行 | 1 m | 20 |
+| 92 | `strip_92` | 预留/可拆卸安装运行 | 1 m | 20 |
+| 93 | `strip_93` | 预留/可拆卸安装运行 | 1 m | 20 |
 
-未来应通过配置扩展为多个 ESP32-S3 节点，不得要求修改灯效算法。
+总计 260 个 WS2811 digital groups。每条灯带保持独立数据输出，不得把同一 ESP32 的灯带描述为一条电气串接灯带。每个 ESP32 每个逻辑帧接收一个完整多输出帧，并对其全部输出同步应用后只刷新一次。此同步性能为 `NOT HARDWARE VERIFIED`。
 
-### 2.3 电源和长度
+### 2.3 暂定控制器与电气分配
 
-当前拥有：
+以下五节点分配为 `NOT HARDWARE VERIFIED` 的暂定方案，不是最终接线，必须可配置：
 
-```text
-RGB+CCT COB：15米
-WS2811：15米
-明纬 LRS-150-24：1台
-明纬 LRS-350-24：2台
-```
+| ESP32 node | GPIO4 | GPIO5 | GPIO6 |
+|---:|---|---|---|
+| 1 | `strip_11` | `strip_21` | `strip_31` |
+| 2 | `strip_41` | `strip_42` | `strip_43` |
+| 3 | `strip_44` | `strip_45` | `strip_93` |
+| 4 | `strip_12` | `strip_91` | `strip_92` |
+| 5 | `strip_22` | 未使用 | 未使用 |
 
-最终灯带长度和最终电源分配未确定。软件不得硬编码 15 米、5 米、100 像素或固定功率。
+每条灯带使用独立数据引脚并经过 SN74LVC1T45；24V 灯带电源并联；电平转换器 B 侧使用 5V 逻辑电源；所有电源和控制器必须共地。该电气方案为 `NOT HARDWARE VERIFIED`。最终 GPIO 接线、IP 地址、协议 node ID、Host API target ID、电源分段和实际同步性能均未知、可配置且为 `NOT HARDWARE VERIFIED`。
 
 ## 3. 当前仓库基线
 
@@ -171,8 +171,8 @@ tests
 ```text
 sequence
 timestamp / media_position
-六个 RGB+CCT 模拟区域
-若干数字逻辑灯带
+一个 RGB+CCT 模拟区域 zone_32
+十三条数字逻辑灯带 strip_11 ... strip_93
 metadata / diagnostics
 ```
 
@@ -182,11 +182,11 @@ metadata / diagnostics
 
 逻辑区域与物理设备分离：
 
-- 模拟区域映射到 RS-485 `node_id`。
-- 数字逻辑灯带映射到 `digital_node_id + pixel_offset + pixel_count`。
-- 一个 ESP32 节点可以包含多个逻辑区段。
-- 多个逻辑区段不得重叠或越界。
-- 数字物理帧必须按节点合并后发送，而不是由各效果直接发送多个 strip 包。
+- `zone_32` 映射到可配置的 RS-485 `node_id`，物理标签 32 不等于强制总线地址。
+- 数字逻辑灯带映射到 `digital_node_id + gpio/output_index + group_count + direction`。
+- 一个 ESP32 节点可以包含最多三条独立输出；每条输出保持自己的边界和 GPIO。
+- 数字物理帧必须按节点合并为一个完整多输出帧发送，而不是由各效果直接发送多个 strip 包，也不得拼成一条电气串接灯带。
+- `DigitalStrip` 保持纯逻辑模型，不包含 node ID、host、port、offset、GPIO 或其他物理拓扑；这些信息只进入映射、配置、协议、固件和 `PhysicalFrame` 层。
 
 ## 5. RGB+CCT 数据模型与色彩效果
 
@@ -252,12 +252,7 @@ video_audio_fusion
 - `spectrum`：低频驱动顶部，中频驱动左右墙，高频驱动前后。
 - `video_audio_fusion`：视频决定基础颜色，音频决定亮度、脉冲、饱和度和动态幅度。
 - 数字 WS2811 保持 RGB 像素，不扩展为 CCT。
-- 现有五区域视频映射继续成立：
-  - top → ceiling_left / ceiling_right
-  - left → wall_left
-  - right → wall_right
-  - center → front / rear
-  - bottom → 暂未分配
+- 视频分析区域继续保持硬件无关；分析区域到 `zone_32` 和十三条 `strip_*` 的效果映射来自配置，不从物理标签或控制器分配推导。
 
 不得为了 RGB+CCT 重写已验证的视频/音频分析算法，除非测试证明存在必要缺陷。
 
@@ -269,7 +264,7 @@ video_audio_fusion
 RK3588 / Windows PC
 → 一个 USB-RS485 适配器
 → 一条半双工 RS-485 总线
-→ 六个带唯一地址的 STM32 节点
+→ zone_32 的一个带可配置地址的 STM32 节点
 ```
 
 初始版本是主机单向下发灯光数据，不要求每帧 ACK。可以预留诊断命令，但不能让 ACK 阻塞 30 FPS 灯光输出。
@@ -299,7 +294,7 @@ Byte 15  CRC16 Low
 
 协议约束：
 
-- `Node ID`：1～6；可预留广播地址，但必须文档化。
+- `Node ID`：协议范围内的可配置地址；物理标签 `32` 不强制成为该地址，可预留广播地址但必须文档化。
 - `Sequence`：uint8，允许自然回卷。
 - `Fade`：uint16，大端，单位毫秒。
 - CRC：CRC-16/CCITT-FALSE。
@@ -311,38 +306,40 @@ Byte 15  CRC16 Low
 
 ### 6.3 主机输出语义
 
-每个逻辑帧包含六个节点命令：
+每个逻辑帧包含 `zone_32` 的一个节点命令：
 
 ```text
 同一 sequence
 同一逻辑 timestamp
-按 node_id 1～6 编码
+按 zone_32 的可配置 node_id 编码
 ```
 
 主机输出队列必须保存“最新完整逻辑帧”，而不是保存大量旧包：
 
 - 队列容量语义为最新帧覆盖。
-- 一帧的六个节点包不能与下一帧交错。
+- 一帧的 RS-485 命令不能与下一帧交错。
 - 串口不可用时，生产模式必须明确失败并标记 unhealthy。
 - memory/fake transport 只能通过配置或依赖注入显式启用。
 - 不允许静默回退并继续宣称硬件输出成功。
 - 统计必须区分 logical frames、wire packets、drops、errors。
 - 统计必须线程安全且只计数一次。
 
-## 7. UDP v2 与 WS2811 物理帧
+## 7. UDP v3 与 WS2811 多输出物理帧
+
+现有 UDP v2 是必须保留的 legacy codec：一个 `pixel_count` 和一个连续 RGB pixel payload。其主机 codec、测试和 `firmware/shared/udp_v2_golden.json` 不得被多输出格式追溯改写。Phase 26 新增 UDP v3 承载以下多输出合同；新舱体生产配置在 Phase 26 后默认使用 v3。
 
 ### 7.1 原子帧原则
 
-每个 ESP32-S3 物理节点每个灯光帧只接收一个完整 UDP 数据报：
+每个 ESP32-S3 物理节点每个灯光帧只接收一个完整 UDP 数据报；该数据报保留各独立输出边界：
 
 ```text
 一个 node_id
 一个 sequence
-一个完整物理像素数组
+一个完整多输出描述（每个 output 的 GPIO/output index、group count 和 RGB payload）
 一次校验
 ```
 
-初始 v2 不做应用层分片。若某节点像素数超出配置的单数据报上限，应在配置阶段失败并要求增加 ESP32 节点，而不是运行时发送局部帧。
+初始 v3 不做应用层分片。若某节点输出总量超出配置的单数据报上限，应在配置阶段失败并要求增加 ESP32 节点，而不是运行时发送局部帧。
 
 ### 7.2 建议协议
 
@@ -350,14 +347,15 @@ Byte 15  CRC16 Low
 
 ```text
 Magic
-Version = 2
+Version = 3
 Message Type
 Digital Node ID
 Flags
 Sequence（至少uint32）
-Pixel Count
+Output Count
 Payload Length
-RGB payload
+重复 Output Descriptor（GPIO/output index、Group Count、Output Payload Length）
+各输出独立 RGB payload
 CRC32
 ```
 
@@ -365,12 +363,12 @@ CRC32
 
 - 明确定义字节序。
 - CRC 覆盖头部和 payload。
-- 长度与 Pixel Count 必须交叉校验。
+- 总长度、Output Count、每输出 Group Count 和 Output Payload Length 必须交叉校验。
 - 拒绝重复、陈旧、损坏或尺寸不匹配的帧。
-- 生成并文档化 Golden Vector。
-- 当前 15 米或最终长度不能硬编码。
+- 新增并文档化 UDP v3 Golden Vector；不得覆盖 UDP v2 Golden Vector。
+- 十三条运行的 group count 与控制器分配来自配置，不能由逻辑 ID 硬编码推导。
 - 配置必须校验每个物理节点是否能放入一个安全 UDP 数据报。
-- 现有六个数字逻辑区域可映射到一个物理节点的连续区段。
+- 暂定五节点、每节点最多三条独立 GPIO 输出；不得将多个输出压成一个串接像素数组。
 - 未来可增加多个数字节点而不修改效果层。
 
 ### 7.3 ESP32-S3 固件
@@ -398,8 +396,8 @@ Core 1
 - 使用 `xTaskCreatePinnedToCore()` 或等效机制明确任务核心。
 - 队列长度为1，使用覆盖语义，不积压旧帧。
 - UDP回调/接收任务不得直接调用灯带刷新。
-- GPIO、node_id、pixel_count、色序、亮度上限、超时均可配置。
-- 当前默认数据 GPIO 可保持 GPIO4，但不能散落硬编码。
+- GPIO、node_id、每输出 group_count、色序、亮度上限、超时均可配置。
+- 暂定 GPIO4/GPIO5/GPIO6 分配只存在于配置、映射、协议和固件层，且为 `NOT HARDWARE VERIFIED`。
 - 超时后进入可配置安全状态，桌面默认全黑。
 - 串口诊断至少输出收包数、CRC错误、序号间隙、刷新数、超时数。
 - 固件必须能在无实体灯带时编译。
@@ -478,13 +476,17 @@ warm/cool bias
 safe state
 ```
 
+目标配置只包含 `zone_32`；其物理标签与 `node_id` 分字段保存。
+
 ### 数字物理节点
 
 ```text
-node_id
+protocol node_id
 host
 port
-pixel_count
+outputs[]
+outputs[].gpio / output_index
+outputs[].group_count
 color_order
 brightness limit
 timeout
@@ -496,8 +498,8 @@ max_udp_payload
 ```text
 logical strip id
 physical node id
-offset
-pixel_count
+gpio / output_index
+group_count
 direction
 video_zone
 ```
@@ -514,9 +516,9 @@ diagnostics
 
 验证要求：
 
-- Node ID 唯一。
-- 六个模拟区域都有合法 Node ID。
-- 数字区段不重叠、不越界。
+- 协议 Node ID 唯一，且不与物理标签或 Host API target ID 混用。
+- `zone_32` 有合法、可配置的 STM32 RS-485 Node ID。
+- 十三条数字运行均且仅映射到一个独立输出，GPIO 在各 ESP32 节点内不重复。
 - 单节点完整帧不超过 UDP 上限。
 - 非法配置在启动时失败，错误信息指出配置路径和具体字段。
 - 提供至少两个配置 profile：
@@ -566,19 +568,20 @@ last_success_time
 1. RGBCCTColor 验证、量化和亮度只应用一次。
 2. RGB→RGB+CCT 的黑、RGB原色、中性白、暖白、冷白和单调性。
 3. 功率限制。
-4. 六区域现有效果的输出合法性。
+4. `zone_32` 与十三条 `strip_*` 逻辑输出的合法性。
 5. RS-485 v2 encode/decode、Golden Vector、CRC损坏、噪声、拆包、错地址、Sequence回卷。
-6. 一逻辑帧六节点同 Sequence，且包不跨帧交错。
+6. 同一逻辑帧的全部输出使用同一 Sequence，且包不跨帧交错。
 7. latest-frame 覆盖语义。
 8. 严格生产模式不静默回退。
-9. UDP v2 roundtrip、Golden Vector、CRC/长度/旧Sequence/超尺寸拒绝。
-10. 六逻辑区段合并为一个物理节点完整帧。
-11. 多数字节点映射。
-12. 相同逻辑帧的 RS-485 与 UDP 使用相同 Sequence。
-13. 输出健康统计不重复。
-14. fake media clock 的运行、暂停、结束和 seek/reset。
-15. CLI/config smoke tests。
-16. 固件协议常量与主机协议一致，或通过共享生成物/Golden Vector防止漂移。
+9. UDP v2 legacy roundtrip、Golden Vector、CRC/长度/旧Sequence/超尺寸拒绝。
+10. UDP v3 roundtrip、独立输出边界、CRC/长度/旧 Sequence/未知输出/超尺寸拒绝。
+11. 每个数字节点的独立 GPIO 输出合并为一个完整 UDP v3 多输出物理帧，且边界不丢失。
+12. 多数字节点映射。
+13. 相同逻辑帧的 RS-485 与 UDP 使用相同 Sequence。
+14. 输出健康统计不重复。
+15. fake media clock 的运行、暂停、结束和 seek/reset。
+16. CLI/config smoke tests。
+17. 固件协议常量与主机协议一致，或通过共享生成物/Golden Vector防止漂移。
 
 ### 12.3 端到端软件验收
 
@@ -593,8 +596,8 @@ last_success_time
 验证：
 
 - 约 300～301 个逻辑帧。
-- 每帧六个模拟节点命令。
-- 每个数字物理节点每帧一个完整数据报。
+- 每帧一个 `zone_32` 模拟节点命令。
+- 每个数字物理节点每帧一个完整多输出数据报，并只刷新一次。
 - 同帧 Sequence 完全一致。
 - 无 NaN/Inf。
 - 无协议解码失败。
@@ -636,7 +639,7 @@ pio run -d firmware/esp32_ws2811_node
 
 - 安卓平板 App。
 - 最终舱体施工和商业配电设计。
-- 确定最终 COB/WS2811 米数。
+- 确定最终接线、IP 地址、电源分段和真实同步性能；这些均保持可配置并标记 `NOT HARDWARE VERIFIED`。
 - 自动选择电源和线径。
 - RK3588 与 RK3568 分布式计算。
 - NPU/GPU优化。
