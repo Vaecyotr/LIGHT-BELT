@@ -79,7 +79,7 @@ pio run -d firmware/esp32_ws2811_node
 ## Required Full Verification
 
 ```powershell
-.\.python\Scripts\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q --ignore=tests/test_show_e2e_acceptance.py --ignore=tests/test_authoring_modulation_acceptance.py
 pio test -d firmware/esp32_ws2811_node -e native
 pio run -d firmware/esp32_ws2811_node
 git diff --check

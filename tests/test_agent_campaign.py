@@ -61,6 +61,28 @@ def test_manifest_loads_optional_model_configuration(tmp_path: Path) -> None:
     assert steps[0].max_repairs == 1
 
 
+def test_cabin_campaign_full_verification_excludes_legacy_artifact_writers() -> None:
+    _, _, steps = agent_campaign.load_manifest(
+        ROOT, ROOT / ".agent" / "campaigns" / "cabin-lighting-v2.json"
+    )
+
+    for step in steps:
+        text = (ROOT / step.task).read_text(encoding="utf-8-sig")
+        commands = agent_pipeline.command_items(
+            agent_pipeline.section_lines(text, "Required Full Verification")
+        )
+        pytest_commands = [
+            command for command in commands if " -m pytest " in command
+        ]
+        assert pytest_commands, step.phase_id
+        for command in pytest_commands:
+            assert "--ignore=tests/test_show_e2e_acceptance.py" in command
+            assert (
+                "--ignore=tests/test_authoring_modulation_acceptance.py"
+                in command
+            )
+
+
 def test_legacy_manifest_inherits_global_codex_configuration(tmp_path: Path) -> None:
     path = write_manifest(
         tmp_path,

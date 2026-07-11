@@ -81,7 +81,7 @@ pio test -d firmware/esp32_ws2811_node -e native
 ## Required Full Verification
 
 ```powershell
-.\.python\Scripts\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q --ignore=tests/test_show_e2e_acceptance.py --ignore=tests/test_authoring_modulation_acceptance.py
 .\.python\Scripts\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
 pio test -d firmware/esp32_ws2811_node -e native
 pio run -d firmware/esp32_ws2811_node

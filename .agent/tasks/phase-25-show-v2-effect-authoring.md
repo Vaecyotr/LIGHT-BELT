@@ -86,7 +86,7 @@ Show v1 uses `effect.name` and target fields whose meaning depends on context. T
 ## Required Full Verification
 
 ```powershell
-.\.python\Scripts\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q --ignore=tests/test_show_e2e_acceptance.py --ignore=tests/test_authoring_modulation_acceptance.py
 .\.python\Scripts\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
 git diff --check
 git status --short

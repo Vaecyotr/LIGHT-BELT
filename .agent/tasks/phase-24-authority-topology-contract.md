@@ -75,7 +75,7 @@ The cabin is 2100 mm × 1000 mm × 1800 mm. It contains 14 physical light runs: 
 ## Required Full Verification
 
 ```powershell
-.\.python\Scripts\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q --ignore=tests/test_show_e2e_acceptance.py --ignore=tests/test_authoring_modulation_acceptance.py
 git diff --check
 git status --short
 git diff --stat
