@@ -52,6 +52,26 @@ class RecordingOutput(NullOutput):
 
 
 class TestFrameSequence:
+    def test_engine_reads_final_output_transform_configuration(self):
+        Config.reset()
+        config = Config()
+        config._data["system"]["smoothing"]["max_brightness"] = 0.75
+        config._data["system"]["smoothing"]["gamma"] = 1.8
+        config._data["outputs"]["transform"] = {
+            "power_limit": 1.5,
+            "per_zone_warm_bias": {"front": 0.8},
+            "per_zone_cool_bias": {"front": 1.2},
+        }
+
+        engine = Engine(config)
+
+        transform = engine._output_transform
+        assert transform.global_brightness == 0.75
+        assert transform.gamma == 1.8
+        assert transform.power_limit == 1.5
+        assert transform.per_zone_warm_bias == {"front": 0.8}
+        assert transform.per_zone_cool_bias == {"front": 1.2}
+
     def test_engine_assigns_monotonic_frame_sequence(self):
         Config.reset()
         config = Config()

@@ -72,8 +72,13 @@ class Engine:
 
         # Outputs
         self._outputs: dict[str, LightOutput] = {}
+        transform_config = config.get("outputs.transform", {})
         self._output_transform = OutputTransform(
-            global_brightness=config.get("system.smoothing.max_brightness", 0.85)
+            global_brightness=config.get("system.smoothing.max_brightness", 0.85),
+            gamma=config.get("system.smoothing.gamma", 1.0),
+            power_limit=transform_config.get("power_limit", 5.0),
+            per_zone_warm_bias=transform_config.get("per_zone_warm_bias", {}),
+            per_zone_cool_bias=transform_config.get("per_zone_cool_bias", {}),
         )
         self._clock: Clock = clock or OfflineRenderClock(fps=self._output_fps)
 

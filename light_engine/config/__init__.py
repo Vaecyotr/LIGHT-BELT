@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 from typing import Any, Optional
@@ -109,6 +110,23 @@ def _require_number(value: Any, path: str, field: str, minimum: float) -> float:
     return float(value)
 
 
+def _require_finite_number(
+    value: Any,
+    path: str,
+    field: str,
+    *,
+    minimum: float,
+    strictly_greater: bool = False,
+) -> float:
+    if type(value) not in {int, float} or not math.isfinite(float(value)):
+        raise ConfigError(path, field, value, "finite number")
+    number = float(value)
+    if number < minimum or (strictly_greater and number <= minimum):
+        comparator = ">" if strictly_greater else ">="
+        raise ConfigError(path, field, value, f"finite number {comparator} {minimum}")
+    return number
+
+
 def _validate_choice(value: Any, path: str, field: str, choices: list[str]) -> str:
     if not isinstance(value, str) or value not in choices:
         raise ConfigError(path, field, value, f"one of {choices}")
@@ -140,6 +158,22 @@ def validate_config(data: dict[str, Any]) -> None:
         ["internal", "offline", "fake", "mpv"],
     )
     _require_number(system.get("output_fps"), "system", "output_fps", 1.0)
+    smoothing = _require_mapping(
+        system.get("smoothing"), "system.smoothing", "smoothing"
+    )
+    _require_finite_number(
+        smoothing.get("max_brightness"),
+        "system.smoothing",
+        "max_brightness",
+        minimum=0.0,
+    )
+    _require_finite_number(
+        smoothing.get("gamma"),
+        "system.smoothing",
+        "gamma",
+        minimum=0.0,
+        strictly_greater=True,
+    )
 
     _validate_choice(
         outputs.get("mode"),
@@ -151,6 +185,25 @@ def validate_config(data: dict[str, Any]) -> None:
     enabled = _require_list(outputs.get("enabled"), "outputs", "enabled")
     for idx, value in enumerate(enabled):
         _require_nonempty_str(value, "outputs.enabled", str(idx))
+    transform = _require_mapping(
+        outputs.get("transform"), "outputs.transform", "transform"
+    )
+    _require_finite_number(
+        transform.get("power_limit"),
+        "outputs.transform",
+        "power_limit",
+        minimum=0.0,
+    )
+    warm_bias = _require_mapping(
+        transform.get("per_zone_warm_bias"),
+        "outputs.transform",
+        "per_zone_warm_bias",
+    )
+    cool_bias = _require_mapping(
+        transform.get("per_zone_cool_bias"),
+        "outputs.transform",
+        "per_zone_cool_bias",
+    )
 
     zones = _require_list(layout.get("zones"), "layout", "zones")
     strips = _require_list(layout.get("strips"), "layout", "strips")
@@ -175,6 +228,26 @@ def validate_config(data: dict[str, Any]) -> None:
         if zone_id in zone_ids:
             raise ConfigError(path, "id", zone_id, "unique zone id")
         zone_ids.add(zone_id)
+
+    for field, biases in (
+        ("per_zone_warm_bias", warm_bias),
+        ("per_zone_cool_bias", cool_bias),
+    ):
+        for zone_id, bias in biases.items():
+            _require_nonempty_str(zone_id, "outputs.transform", field)
+            if zone_id not in zone_ids:
+                raise ConfigError(
+                    "outputs.transform",
+                    field,
+                    zone_id,
+                    "existing layout.zones id",
+                )
+            _require_finite_number(
+                bias,
+                f"outputs.transform.{field}",
+                zone_id,
+                minimum=0.0,
+            )
 
     strip_lengths: dict[str, int] = {}
     for idx, item in enumerate(strips):

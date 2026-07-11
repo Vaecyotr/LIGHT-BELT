@@ -51,6 +51,7 @@ desktop.ini
 
 # PlatformIO构建缓存
 .pio/
+.pio-core/
 firmware/**/.pio/
 
 # 本地环境和密钥

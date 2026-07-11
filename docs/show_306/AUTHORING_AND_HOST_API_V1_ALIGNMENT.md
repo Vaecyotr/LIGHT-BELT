@@ -133,7 +133,7 @@ These similarly named fields have different jobs:
 
 | Field | Job | Use with |
 |---|---|---|
-| `audio_control` | Selects/tempo-controls an **adaptive** effect using fields such as `tempo_sync`, `tempo_confidence_min`, `beat_regularity_min`, `no_beat_fallback`, `beats_per_cycle`, `beat_subdivision`, `speed_smoothing_seconds`, `state_confirmation_seconds`, `min_effect_hold`, and `switch_cooldown`. | `effect.mode: adaptive` |
+| `audio_control` | Selects/tempo-controls an **adaptive** effect using `tempo_sync` (`off` or `auto`), `tempo_confidence_min`, `beat_regularity_min`, `beats_per_cycle`, `beat_subdivision`, `speed_smoothing_seconds`, `state_confirmation_seconds`, `min_effect_hold`, and `switch_cooldown`. Low-confidence tempo always uses the documented event → envelope → free-run fallback order. | `effect.mode: adaptive` |
 | `audio_modulation` | Continuously multiplies `brightness`, `speed`, and/or `intensity` for one cue. Each channel has `source`, `amount`, `min_multiplier`, `max_multiplier`, and `smoothing_seconds`. | Fixed or adaptive cue, where the selected effect preserves the intended dimension. |
 
 `audio_modulation` sources are validated engine feature names, for example

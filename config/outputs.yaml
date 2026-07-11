@@ -8,6 +8,13 @@ outputs:
   mode: "memory"
   exit_safe_state: true
 
+  # Final output calibration and analog-zone power protection.
+  # Global brightness and gamma remain under system.smoothing.
+  transform:
+    power_limit: 5.0
+    per_zone_warm_bias: {}
+    per_zone_cool_bias: {}
+
   # Enabled output backends
   enabled:
     - "simulator"

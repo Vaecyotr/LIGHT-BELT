@@ -128,7 +128,7 @@ def validate_show_data(data: Any, target_catalog: TargetCatalog) -> ShowDefiniti
     show_id = _nonempty_str(show.get("id"), "show.show.id")
     duration = _number(show.get("duration"), "show.show.duration", min_exclusive=0.0)
     defaults = _transition(show.get("defaults", {}), "show.show.defaults")
-    cues = _cues(show.get("cues"), duration, target_catalog)
+    cues = _cues(show.get("cues"), duration, target_catalog, defaults)
     return ShowDefinition(
         schema_version=version,
         id=show_id,
@@ -139,7 +139,10 @@ def validate_show_data(data: Any, target_catalog: TargetCatalog) -> ShowDefiniti
 
 
 def _cues(
-    value: Any, duration: float, target_catalog: TargetCatalog
+    value: Any,
+    duration: float,
+    target_catalog: TargetCatalog,
+    defaults: TransitionSpec,
 ) -> list[Cue]:
     cues_value = _list(value, "show.cues")
     cue_ids: set[str] = set()
@@ -179,7 +182,9 @@ def _cues(
                 priority=priority,
                 target=_target(cue.get("target"), f"{path}.target", target_catalog),
                 effect=_effect(cue.get("effect"), f"{path}.effect"),
-                transition=_transition(cue.get("transition", {}), f"{path}.transition"),
+                transition=_transition(
+                    cue.get("transition", {}), f"{path}.transition", defaults
+                ),
                 audio_control=(
                     None
                     if "audio_control" not in cue
@@ -250,6 +255,12 @@ def _effect(value: Any, path: str) -> EffectSpec:
         return EffectSpec(mode=mode, name=name, parameters=parameters)
     if "name" in effect:
         raise ShowValidationError(f"{path}.name", effect["name"], "not allowed for adaptive effect")
+    if "parameters" in effect:
+        raise ShowValidationError(
+            f"{path}.parameters",
+            effect["parameters"],
+            "not allowed for adaptive effect",
+        )
     allowed = _mapping(effect.get("allowed"), f"{path}.allowed")
     _unknown(allowed, AUDIO_STATES, f"{path}.allowed")
     resolved: dict[str, str] = {}
@@ -324,7 +335,11 @@ def _rgb_color(value: Any, path: str) -> tuple[float, float, float]:
     )
 
 
-def _transition(value: Any, path: str) -> TransitionSpec:
+def _transition(
+    value: Any,
+    path: str,
+    defaults: TransitionSpec | None = None,
+) -> TransitionSpec:
     transition = _mapping(value, path)
     _unknown(
         transition,
@@ -332,18 +347,30 @@ def _transition(value: Any, path: str) -> TransitionSpec:
         path,
     )
     return TransitionSpec(
-        fade_in=_number(transition.get("fade_in", 0.0), f"{path}.fade_in", minimum=0.0),
-        fade_out=_number(transition.get("fade_out", 0.0), f"{path}.fade_out", minimum=0.0),
-        blend=_choice(transition.get("blend", "replace"), f"{path}.blend", BLEND_MODES),
+        fade_in=_number(
+            transition.get("fade_in", defaults.fade_in if defaults else 0.0),
+            f"{path}.fade_in",
+            minimum=0.0,
+        ),
+        fade_out=_number(
+            transition.get("fade_out", defaults.fade_out if defaults else 0.0),
+            f"{path}.fade_out",
+            minimum=0.0,
+        ),
+        blend=_choice(
+            transition.get("blend", defaults.blend if defaults else "replace"),
+            f"{path}.blend",
+            BLEND_MODES,
+        ),
         min_effect_hold=(
-            None
-            if "min_effect_hold" not in transition
-            else _number(transition["min_effect_hold"], f"{path}.min_effect_hold", minimum=0.0)
+            _number(transition["min_effect_hold"], f"{path}.min_effect_hold", minimum=0.0)
+            if "min_effect_hold" in transition
+            else (defaults.min_effect_hold if defaults else None)
         ),
         switch_cooldown=(
-            None
-            if "switch_cooldown" not in transition
-            else _number(transition["switch_cooldown"], f"{path}.switch_cooldown", minimum=0.0)
+            _number(transition["switch_cooldown"], f"{path}.switch_cooldown", minimum=0.0)
+            if "switch_cooldown" in transition
+            else (defaults.switch_cooldown if defaults else None)
         ),
     )
 
@@ -356,7 +383,6 @@ def _audio_control(value: Any, path: str) -> AudioControlSpec:
             "tempo_sync",
             "tempo_confidence_min",
             "beat_regularity_min",
-            "no_beat_fallback",
             "beats_per_cycle",
             "beat_subdivision",
             "speed_smoothing_seconds",
@@ -367,10 +393,9 @@ def _audio_control(value: Any, path: str) -> AudioControlSpec:
         path,
     )
     return AudioControlSpec(
-        tempo_sync=_choice(audio.get("tempo_sync", "off"), f"{path}.tempo_sync", {"off", "auto", "locked"}),
+        tempo_sync=_choice(audio.get("tempo_sync", "off"), f"{path}.tempo_sync", {"off", "auto"}),
         tempo_confidence_min=_number(audio.get("tempo_confidence_min", 0.0), f"{path}.tempo_confidence_min", minimum=0.0, maximum=1.0),
         beat_regularity_min=_number(audio.get("beat_regularity_min", 0.0), f"{path}.beat_regularity_min", minimum=0.0, maximum=1.0),
-        no_beat_fallback=_choice(audio.get("no_beat_fallback", "hold"), f"{path}.no_beat_fallback", {"hold", "auto", "fallback"}),
         beats_per_cycle=(
             None
             if "beats_per_cycle" not in audio

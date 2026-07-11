@@ -66,7 +66,6 @@ show:
         tempo_sync: "auto"
         tempo_confidence_min: 0.75
         beat_regularity_min: 0.70
-        no_beat_fallback: "auto"
         beats_per_cycle: 4.0
         speed_smoothing_seconds: 2.0
         state_confirmation_seconds: 1.5

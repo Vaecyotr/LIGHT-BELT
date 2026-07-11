@@ -82,7 +82,6 @@ def _valid_show() -> dict:
                         "tempo_sync": "auto",
                         "tempo_confidence_min": 0.75,
                         "beat_regularity_min": 0.70,
-                        "no_beat_fallback": "auto",
                         "beats_per_cycle": 4.0,
                         "speed_smoothing_seconds": 2.0,
                         "state_confirmation_seconds": 1.5,
@@ -142,6 +141,34 @@ def test_misspelled_transition_key_fails() -> None:
     _assert_invalid(data, "show.cues[0].transition.fade_int", "unknown field")
 
 
+def test_cues_inherit_show_transition_defaults_and_override_explicit_fields() -> None:
+    show = validate_show_data(_valid_show(), _catalog())
+
+    fixed = show.cues[0]
+    adaptive = show.cues[1]
+    assert fixed.transition.fade_in == 2.0
+    assert fixed.transition.fade_out == 2.0
+    assert fixed.transition.blend == "replace"
+    assert fixed.transition.min_effect_hold == 8.0
+    assert fixed.transition.switch_cooldown == 6.0
+    assert adaptive.transition.fade_in == 1.0
+    assert adaptive.transition.fade_out == 1.0
+    assert adaptive.transition.blend == "replace"
+    assert adaptive.transition.min_effect_hold == 8.0
+    assert adaptive.transition.switch_cooldown == 6.0
+
+
+def test_adaptive_effect_parameters_fail_instead_of_being_silently_discarded() -> None:
+    data = deepcopy(_valid_show())
+    data["show"]["cues"][1]["effect"]["parameters"] = {"speed": 8.0}
+
+    _assert_invalid(
+        data,
+        "show.cues[1].effect.parameters",
+        "not allowed for adaptive effect",
+    )
+
+
 def test_same_text_id_resolves_as_distinct_analog_and_digital_targets() -> None:
     data = _valid_show()
     data["show"]["cues"][0]["target"] = {"type": "analog_zone", "id": "wall_left"}
@@ -187,6 +214,16 @@ def test_same_text_id_resolves_as_distinct_analog_and_digital_targets() -> None:
             lambda data: data["show"]["cues"][1]["audio_control"].update({"tempo_confidence_min": 1.1}),
             "show.cues[1].audio_control.tempo_confidence_min",
             "must be <=",
+        ),
+        (
+            lambda data: data["show"]["cues"][1]["audio_control"].update({"tempo_sync": "locked"}),
+            "show.cues[1].audio_control.tempo_sync",
+            "must be one of",
+        ),
+        (
+            lambda data: data["show"]["cues"][1]["audio_control"].update({"no_beat_fallback": "hold"}),
+            "show.cues[1].audio_control.no_beat_fallback",
+            "unknown field",
         ),
     ],
 )

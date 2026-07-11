@@ -36,6 +36,29 @@ def test_validate_config_accepts_default_config() -> None:
             "boolean",
         ),
         (
+            lambda data: data["system"]["smoothing"].update({"gamma": 0.0}),
+            "system.smoothing",
+            "gamma",
+            0.0,
+            "finite number > 0.0",
+        ),
+        (
+            lambda data: data["outputs"]["transform"].update({"power_limit": -1.0}),
+            "outputs.transform",
+            "power_limit",
+            -1.0,
+            "finite number >= 0.0",
+        ),
+        (
+            lambda data: data["outputs"]["transform"].update(
+                {"per_zone_warm_bias": {"missing": 1.0}}
+            ),
+            "outputs.transform",
+            "per_zone_warm_bias",
+            "missing",
+            "existing layout.zones id",
+        ),
+        (
             lambda data: data["system"].update({"platform": "rk3568"}),
             "system",
             "platform",
