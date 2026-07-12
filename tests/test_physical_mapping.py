@@ -137,7 +137,7 @@ def test_default_config_maps_six_analog_nodes_and_one_digital_node() -> None:
 def test_cabin_v3_profile_maps_thirteen_strips_to_five_multi_output_nodes() -> None:
     from pathlib import Path
 
-    config = Config(Path("config/profiles/cabin_lighting_v3_production.yaml"))
+    config = Config(Path("config/profiles/cabin-lighting-v3-production.yaml"))
     layout = Layout.from_config(config)
     mapping = PhysicalMapping(layout)
     frame = PixelFrame(
@@ -162,7 +162,7 @@ def test_physical_mapping_rejects_v3_node_length_not_equal_to_outputs() -> None:
     from dataclasses import replace
     from pathlib import Path
 
-    config = Config(Path("config/profiles/cabin_lighting_v3_production.yaml"))
+    config = Config(Path("config/profiles/cabin-lighting-v3-production.yaml"))
     layout = Layout.from_config(config)
     layout.digital_nodes[1] = replace(layout.digital_nodes[1], pixel_count=1)
 

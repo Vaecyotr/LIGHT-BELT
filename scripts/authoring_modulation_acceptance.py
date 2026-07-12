@@ -28,8 +28,7 @@ from light_engine.show.audio_modulation import CueAudioModulator
 
 FPS = 20
 FRAME_COUNT = 180
-ARTIFACT_DIR = Path("artifacts/authoring_modulation_acceptance")
-REPORT_PATH = Path("docs/authoring_modulation_acceptance_report.md")
+DEFAULT_ARTIFACT_DIR = Path("artifacts/runs/authoring-modulation-v1")
 SOFTWARE_ONLY = "NOT HARDWARE VERIFIED"
 
 
@@ -220,9 +219,9 @@ def _git_head() -> str:
     return result.stdout.strip()
 
 
-def _write_report(summary: dict[str, Any]) -> None:
+def _write_report(summary: dict[str, Any], report_path: Path) -> None:
     hashes = summary["artifact_sha256"]
-    REPORT_PATH.write_text(
+    report_path.write_text(
         "# Phase 22 Authoring Modulation Acceptance\n\n"
         f"{SOFTWARE_ONLY}\n\n"
         "The bounded deterministic renderer validates the authored show twice and records only software evidence.\n\n"
@@ -243,18 +242,24 @@ def _write_report(summary: dict[str, Any]) -> None:
     )
 
 
-def run_acceptance(show_path: Path, layout_path: Path) -> dict[str, Any]:
+def run_acceptance(
+    show_path: Path,
+    layout_path: Path,
+    *,
+    artifact_dir: Path = DEFAULT_ARTIFACT_DIR,
+    report_path: Path | None = None,
+) -> dict[str, Any]:
     layout = load_acceptance_layout(layout_path)
     first_digest, samples = _render(show_path, layout)
     second_digest, _ = _render(show_path, layout)
     evidence = _evidence(show_path, layout, samples)
     _assert_finite(evidence)
-    ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    evidence_path = ARTIFACT_DIR / "sample_evidence.json"
-    digests_path = ARTIFACT_DIR / "two_run_digests.json"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    evidence_path = artifact_dir / "sample_evidence.json"
+    digests_path = artifact_dir / "two_run_digests.json"
     _write_json(evidence_path, evidence)
     _write_json(digests_path, {"not_hardware_verified": SOFTWARE_ONLY, "digests": [first_digest, second_digest]})
-    manifest_path = ARTIFACT_DIR / "manifest.json"
+    manifest_path = artifact_dir / "manifest.json"
     manifest_hashes = {str(evidence_path).replace("\\", "/"): _sha256(evidence_path), str(digests_path).replace("\\", "/"): _sha256(digests_path)}
     _write_json(manifest_path, {"not_hardware_verified": SOFTWARE_ONLY, "artifact_sha256": manifest_hashes})
     hashes = {**manifest_hashes, str(manifest_path).replace("\\", "/"): _sha256(manifest_path)}
@@ -268,8 +273,8 @@ def run_acceptance(show_path: Path, layout_path: Path) -> dict[str, Any]:
         "artifact_sha256": hashes,
     }
     _assert_finite(summary)
-    _write_json(ARTIFACT_DIR / "summary.json", summary)
-    _write_report(summary)
+    _write_json(artifact_dir / "summary.json", summary)
+    _write_report(summary, report_path or artifact_dir / "report.md")
     return summary
 
 
@@ -277,8 +282,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--show", type=Path, required=True)
     parser.add_argument("--layout", type=Path, required=True)
+    parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
     args = parser.parse_args()
-    summary = run_acceptance(args.show, args.layout)
+    summary = run_acceptance(args.show, args.layout, artifact_dir=args.artifact_dir)
     print(f"Phase 22 acceptance: {summary['two_run_digests'][0]} ({SOFTWARE_ONLY})")
 
 

@@ -1,6 +1,6 @@
 """Phase 29 evidence-only acceptance for the cabin v3 topology.
 
-The expected topology lives in ``config/cabin_v3_acceptance.yaml`` rather
+The expected topology lives in ``config/acceptance/cabin-lighting-v3/topology.yaml`` rather
 than being regenerated from the implementation under test.  The test compares
 that fixed fixture with the production profile, Show v2 output and UDP v3
 packets.
@@ -26,9 +26,9 @@ from light_engine.outputs.udp_v3 import HEADER_LENGTH, UdpV3Output, UdpV3Packet
 from light_engine.show import TargetCatalog, TargetResolver, ShowRuntime, black_base_frame, load_show, validate_show_data
 
 
-ACCEPTANCE = Path("config/cabin_v3_acceptance.yaml")
-PROFILE = Path("config/profiles/cabin_lighting_v3_production.yaml")
-SHOW = Path("config/show.cabin-v2.yaml")
+ACCEPTANCE = Path("config/acceptance/cabin-lighting-v3/topology.yaml")
+PROFILE = Path("config/profiles/cabin-lighting-v3-production.yaml")
+SHOW = Path("config/shows/cabin-show-v2.yaml")
 GOLDEN = Path("firmware/shared/udp_v3_golden.json")
 
 

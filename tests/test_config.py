@@ -88,14 +88,14 @@ class TestConfig:
 
     def test_windows_dev_profile_loads(self):
         Config.reset()
-        config = Config(Path("config/profiles/windows_dev.yaml"))
+        config = Config(Path("config/profiles/windows-development.yaml"))
         assert config.get("outputs.mode") == "memory"
         assert config.get("system.clock.mode") == "internal"
         assert config.get("system.platform") == "windows"
 
     def test_rk3588_production_profile_loads_without_verification_claim(self):
         Config.reset()
-        profile = Path("config/profiles/rk3588_production.yaml")
+        profile = Path("config/profiles/rk3588-production.yaml")
         config = Config(profile)
         assert config.get("outputs.mode") == "production"
         assert config.get("system.clock.mode") == "mpv"

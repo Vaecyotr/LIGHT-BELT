@@ -10,13 +10,19 @@ import pytest
 from scripts.authoring_modulation_acceptance import run_acceptance
 
 
-SHOW = Path("config/show_authoring_modulation_acceptance.yaml")
-LAYOUT = Path("config/layout_authoring_modulation_acceptance.yaml")
-ARTIFACT_DIR = Path("artifacts/authoring_modulation_acceptance")
+SHOW = Path("config/acceptance/authoring-modulation-v1/show.yaml")
+LAYOUT = Path("config/acceptance/authoring-modulation-v1/layout.yaml")
 
 
-def test_phase_22_authoring_modulation_acceptance() -> None:
-    summary = run_acceptance(SHOW, LAYOUT)
+def test_phase_22_authoring_modulation_acceptance(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "authoring-modulation-v1"
+    report_path = tmp_path / "authoring-modulation-v1-report.md"
+    summary = run_acceptance(
+        SHOW,
+        LAYOUT,
+        artifact_dir=artifact_dir,
+        report_path=report_path,
+    )
 
     assert summary["not_hardware_verified"] == "NOT HARDWARE VERIFIED"
     assert summary["frame_count"] == 180
@@ -62,10 +68,10 @@ def test_phase_22_authoring_modulation_acceptance() -> None:
     for path, expected in summary["artifact_sha256"].items():
         actual = hashlib.sha256(Path(path).read_bytes()).hexdigest()
         assert actual == expected
-    manifest = json.loads((ARTIFACT_DIR / "manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((artifact_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["artifact_sha256"].items() <= summary["artifact_sha256"].items()
-    assert "NOT HARDWARE VERIFIED" in (ARTIFACT_DIR / "summary.json").read_text(encoding="utf-8")
-    assert "NOT HARDWARE VERIFIED" in Path("docs/authoring_modulation_acceptance_report.md").read_text(encoding="utf-8")
+    assert "NOT HARDWARE VERIFIED" in (artifact_dir / "summary.json").read_text(encoding="utf-8")
+    assert "NOT HARDWARE VERIFIED" in report_path.read_text(encoding="utf-8")
     _assert_finite(summary)
 
 

@@ -106,7 +106,7 @@ def test_validate_show_creates_no_engine_or_outputs(monkeypatch):
 
     monkeypatch.setattr(cli, "Engine", ForbiddenEngine)
     Config.reset()
-    args = Namespace(config=None, show="config/show.example.yaml")
+    args = Namespace(config=None, show="config/examples/teacher-demo-show-v2.yaml")
 
     result = cli.cmd_validate_show(args)
 
@@ -128,7 +128,7 @@ def test_run_show_accepts_adaptive_runtime(monkeypatch):
         video=None,
         audio=None,
         effect=None,
-        show="config/show.example.yaml",
+        show="config/examples/teacher-demo-show-v2.yaml",
         duration=0.1,
         max_frames=1,
     )

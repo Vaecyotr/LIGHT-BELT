@@ -277,7 +277,7 @@ def test_duplicate_cue_ids_fail() -> None:
 
 
 def test_valid_300_second_example_round_trips_to_typed_values() -> None:
-    show = load_show(Path("config/show.example.yaml"), _catalog())
+    show = load_show(Path("config/examples/teacher-demo-show-v2.yaml"), _catalog())
 
     assert show.schema_version == 2
     assert show.id == "teacher-demo-v2"
@@ -297,7 +297,7 @@ def test_example_show_resolves_virtual_paths_from_actual_layout() -> None:
     layout = Layout.from_config(Config())
     catalog = TargetCatalog.from_layout(layout)
 
-    show = load_show(Path("config/show.example.yaml"), catalog)
+    show = load_show(Path("config/examples/teacher-demo-show-v2.yaml"), catalog)
 
     assert catalog.virtual_paths == frozenset({"screen_to_wall"})
     assert show.cues[0].target.kind == "virtual_path"

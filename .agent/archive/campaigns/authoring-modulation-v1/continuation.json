@@ -1,0 +1,21 @@
+{
+    "campaign_branch":  "campaign/authoring-modulation-v1-continue",
+    "start_branch":  "campaign/authoring-modulation-v1",
+    "steps":  [
+                  {
+                      "phase_id":  "phase-21-audio-modulation-layer",
+                      "task":  ".agent/archive/tasks/authoring-modulation-v1/phase-21-audio-modulation-layer.md",
+                      "max_repairs":  2
+                  },
+                  {
+                      "phase_id":  "phase-22-authoring-modulation-acceptance",
+                      "task":  ".agent/archive/tasks/authoring-modulation-v1/phase-22-authoring-modulation-acceptance.md",
+                      "max_repairs":  2
+                  },
+                  {
+                      "phase_id":  "phase-23-authoring-docs-host-api-alignment",
+                      "task":  ".agent/archive/tasks/authoring-modulation-v1/phase-23-authoring-docs-host-api-alignment.md",
+                      "max_repairs":  1
+                  }
+              ]
+}

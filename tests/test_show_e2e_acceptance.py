@@ -7,12 +7,13 @@ from pathlib import Path
 from scripts.show_acceptance import run_acceptance
 
 
-SHOW = Path("config/show_acceptance.yaml")
-LAYOUT = Path("config/layout_acceptance.yaml")
+SHOW = Path("config/acceptance/show-orchestration-v1/show.yaml")
+LAYOUT = Path("config/acceptance/show-orchestration-v1/layout.yaml")
 
 
-def test_phase_17_show_acceptance_outputs_required_evidence() -> None:
-    summary = run_acceptance(SHOW, LAYOUT)
+def test_phase_17_show_acceptance_outputs_required_evidence(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "show-orchestration-v1"
+    summary = run_acceptance(SHOW, LAYOUT, artifact_dir=artifact_dir)
 
     assert summary["frame_count"] == 9000
     assert summary["two_run_digests"][0] == summary["two_run_digests"][1]
@@ -78,19 +79,19 @@ def test_phase_17_show_acceptance_outputs_required_evidence() -> None:
 
     artifact_hashes = summary["artifact_sha256"]
     required = {
-        "artifacts/show_acceptance/golden_hashes.json",
-        "artifacts/show_acceptance/two_run_digests.json",
-        "artifacts/show_acceptance/seam_concurrency_frames.json",
-        "artifacts/show_acceptance/music_decision_timeline.json",
-        "artifacts/show_acceptance/protocol_sequence_trace.json",
-        "artifacts/show_acceptance/benchmark_soak_metrics.json",
-        "artifacts/show_acceptance/firmware_build_logs.json",
+        (artifact_dir / "golden_hashes.json").as_posix(),
+        (artifact_dir / "two_run_digests.json").as_posix(),
+        (artifact_dir / "seam_concurrency_frames.json").as_posix(),
+        (artifact_dir / "music_decision_timeline.json").as_posix(),
+        (artifact_dir / "protocol_sequence_trace.json").as_posix(),
+        (artifact_dir / "benchmark_soak_metrics.json").as_posix(),
+        (artifact_dir / "firmware_build_logs.json").as_posix(),
     }
     assert required <= set(artifact_hashes)
     assert all(len(value) == 64 for value in artifact_hashes.values())
     _assert_finite(summary)
 
-    persisted = json.loads(Path("artifacts/show_acceptance/summary.json").read_text(encoding="utf-8"))
+    persisted = json.loads((artifact_dir / "summary.json").read_text(encoding="utf-8"))
     assert persisted["two_run_digests"] == summary["two_run_digests"]
 
 

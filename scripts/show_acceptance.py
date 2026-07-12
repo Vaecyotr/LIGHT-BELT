@@ -41,7 +41,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Windows.
 
 FPS = 30
 FRAME_COUNT = 9000
-ARTIFACT_DIR = Path("artifacts/show_acceptance")
+DEFAULT_ARTIFACT_DIR = Path("artifacts/runs/show-orchestration-v1")
 GOLDEN_DIR = Path("tests/goldens/show_orchestration/v1")
 G8_PATH = GOLDEN_DIR / "G8_acceptance.json"
 MANIFEST_PATH = GOLDEN_DIR / "MANIFEST.sha256"
@@ -341,7 +341,13 @@ class RunResult:
     evidence: dict[str, Any]
 
 
-def render_acceptance(show_path: Path, layout_path: Path, *, collect_evidence: bool = True) -> RunResult:
+def render_acceptance(
+    show_path: Path,
+    layout_path: Path,
+    *,
+    collect_evidence: bool = True,
+    artifact_dir: Path = DEFAULT_ARTIFACT_DIR,
+) -> RunResult:
     layout = load_acceptance_layout(layout_path)
     show = load_show(show_path, TargetCatalog.from_layout(layout))
     runtime = ShowRuntime.from_layout(show, layout, effect_factory=_effect_factory)
@@ -360,7 +366,7 @@ def render_acceptance(show_path: Path, layout_path: Path, *, collect_evidence: b
     }
     jsonl = None
     if collect_evidence:
-        jsonl_path = ARTIFACT_DIR / "memory_output.jsonl"
+        jsonl_path = artifact_dir / "memory_output.jsonl"
         jsonl_path.parent.mkdir(parents=True, exist_ok=True)
         jsonl = jsonl_path.open("w", encoding="utf-8", newline="\n")
     try:
@@ -552,10 +558,16 @@ def _decision_record(decision: SelectionDecision) -> dict[str, Any]:
     }
 
 
-def run_acceptance(show_path: Path, layout_path: Path, *, realtime_soak: float | None = None) -> dict[str, Any]:
-    ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    run1 = render_acceptance(show_path, layout_path)
-    run2 = render_acceptance(show_path, layout_path, collect_evidence=False)
+def run_acceptance(
+    show_path: Path,
+    layout_path: Path,
+    *,
+    realtime_soak: float | None = None,
+    artifact_dir: Path = DEFAULT_ARTIFACT_DIR,
+) -> dict[str, Any]:
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    run1 = render_acceptance(show_path, layout_path, artifact_dir=artifact_dir)
+    run2 = render_acceptance(show_path, layout_path, collect_evidence=False, artifact_dir=artifact_dir)
     if run1.digest != run2.digest:
         raise AssertionError("two complete acceptance runs produced different digests")
     soak = _run_soak(show_path, layout_path, realtime_soak or 300.0)
@@ -581,12 +593,12 @@ def run_acceptance(show_path: Path, layout_path: Path, *, realtime_soak: float |
     }
     if summary["offline_capacity_fps"] <= 30.0:
         raise AssertionError(f"offline capacity below 30 FPS: {summary['offline_capacity_fps']}")
-    summary_path = ARTIFACT_DIR / "summary.json"
+    summary_path = artifact_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    _write_artifacts(summary)
+    _write_artifacts(summary, artifact_dir)
     summary["artifact_sha256"] = {
         path.as_posix(): _sha256_file(path)
-        for path in sorted(ARTIFACT_DIR.glob("*"))
+        for path in sorted(artifact_dir.glob("*"))
         if path.is_file() and path.name != "summary.json"
     }
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -625,7 +637,7 @@ def _rss_kib() -> int | None:
         return None
 
 
-def _write_artifacts(summary: dict[str, Any]) -> None:
+def _write_artifacts(summary: dict[str, Any], artifact_dir: Path) -> None:
     artifacts = {
         "golden_hashes.json": {
             "manifest_sha256": summary["golden_manifest_sha256"],
@@ -649,7 +661,7 @@ def _write_artifacts(summary: dict[str, Any]) -> None:
         },
     }
     for name, payload in artifacts.items():
-        (ARTIFACT_DIR / name).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (artifact_dir / name).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _sha256_file(path: Path) -> str:
@@ -677,20 +689,29 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--show", required=True, type=Path)
     parser.add_argument("--layout", required=True, type=Path)
     parser.add_argument("--realtime-soak", type=float, default=None)
+    parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
     args = parser.parse_args(argv)
-    summary = run_acceptance(args.show, args.layout, realtime_soak=args.realtime_soak)
+    summary = run_acceptance(
+        args.show,
+        args.layout,
+        realtime_soak=args.realtime_soak,
+        artifact_dir=args.artifact_dir,
+    )
     command_log = {
         "commands": _command_log(),
         "script_argv": sys.argv,
-        "summary_path": str(ARTIFACT_DIR / "summary.json"),
+        "summary_path": str(args.artifact_dir / "summary.json"),
     }
-    (ARTIFACT_DIR / "command_log.json").write_text(json.dumps(command_log, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (args.artifact_dir / "command_log.json").write_text(
+        json.dumps(command_log, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps({
         "frame_count": summary["frame_count"],
         "digest": summary["two_run_digests"][0],
         "offline_capacity_fps": summary["offline_capacity_fps"],
         "soak_actual_output_fps": summary["soak_metrics"]["actual_output_fps"],
-        "summary": str(ARTIFACT_DIR / "summary.json"),
+        "summary": str(args.artifact_dir / "summary.json"),
         "NOT HARDWARE VERIFIED": True,
     }, sort_keys=True))
     return 0

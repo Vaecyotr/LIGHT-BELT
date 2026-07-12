@@ -39,7 +39,7 @@ def _catalog() -> TargetCatalog:
 def _data() -> dict:
     import yaml
 
-    return yaml.safe_load(Path("config/show.cabin-v2.yaml").read_text(encoding="utf-8"))
+    return yaml.safe_load(Path("config/shows/cabin-show-v2.yaml").read_text(encoding="utf-8"))
 
 
 def _invalid(data: dict, path: str, reason: str | None = None) -> None:
@@ -55,7 +55,7 @@ def _strip(frame, strip_id: str):
 
 
 def test_cabin_v2_has_three_paths_covering_all_fourteen_logical_runs() -> None:
-    show = load_show(Path("config/show.cabin-v2.yaml"), _catalog())
+    show = load_show(Path("config/shows/cabin-show-v2.yaml"), _catalog())
     golden = json.loads(Path("tests/goldens/show_orchestration/v2/cabin_authoring_contract.json").read_text(encoding="utf-8"))
 
     covered = {member.id for path in show.virtual_paths for member in path.targets}
@@ -340,3 +340,42 @@ def test_mixed_authored_path_renders_once_then_splits_without_strip_restarts() -
     analog = next(item for item in frame.zones if item.zone_id == "zone_32")
     assert analog.color.r > 0.0
     assert [pixel[0] for pixel in _strip(frame, "strip_91").pixels] == pytest.approx([0.5, 0.6])
+
+
+def test_parallel_virtual_paths_fork_chase_after_shared_strip_without_phase_restart() -> None:
+    show = load_show(Path("config/examples/cabin-show-fork-v2.yaml"), _catalog())
+    strips = (
+        ZoneDef(id="strip_11", pixel_count=10),
+        ZoneDef(id="strip_12", pixel_count=40),
+        ZoneDef(id="strip_91", pixel_count=20),
+        ZoneDef(id="strip_92", pixel_count=20),
+    )
+    runtime = ShowRuntime(show, TargetResolver(analog_zones=(), digital_strips=strips))
+
+    def render(timestamp: float, delta_time: float, sequence: int) -> PixelFrame:
+        base = black_base_frame(
+            timestamp=timestamp,
+            sequence=sequence,
+            analog_zones=(),
+            digital_strips=strips,
+        )
+        return runtime.render(
+            EffectContext(
+                timestamp=timestamp,
+                delta_time=delta_time,
+                sequence=sequence,
+            ),
+            base,
+        )
+
+    render(0.0, 0.1, 1)
+    before = render(0.9, 0.8, 2)
+    assert _strip(before, "strip_11").pixels[9] == pytest.approx((0.1, 0.4, 1.0))
+    for strip_id in ("strip_12", "strip_91", "strip_92"):
+        assert all(pixel == (0.0, 0.0, 0.0) for pixel in _strip(before, strip_id).pixels)
+
+    fork = render(1.0, 0.1, 3)
+    assert all(pixel == (0.0, 0.0, 0.0) for pixel in _strip(fork, "strip_11").pixels)
+    for strip_id in ("strip_12", "strip_91", "strip_92"):
+        assert _strip(fork, strip_id).pixels[0] == pytest.approx((0.1, 0.4, 1.0))
+        assert all(pixel == (0.0, 0.0, 0.0) for pixel in _strip(fork, strip_id).pixels[1:])

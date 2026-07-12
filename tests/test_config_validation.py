@@ -26,7 +26,7 @@ def test_project_declares_pyserial_for_production_rs485_installation() -> None:
 
 
 def _cabin_v3_data() -> dict:
-    return Config(Path("config/profiles/cabin_lighting_v3_production.yaml")).to_dict()
+    return Config(Path("config/profiles/cabin-lighting-v3-production.yaml")).to_dict()
 
 
 @pytest.mark.parametrize(

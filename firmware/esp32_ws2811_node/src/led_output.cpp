@@ -14,6 +14,8 @@ constexpr OutputDescriptor kConfiguredOutputs[] = {
 #endif
 };
 
+constexpr uint8_t kDirectionPins[] = {15, 16, 17};
+
 static_assert(OUTPUT_COUNT >= 1 && OUTPUT_COUNT <= MAX_OUTPUTS,
               "OUTPUT_COUNT must be 1, 2, or 3");
 
@@ -24,6 +26,10 @@ LedOutput::LedOutput() : state_(kConfiguredOutputs, OUTPUT_COUNT) {}
 bool LedOutput::begin() {
   if (!state_.configurationValid()) {
     return false;
+  }
+  for (const uint8_t pin : kDirectionPins) {
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, HIGH);
   }
   for (uint8_t index = 0; index < state_.outputCount(); ++index) {
     const OutputDescriptor &output = state_.descriptor(index);

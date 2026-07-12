@@ -298,7 +298,8 @@ def main() -> int:
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=Path(".agent/campaigns/closed-loop-v2.json"),
+        required=True,
+        help="Path to an explicitly selected active or archived campaign manifest.",
     )
     args = parser.parse_args()
 

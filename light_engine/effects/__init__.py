@@ -30,6 +30,11 @@ def _register_all() -> None:
     from light_engine.effects.video_ambient import VideoAmbientEffect
     from light_engine.effects.video_audio_fusion import VideoAudioFusionEffect
     from light_engine.effects.calm import CalmEffect
+    from light_engine.effects.color_wipe import (
+        ColorWipeEffect,
+        validate_color_wipe_params,
+    )
+    from light_engine.effects.twinkle import TwinkleEffect, validate_twinkle_params
     from light_engine.effects.demo import DemoEffect
 
     register_effect("static", StaticEffect)
@@ -43,6 +48,8 @@ def _register_all() -> None:
     register_effect("video_ambient", VideoAmbientEffect)
     register_effect("video_audio_fusion", VideoAudioFusionEffect)
     register_effect("calm", CalmEffect)
+    register_effect("color_wipe", ColorWipeEffect, validate_color_wipe_params)
+    register_effect("twinkle", TwinkleEffect, validate_twinkle_params)
     register_effect("demo", DemoEffect)
 
 

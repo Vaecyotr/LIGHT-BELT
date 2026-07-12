@@ -63,7 +63,8 @@ def test_manifest_loads_optional_model_configuration(tmp_path: Path) -> None:
 
 def test_cabin_campaign_full_verification_excludes_legacy_artifact_writers() -> None:
     _, _, steps = agent_campaign.load_manifest(
-        ROOT, ROOT / ".agent" / "campaigns" / "cabin-lighting-v2.json"
+        ROOT,
+        ROOT / ".agent" / "archive" / "campaigns" / "cabin-lighting-v2" / "campaign.json",
     )
 
     for step in steps:

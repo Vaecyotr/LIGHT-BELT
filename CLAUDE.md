@@ -189,18 +189,18 @@ For repository-wide changes, explore and produce a plan before implementation. A
 
 When project documents conflict, use this order of authority:
 
-1. CLAUDE.md 鈥?permanent project facts and invariants
-2. docs/CLOSED_LOOP_SPEC.md 鈥?target architecture and acceptance criteria
-3. Current source code and tests 鈥?current implementation truth
-4. Other files under docs/ 鈥?legacy/current-state reference only
+1. `CLAUDE.md`: permanent project facts and invariants.
+2. `docs/CLOSED_LOOP_SPEC.md`: target architecture and acceptance criteria.
+3. `docs/IMPLEMENTATION_PLAN.md`: the currently approved work only.
+4. Current source code and tests: implemented behavior and evidence.
 
 The following documents describe the legacy v1 implementation and are not
 the target architecture:
 
-- docs/protocol.md
-- docs/architecture.md
-- docs/hardware-integration.md
-- docs/configuration.md
+- `docs/history/legacy-prototype/protocol-v1.md`
+- `docs/history/legacy-prototype/architecture.md`
+- `docs/history/legacy-prototype/hardware-integration.md`
+- `docs/history/legacy-prototype/configuration.md`
 
 Do not implement RGBW, 11-byte serial v1, per-strip UDP fragmentation, or
 WS2812B as the new target merely because they appear in legacy documents.

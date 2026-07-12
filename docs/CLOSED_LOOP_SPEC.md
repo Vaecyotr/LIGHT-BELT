@@ -92,49 +92,15 @@ cool_white
 
 ## 3. 当前仓库基线
 
-开始工作前必须自行审计仓库并验证以下基线，不要只相信本任务书：
+Phase 29 已完成目标软件架构、UDP v3 多输出固件和软件验收。开始工作前仍必须运行完整测试，不得依赖历史测试数量：
 
 ```text
-.\.python\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m pytest -q
 ```
 
-当前预期基线约为：
-
-```text
-220 passed
-```
-
-当前已知结构：
-
-```text
-light_engine/analysis
-light_engine/media
-light_engine/effects
-light_engine/mapping
-light_engine/engine
-light_engine/outputs
-light_engine/cli
-config
-tests
-```
-
-当前已知缺口：
-
-1. `RGBWColor`、`ZoneOutput`、效果和 JSON 输出仍以 RGBW 为核心。
-2. `layout.yaml` 的模拟区域类型仍为 `rgbw`。
-3. `SerialOutput` 是单端口、11 字节 RGBW v1 协议，没有 Node ID、Sequence 或 CRC16。
-4. `SerialOutput` 在真实串口打开失败时会静默回退到内存传输，可能造成虚假成功。
-5. 当前串口输出可能对亮度重复缩放。
-6. 当前串口后台队列保存多个独立区域包，不能保证六节点属于同一逻辑帧。
-7. 当前 `UdpOutput` 按逻辑 strip 分包，Sequence 由输出端自行生成，ESP32 可能收到局部新旧帧。
-8. 当前 UDP 校验为简单 XOR，不是目标协议。
-9. 串口和 UDP 真实发送路径存在 `_health()` 被当作函数调用的问题，现有测试没有覆盖。
-10. `send_all()` 与具体输出后端可能重复统计发送帧。
-11. `pyserial` 未列入正式或硬件可选依赖。
-12. Engine 当前主要通过内部固定步长推进时间，尚未以实际媒体播放位置作为主时钟。
-13. 仓库中目前没有可验证的 STM32 和 ESP32-S3 固件工程。
-
-这些是审计入口，不是要求你机械地逐项打补丁。请识别根因并形成一致架构。
+原始 220-test 起点、RGBW/11-byte v1 缺口和 Phase 0-29 迁移过程保存在
+`docs/history/implementation/implementation-plan-phases-0-29.md`。它们解释
+开发历史，但不再描述当前实现。
 
 ## 4. 强制架构边界
 
@@ -610,8 +576,8 @@ last_success_time
 最终必须实际运行并报告：
 
 ```text
-.\.python\python.exe -m pytest -q
-.\.python\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
+.\.python\Scripts\python.exe -m pytest -q
+.\.python\Scripts\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800
 ```
 
 若新增 PlatformIO 固件：

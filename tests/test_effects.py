@@ -26,13 +26,14 @@ def _assert_sequence(frame, ctx):
 
 
 class TestEffectRegistry:
-    def test_all_12_effects_registered(self):
+    def test_all_14_effects_registered(self):
         effects = list_effects()
-        assert len(effects) == 12
+        assert len(effects) == 14
         required = [
             "static", "breath", "color_wave", "chase", "comet",
             "audio_pulse", "bass_pulse", "spectrum",
-            "video_ambient", "video_audio_fusion", "calm", "demo",
+            "video_ambient", "video_audio_fusion", "calm",
+            "color_wipe", "twinkle", "demo",
         ]
         for name in required:
             assert name in effects, f"Missing effect: {name}"
@@ -140,6 +141,20 @@ class TestAllEffects:
 
     def test_calm(self, ctx):
         eff = create_effect("calm")
+        frame = eff.process(ctx)
+        assert frame.all_pixels_valid()
+        _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
+
+    def test_color_wipe(self, ctx):
+        eff = create_effect("color_wipe")
+        frame = eff.process(ctx)
+        assert frame.all_pixels_valid()
+        _assert_rgbcct_zones(frame)
+        _assert_sequence(frame, ctx)
+
+    def test_twinkle(self, ctx):
+        eff = create_effect("twinkle")
         frame = eff.process(ctx)
         assert frame.all_pixels_valid()
         _assert_rgbcct_zones(frame)
@@ -633,3 +648,129 @@ def test_demo_runtime_cycle_interval_and_effects_change_selected_effect():
     )
 
     assert frame.metadata["demo_current"] == "breath"
+
+
+def test_color_wipe_uses_each_strip_actual_pixel_count_and_holds_when_full():
+    effect = create_effect("color_wipe")
+    params = {
+        "strip_defs": [
+            {"id": "short", "pixel_count": 3},
+            {"id": "long", "pixel_count": 7},
+        ],
+        "speed": 2.0,
+        "color": [0.0, 1.0, 0.0],
+        "cue_local_time": 1.0,
+    }
+    first = effect.process(
+        EffectContext(timestamp=1.0, delta_time=0.1, sequence=1, mode_parameters=params)
+    )
+    assert [len(strip.pixels) for strip in first.strips] == [3, 7]
+    assert [sum(max(pixel) > 0.0 for pixel in strip.pixels) for strip in first.strips] == [3, 3]
+
+    full = effect.process(
+        EffectContext(
+            timestamp=10.0,
+            delta_time=0.1,
+            sequence=2,
+            mode_parameters={**params, "cue_local_time": 10.0},
+        )
+    )
+    assert all(pixel == (0.0, 1.0, 0.0) for strip in full.strips for pixel in strip.pixels)
+
+
+def test_color_wipe_reset_restarts_free_running_progress():
+    effect = create_effect("color_wipe")
+    ctx = EffectContext(
+        timestamp=1.0,
+        delta_time=1.0,
+        mode_parameters={"strip_defs": [{"id": "strip", "pixel_count": 6}], "speed": 2.0},
+    )
+    effect.process(ctx)
+    effect.process(ctx)
+    effect.reset()
+    restarted = effect.process(ctx)
+    assert sum(max(pixel) > 0.0 for pixel in restarted.strips[0].pixels) == 3
+
+
+def test_twinkle_spawn_density_scales_with_actual_lengths_and_solid_color(monkeypatch):
+    requested_lengths = []
+
+    def last_valid_position(stop):
+        requested_lengths.append(stop)
+        return stop - 1
+
+    monkeypatch.setattr("light_engine.effects.twinkle.random.randrange", last_valid_position)
+    effect = create_effect("twinkle")
+    frame = effect.process(
+        EffectContext(
+            timestamp=1.0,
+            delta_time=1.0,
+            sequence=3,
+            mode_parameters={
+                "strip_defs": [
+                    {"id": "short", "pixel_count": 2},
+                    {"id": "long", "pixel_count": 5},
+                ],
+                "density": 1.0,
+                "fade_time": 1.0,
+                "color_source": "solid",
+                "color": [0.25, 0.5, 0.75],
+            },
+        )
+    )
+    assert requested_lengths == [2, 2, 5, 5, 5, 5, 5]
+    assert [len(strip.pixels) for strip in frame.strips] == [2, 5]
+    assert frame.strips[0].pixels[-1] == pytest.approx((0.25, 0.5, 0.75))
+    assert frame.strips[1].pixels[-1] == pytest.approx((0.25, 0.5, 0.75))
+
+
+@pytest.mark.parametrize("color_source", ["palette", "random"])
+def test_twinkle_supports_palette_and_random_color_sources(monkeypatch, color_source):
+    monkeypatch.setattr("light_engine.effects.twinkle.random.randrange", lambda stop: stop - 1)
+    monkeypatch.setattr("light_engine.effects.twinkle.random.choice", lambda values: values[-1])
+    monkeypatch.setattr("light_engine.effects.twinkle.random.random", lambda: 0.5)
+    frame = create_effect("twinkle").process(
+        EffectContext(
+            timestamp=1.0,
+            delta_time=1.0,
+            mode_parameters={
+                "strip_defs": [{"id": "strip", "pixel_count": 1}],
+                "density": 1.0,
+                "fade_time": 1.0,
+                "color_source": color_source,
+                "color": [1.0, 0.0, 0.0],
+                "palette": ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+            },
+        )
+    )
+    pixel = frame.strips[0].pixels[0]
+    if color_source == "palette":
+        assert pixel == pytest.approx((0.0, 0.0, 1.0))
+    else:
+        assert pixel != pytest.approx((1.0, 0.0, 0.0))
+
+
+def test_twinkle_reset_discards_existing_sparks(monkeypatch):
+    monkeypatch.setattr("light_engine.effects.twinkle.random.randrange", lambda _stop: 0)
+    effect = create_effect("twinkle")
+    spawn = EffectContext(
+        timestamp=1.0,
+        delta_time=1.0,
+        mode_parameters={
+            "strip_defs": [{"id": "strip", "pixel_count": 2}],
+            "density": 1.0,
+            "fade_time": 1.0,
+            "color_source": "solid",
+            "color": [1.0, 1.0, 1.0],
+        },
+    )
+    effect.process(spawn)
+    effect.reset()
+    dark = effect.process(
+        EffectContext(
+            timestamp=1.1,
+            delta_time=0.1,
+            mode_parameters={**spawn.mode_parameters, "density": 0.0},
+        )
+    )
+    assert dark.strips[0].pixels == [(0.0, 0.0, 0.0)] * 2

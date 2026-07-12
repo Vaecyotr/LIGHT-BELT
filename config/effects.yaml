@@ -61,6 +61,16 @@ effects:
     period: 12.0
     color: [0.3, 0.2, 0.5]
 
+  color_wipe:
+    speed: 20.0              # WS2811 pixel groups filled per second
+    color: [0.2, 0.6, 1.0]
+
+  twinkle:
+    density: 0.12            # New sparks per pixel group per second
+    fade_time: 0.7           # Exponential fade time in seconds
+    color_source: "random"   # solid, palette, random
+    color: [1.0, 1.0, 1.0]
+
   demo:
     cycle_interval: 10.0     # Seconds between effect switches
     effects:

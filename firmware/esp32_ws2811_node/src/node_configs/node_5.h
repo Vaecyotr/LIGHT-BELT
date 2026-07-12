@@ -1,0 +1,16 @@
+#ifndef LIGHT_BELT_ESP32_NODE_5_H
+#define LIGHT_BELT_ESP32_NODE_5_H
+
+#undef NODE_ID
+#undef OUTPUT_COUNT
+#undef OUTPUT_0_ID
+#undef OUTPUT_0_GPIO
+#undef OUTPUT_0_PIXELS
+
+#define NODE_ID 5
+#define OUTPUT_COUNT 1
+#define OUTPUT_0_ID 1
+#define OUTPUT_0_GPIO 4
+#define OUTPUT_0_PIXELS 40
+
+#endif

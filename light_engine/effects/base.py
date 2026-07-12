@@ -61,6 +61,10 @@ _EFFECT_PARAMETER_KEYS: dict[str, frozenset[str]] = {
         {"video_weight", "audio_weight", "bass_boost", "treble_limit"}
     ),
     "calm": frozenset({"period", "color", "color_timeline"}),
+    "color_wipe": frozenset({"speed", "color", "color_timeline"}),
+    "twinkle": frozenset(
+        {"density", "fade_time", "color_source", "color", "color_timeline"}
+    ),
     "demo": frozenset({"cycle_interval", "effects"}),
 }
 

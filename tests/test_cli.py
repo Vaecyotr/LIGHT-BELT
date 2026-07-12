@@ -10,8 +10,8 @@ from light_engine.cli import build_topology_inspection, cmd_inspect_topology
 from light_engine.config import Config
 
 
-PROFILE = "config/profiles/cabin_lighting_v3_production.yaml"
-SHOW = "config/show.cabin-v2.yaml"
+PROFILE = "config/profiles/cabin-lighting-v3-production.yaml"
+SHOW = "config/shows/cabin-show-v2.yaml"
 
 
 def test_cabin_show_inspection_traces_all_fourteen_fixtures() -> None:
