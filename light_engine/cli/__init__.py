@@ -11,7 +11,7 @@ from pathlib import Path
 
 from light_engine import __version__
 from light_engine.clock import FakeClock, MpvIPCClock, OfflineRenderClock
-from light_engine.config import Config
+from light_engine.config import Config, ConfigError
 from light_engine.engine import Engine
 from light_engine.mapping import Layout
 from light_engine.outputs import health_summary
@@ -365,6 +365,155 @@ def cmd_validate_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _configured_outputs(config: Config) -> tuple[bool, bool]:
+    """Return explicitly enabled UDP v3 and RS-485 v2 transport states."""
+    enabled = set(config.get("outputs.enabled", []))
+    udp_enabled = "udp_v3" in enabled and config.get("outputs.udp_v3.enabled", False) is True
+    rs485_enabled = "rs485_v2" in enabled and config.get("outputs.rs485_v2.enabled", True) is not False
+    return udp_enabled, rs485_enabled
+
+
+def _digital_inspection_row(layout: Layout, strip_id: str, *, source_start: int, pixel_count: int, direction: str) -> dict:
+    strip = layout.get_strip(strip_id)
+    if strip is None:
+        raise ValueError(f"validated layout has no logical strip {strip_id!r}")
+    output = next((item for item in layout.digital_outputs if item.strip_id == strip_id), None)
+    if output is None:
+        raise ValueError(f"validated layout has no physical output for {strip_id!r}")
+    node = next((item for item in layout.digital_nodes if item.node_id == output.node_id), None)
+    if node is None:
+        raise ValueError(f"validated layout has no digital node {output.node_id!r}")
+    return {
+        "logical_id": strip.id,
+        "logical_label": strip.label or strip.id,
+        "installation_id": strip.id.removeprefix("strip_"),
+        "source_start": source_start,
+        "pixel_count": pixel_count,
+        "direction": direction,
+        "node_id": node.node_id,
+        "output_id": output.output_id,
+        "gpio": output.gpio,
+        "physical_label": f"ESP32-S3 node {node.node_id}, output {output.output_id}, GPIO{output.gpio}",
+        "host": node.host,
+        "port": node.port,
+    }
+
+
+def _analog_inspection_row(layout: Layout, config: Config, zone_id: str) -> dict:
+    zone = layout.get_zone(zone_id)
+    if zone is None:
+        raise ValueError(f"validated layout has no analog zone {zone_id!r}")
+    node = next((item for item in layout.analog_nodes if item.zone_id == zone_id), None)
+    if node is None:
+        raise ValueError(f"validated layout has no analog node for {zone_id!r}")
+    return {
+        "logical_id": zone.id,
+        "logical_label": zone.label or zone.id,
+        "installation_id": zone.id.removeprefix("zone_"),
+        "pixel_count": zone.pixel_count,
+        "node_id": node.node_id,
+        "output_id": None,
+        "gpio": None,
+        "physical_label": f"STM32 RS-485 node {node.node_id}",
+        "host": None,
+        "port": config.get("outputs.serial.port"),
+    }
+
+
+def build_topology_inspection(config: Config, show_path: str | None = None) -> dict:
+    """Trace validated logical targets to their configured physical endpoints.
+
+    No parallel mapping table is kept here.  The layout and an optional Show v2
+    file have already passed their normal validators before this report is
+    constructed.
+    """
+    layout = Layout.from_config(config)
+    udp_enabled, rs485_enabled = _configured_outputs(config)
+    virtual_paths: list[dict] = []
+
+    if show_path:
+        show, _ = _load_show_for_config(show_path, config)
+        for path in show.virtual_paths:
+            regions = []
+            for index, target in enumerate(path.targets):
+                if target.kind == "digital_strip" and target.id is not None:
+                    region = _digital_inspection_row(
+                        layout, target.id, source_start=0,
+                        pixel_count=layout.get_strip(target.id).pixel_count,  # type: ignore[union-attr]
+                        direction=layout.get_strip(target.id).direction,  # type: ignore[union-attr]
+                    )
+                    region["transport_enabled"] = udp_enabled
+                elif target.kind == "analog_zone" and target.id is not None:
+                    region = _analog_inspection_row(layout, config, target.id)
+                    region["transport_enabled"] = rs485_enabled
+                else:  # The Show v2 validator currently excludes this in paths.
+                    raise ValueError(f"unsupported inspected virtual-path target {target.kind!r}")
+                region["region_index"] = index
+                regions.append(region)
+            virtual_paths.append({
+                "id": path.id,
+                "origin": path.origin,
+                "regions": regions,
+            })
+        source = {"kind": "show_v2", "path": show_path}
+    else:
+        for path in layout.virtual_paths:
+            regions = []
+            for index, segment in enumerate(path.segments):
+                region = _digital_inspection_row(
+                    layout,
+                    segment.strip_id,
+                    source_start=segment.source_start,
+                    pixel_count=segment.pixel_count,
+                    direction=segment.direction,
+                )
+                region["region_index"] = index
+                region["transport_enabled"] = udp_enabled
+                regions.append(region)
+            virtual_paths.append({
+                "id": path.id,
+                "origin": "layout_order",
+                "regions": regions,
+            })
+        source = {"kind": "layout", "path": None}
+
+    analog_zones = []
+    for zone in layout.zones:
+        row = _analog_inspection_row(layout, config, zone.id)
+        row["transport_enabled"] = rs485_enabled
+        analog_zones.append(row)
+
+    return {
+        "schema_version": 1,
+        "source": source,
+        "output_mode": config.get("outputs.mode"),
+        "transports": {
+            "udp_v3_enabled": udp_enabled,
+            "rs485_v2_enabled": rs485_enabled,
+        },
+        "summary": {
+            "digital_strips": len(layout.strips),
+            "analog_zones": len(layout.zones),
+            "physical_fixtures": len(layout.strips) + len(layout.zones),
+        },
+        "virtual_paths": virtual_paths,
+        "analog_zones": analog_zones,
+        "hardware_verification": "NOT HARDWARE VERIFIED",
+    }
+
+
+def cmd_inspect_topology(args: argparse.Namespace) -> int:
+    """Print a config-derived virtual-path-to-physical-topology report."""
+    try:
+        config = Config(Path(args.config)) if args.config else Config.get_instance()
+        report = build_topology_inspection(config, args.show)
+    except (OSError, ShowValidationError, ConfigError, ValueError, KeyError) as exc:
+        print(f"Unable to inspect topology: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0
+
+
 def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -437,6 +586,16 @@ def main() -> None:
     p_validate_show = subparsers.add_parser("validate-show", help="Validate authored show YAML")
     p_validate_show.add_argument("--show", required=True, help="Path to authored show YAML")
 
+    p_inspect_topology = subparsers.add_parser(
+        "inspect-topology",
+        help="Trace validated virtual-path targets to configured nodes, outputs, and GPIOs",
+    )
+    p_inspect_topology.add_argument(
+        "--show",
+        default=None,
+        help="Optional Show v2 path; otherwise inspect layout.virtual_paths",
+    )
+
     args = parser.parse_args()
 
     if args.command == "demo":
@@ -453,6 +612,8 @@ def main() -> None:
         sys.exit(cmd_run_mpv(args))
     elif args.command == "validate-show":
         sys.exit(cmd_validate_show(args))
+    elif args.command == "inspect-topology":
+        sys.exit(cmd_inspect_topology(args))
     elif args.command == "inspect-video":
         sys.exit(cmd_inspect_video(args))
     elif args.command == "inspect-audio":

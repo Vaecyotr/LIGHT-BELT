@@ -13,11 +13,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
+import logging
 import time
 import threading
 from typing import Any, Generic, Optional, TypeVar
 
 from light_engine.mapping.physical import PhysicalFrame
+
+
+logger = logging.getLogger(__name__)
 
 
 class OutputMode(Enum):
@@ -203,7 +207,13 @@ def open_all(outputs: dict[str, LightOutput]) -> None:
 
 
 def send_all(outputs: dict[str, LightOutput], frame: PhysicalFrame) -> None:
-    """Send a physical frame to all open outputs, isolating failures."""
+    """Send a physical frame to all open outputs.
+
+    Every send failure marks the output unhealthy and is available through the
+    health summary.  Production failures are additionally emitted as errors;
+    they never change transport mode or manufacture a successful delivery.
+    Initialization failures remain strict in :func:`open_all`.
+    """
     for name, output in outputs.items():
         health = output.health()
         health.logical_frames_submitted += 1
@@ -214,6 +224,8 @@ def send_all(outputs: dict[str, LightOutput], frame: PhysicalFrame) -> None:
         except Exception as e:
             health.healthy = False
             health.last_error = str(e)
+            if getattr(output, "mode", None) is OutputMode.PRODUCTION:
+                logger.error("production output %s failed: %s", name, e)
 
 
 def health_summary(outputs: dict[str, LightOutput]) -> dict[str, Any]:

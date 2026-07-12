@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
+import tomllib
 
 import pytest
 
@@ -17,6 +18,11 @@ def _default_data() -> dict:
 
 def test_validate_config_accepts_default_config() -> None:
     validate_config(_default_data())
+
+
+def test_project_declares_pyserial_for_production_rs485_installation() -> None:
+    metadata = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    assert "pyserial>=3.5" in metadata["project"]["dependencies"]
 
 
 def _cabin_v3_data() -> dict:

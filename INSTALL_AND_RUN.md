@@ -1,4 +1,16 @@
-# Install and Run the Hardened Show Orchestration V1 Campaign
+# Install and Run
+
+## Current Cabin Lighting V3
+
+Use [the Cabin Lighting V3 operator guide](docs/CABIN_LIGHTING_V3_OPERATOR_GUIDE.md)
+for current production/profile/inspect instructions. The commands validate
+software configuration only; all wiring and physical timing are **NOT HARDWARE
+VERIFIED**.
+
+## Historical: Hardened Show Orchestration V1 Campaign
+
+The remainder of this document is retained to explain the old campaign flow.
+It is not the current cabin deployment procedure.
 
 Run from `A:\BaiduNetdiskDownload\LIGHT-BELT` in PowerShell.
 

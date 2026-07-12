@@ -1,13 +1,13 @@
 > [!WARNING]
 > STALE V1 INTEGRATION PLAN.
 >
-> This document predates the confirmed six-wire RGB+CCT hardware and the
-> successful standalone STM32/COB and ESP32-S3/WS2811 hardware tests.
+> This document predates the current five-node, UDP v3 multi-output cabin
+> topology. It does not record completed hardware verification.
 > Use docs/CLOSED_LOOP_SPEC.md as the target architecture.
 > This file may be rewritten after the v2 implementation is complete.
 
 > [!NOTE]
-> UDP v3 ESP32 firmware is now available for one complete node frame with up
+> UDP v3 ESP32 firmware is available for one complete node frame with up
 > to three independent WS2811 GPIO outputs (GPIO4/5/6). It stages every
 > configured output only after whole-frame CRC/topology/sequence validation,
 > then performs one multi-output refresh; timeout refreshes all configured
@@ -16,6 +16,11 @@
 > The older v1/v2 integration detail below is historical context, not the
 > current digital protocol contract; use `docs/CLOSED_LOOP_SPEC.md` and the
 > UDP v3 firmware README for current behavior.
+
+> [!TIP]
+> For the current five-node cabin mapping, validated `inspect-topology`
+> command, explicit transport modes, and power/common-ground wiring plan, use
+> [CABIN_LIGHTING_V3_OPERATOR_GUIDE.md](CABIN_LIGHTING_V3_OPERATOR_GUIDE.md).
 
 # Hardware Integration Guide
 

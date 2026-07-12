@@ -1,12 +1,37 @@
 # Light Engine
 
+## Current cabin integration
+
+The current cabin target is 13 independent 24V WS2811 strips (260 pixel
+groups) across five provisional ESP32-S3 nodes plus one RGB+CCT COB zone on a
+separate STM32 RS-485 address. The software topology and tests are available;
+installation, endpoints, wiring and synchronization are **NOT HARDWARE
+VERIFIED**. Start with [the Cabin Lighting V3 operator guide](docs/CABIN_LIGHTING_V3_OPERATOR_GUIDE.md).
+
+Use the Windows bundled interpreter:
+
+```powershell
+.\.python\Scripts\python.exe -m light_engine --config config/profiles/cabin_lighting_v3_production.yaml validate-show --show config/show.cabin-v2.yaml
+.\.python\Scripts\python.exe -m light_engine --config config/profiles/cabin_lighting_v3_production.yaml inspect-topology --show config/show.cabin-v2.yaml
+```
+
+The profile intentionally uses non-routable IP placeholders and a serial-port
+placeholder. Production transport errors are explicit; memory/fake operation
+is selected only in configuration.
+
 Video/music driven multi-zone lighting algorithm prototype for immersive pressurized oxygen chamber.
 
-## Scope
+## Historical prototype overview
+
+The material below is retained as a development-history overview. Where it
+uses V1/V2 output names, old test counts, or generic layouts, it is not a
+current cabin production instruction. Use the operator guide above for the
+current architecture.
 
 This prototype implements the RK3588-side lighting algorithm and software simulator. It does NOT require actual hardware (STM32, ESP32, LED strips) to run.
 
-**Current phase**: Algorithm prototype with synthetic data and media file support.
+**Historical status at the time of this overview**: Algorithm prototype with
+synthetic data and media file support.
 
 ## Quick Start
 

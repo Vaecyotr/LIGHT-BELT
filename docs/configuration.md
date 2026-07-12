@@ -152,10 +152,26 @@ For a time between two keyframes, each channel is:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| outputs.mode | string | `memory` | Explicit `memory`, `fake`, or `production`; production errors are raised |
 | outputs.enabled | list | ["simulator","json"] | Active output backends |
 | outputs.json.path | string | "output/light_data.jsonl" | JSONL output path |
-| outputs.udp.host | string | "192.168.1.100" | ESP32-S3 IP |
-| outputs.udp.port | int | 9001 | UDP port |
-| outputs.udp.max_packet_size | int | 1400 | Max UDP payload |
+| outputs.udp_v3.enabled | bool | false | Current ESP32-S3 multi-output UDP v3 transport |
+| outputs.udp_v2.enabled | bool | false | Legacy codec/transport, not new cabin production default |
 | outputs.serial.port | string | "COM3" | STM32 serial port |
 | outputs.serial.baudrate | int | 115200 | Baud rate |
+
+For the five-node cabin topology use
+`config/profiles/cabin_lighting_v3_production.yaml` with
+`config/show.cabin-v2.yaml`. The profile uses only documentation endpoints
+until installation. Inspect its actual validated mapping with:
+
+```powershell
+.\.python\Scripts\python.exe -m light_engine `
+  --config config/profiles/cabin_lighting_v3_production.yaml `
+  inspect-topology --show config/show.cabin-v2.yaml
+```
+
+`layout.digital_outputs` is the physical boundary mapping:
+`logical strip -> node_id + output_id + GPIO`; `DigitalStrip` itself remains
+hardware-agnostic. Show target IDs must likewise remain logical. Current cabin
+wiring, endpoint assignment, and physical timing are **NOT HARDWARE VERIFIED**.

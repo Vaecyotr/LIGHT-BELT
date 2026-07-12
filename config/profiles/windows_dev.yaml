@@ -1,5 +1,9 @@
-# Windows development profile.
+# Windows development profile for the default demonstration layout.
 # Uses explicit non-hardware transports. NOT HARDWARE VERIFIED.
+#
+# For the 14-fixture cabin topology, pass
+# config/profiles/cabin_lighting_v3_production.yaml to validation/inspection;
+# do not substitute its placeholder endpoints with real values in this file.
 
 outputs:
   mode: "memory"

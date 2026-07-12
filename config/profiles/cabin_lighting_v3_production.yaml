@@ -6,6 +6,13 @@
 outputs:
   mode: "production"
   enabled: ["rs485_v2", "udp_v3"]
+  # Intentionally invalid until the installer enters the actual RS-485 port.
+  # Production fails explicitly; it never changes itself to memory/fake mode.
+  serial:
+    port: "REPLACE_WITH_RS485_PORT"
+    baudrate: 115200
+  rs485_v2:
+    enabled: true
   udp_v3:
     enabled: true
     protocol_version: 3
@@ -61,26 +68,10 @@ layout:
     - {node_id: 4, output_id: 2, gpio: 5, strip_id: "strip_91", pixel_count: 20, direction: forward}
     - {node_id: 4, output_id: 3, gpio: 6, strip_id: "strip_92", pixel_count: 20, direction: forward}
     - {node_id: 5, output_id: 1, gpio: 4, strip_id: "strip_22", pixel_count: 40, direction: forward}
-  virtual_paths:
-    - id: "screen_to_top"
-      segments:
-        - {strip_id: "strip_11", source_start: 0, pixel_count: 10, direction: forward}
-        - {strip_id: "strip_12", source_start: 0, pixel_count: 40, direction: forward}
-    - id: "screen_to_bottom"
-      segments:
-        - {strip_id: "strip_21", source_start: 0, pixel_count: 10, direction: forward}
-        - {strip_id: "strip_22", source_start: 0, pixel_count: 40, direction: forward}
-        - {strip_id: "strip_31", source_start: 0, pixel_count: 10, direction: forward}
-    - id: "screen_to_wave_wall"
-      segments:
-        - {strip_id: "strip_41", source_start: 0, pixel_count: 10, direction: forward}
-        - {strip_id: "strip_42", source_start: 0, pixel_count: 20, direction: forward}
-        - {strip_id: "strip_43", source_start: 0, pixel_count: 20, direction: forward}
-        - {strip_id: "strip_44", source_start: 0, pixel_count: 20, direction: forward}
-        - {strip_id: "strip_45", source_start: 0, pixel_count: 20, direction: forward}
-        - {strip_id: "strip_91", source_start: 0, pixel_count: 20, direction: forward}
-        - {strip_id: "strip_92", source_start: 0, pixel_count: 20, direction: forward}
-        - {strip_id: "strip_93", source_start: 0, pixel_count: 20, direction: forward}
+  # Show v2 owns the cabin's mixed analog/digital virtual paths.  Do not
+  # duplicate them here using the legacy layout-only digital path schema.
+  # Keeping this empty also makes duplicate path IDs impossible at load time.
+  virtual_paths: []
   video_zone_map:
     left: ["zone_32", "strip_31"]
     right: ["strip_41", "strip_42", "strip_43", "strip_44", "strip_45", "strip_93"]

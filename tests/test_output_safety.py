@@ -11,7 +11,7 @@ from light_engine.mapping.physical import (
     PhysicalFrame,
 )
 from light_engine.models import RGBCCTColor
-from light_engine.outputs import OutputMode, create_outputs, open_all
+from light_engine.outputs import OutputMode, create_outputs, open_all, send_all
 from light_engine.outputs.rs485_v2 import FRAME_LENGTH, RS485v2Packet
 from light_engine.outputs.serial_output import SerialOutputV2
 from light_engine.outputs.udp_output import UdpOutputV2
@@ -150,3 +150,16 @@ def test_open_all_reraises_production_open_failure(monkeypatch: pytest.MonkeyPat
         open_all({"rs485_v2": output})
 
     assert output.health().healthy is False
+
+
+def test_production_send_failure_is_logged_and_never_falls_back(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    output = SerialOutputV2(mode=OutputMode.PRODUCTION, transport=FailingSerial())
+    output.open()
+
+    send_all({"rs485_v2": output}, _frame())
+
+    assert output.health().healthy is False
+    assert output.get_memory_bytes() == b""
+    assert "production output rs485_v2 failed: serial write failed" in caplog.text

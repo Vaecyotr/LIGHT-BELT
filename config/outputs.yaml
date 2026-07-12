@@ -37,10 +37,15 @@ outputs:
   null:
     enabled: false
 
-  # UDP v2 output (for ESP32-S3 digital nodes)
+  # UDP v2 is retained only for legacy regression/codec work.  New cabin
+  # production topology uses udp_v3: one complete multi-output node frame.
   udp_v2:
     enabled: false
     protocol_version: 2
+
+  udp_v3:
+    enabled: false
+    protocol_version: 3
 
   # RS-485 v2 output (for STM32 analog RGB+CCT nodes)
   rs485_v2:
