@@ -6,18 +6,30 @@
 #include <stdint.h>
 
 #include "config.h"
+#include "frame_state.h"
 #include "protocol.h"
 
 namespace light_belt {
 
 class LedOutput {
  public:
-  void begin();
-  void applyFrame(const UdpV2Frame &frame);
-  void showBlack();
+  LedOutput();
+
+  bool begin();
+  // Returns true only after an entire valid, newer node frame has been staged
+  // and committed.  The physical refresh is one FastLED.show() for all GPIOs.
+  bool acceptFrame(const UdpV3Frame &frame, uint32_t now_ms);
+  bool showBlack();
+  bool timedOut(uint32_t now_ms) const;
+
+  const OutputDescriptor *descriptors() const;
+  uint8_t outputCount() const;
 
  private:
-  CRGB pixels_[PIXEL_COUNT];
+  MultiOutputFrameState state_;
+  CRGB pixels_[MAX_OUTPUTS][MAX_PIXELS_PER_OUTPUT] = {};
+
+  void copyStateToLeds();
 };
 
 }  // namespace light_belt

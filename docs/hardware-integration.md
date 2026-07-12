@@ -6,6 +6,17 @@
 > Use docs/CLOSED_LOOP_SPEC.md as the target architecture.
 > This file may be rewritten after the v2 implementation is complete.
 
+> [!NOTE]
+> UDP v3 ESP32 firmware is now available for one complete node frame with up
+> to three independent WS2811 GPIO outputs (GPIO4/5/6). It stages every
+> configured output only after whole-frame CRC/topology/sequence validation,
+> then performs one multi-output refresh; timeout refreshes all configured
+> outputs black. `apply_at_us` is parsed but not scheduled yet. This behavior,
+> all wiring, and cross-node synchronization remain **NOT HARDWARE VERIFIED**.
+> The older v1/v2 integration detail below is historical context, not the
+> current digital protocol contract; use `docs/CLOSED_LOOP_SPEC.md` and the
+> UDP v3 firmware README for current behavior.
+
 # Hardware Integration Guide
 
 This document describes the future hardware integration interfaces. All descriptions are for planning purposes. No physical hardware has been connected or verified.

@@ -11,9 +11,7 @@ namespace {
 
 WiFiUDP udp;
 light_belt::LedOutput led_output;
-uint8_t packet_buffer[light_belt::UDP_V2_HEADER_LEN + (PIXEL_COUNT * 3U) +
-                      light_belt::UDP_V2_CRC_LEN];
-uint32_t last_valid_frame_ms = 0;
+uint8_t packet_buffer[light_belt::UDP_V3_MAX_PACKET_LEN];
 bool safe_state_applied = false;
 uint32_t last_placeholder_log_ms = 0;
 
@@ -35,10 +33,11 @@ void connectWifi() {
 
 void setup() {
   Serial.begin(115200);
-  led_output.begin();
+  if (!led_output.begin()) {
+    Serial.println("Invalid multi-output configuration; firmware is in safe state");
+  }
   connectWifi();
   udp.begin(UDP_PORT);
-  last_valid_frame_ms = millis();
 }
 
 void loop() {
@@ -51,18 +50,26 @@ void loop() {
   const int packet_size = udp.parsePacket();
   if (packet_size > 0 && static_cast<size_t>(packet_size) <= sizeof(packet_buffer)) {
     const int read_len = udp.read(packet_buffer, sizeof(packet_buffer));
-    light_belt::UdpV2Frame frame{};
-    if (read_len == packet_size &&
-        light_belt::parseUdpV2Frame(
-            packet_buffer, static_cast<size_t>(read_len), NODE_ID, PIXEL_COUNT, &frame) ==
-            light_belt::ParseResult::Ok) {
-      led_output.applyFrame(frame);
-      last_valid_frame_ms = now_ms;
+    light_belt::UdpV3Frame frame{};
+    const light_belt::ParseResult result =
+        read_len == packet_size
+            ? light_belt::parseUdpV3Frame(
+                  packet_buffer,
+                  static_cast<size_t>(read_len),
+                  NODE_ID,
+                  led_output.descriptors(),
+                  led_output.outputCount(),
+                  &frame)
+            : light_belt::ParseResult::BadLengths;
+    // apply_at_us is parsed in frame and intentionally not scheduled in v3's
+    // first firmware release.  Invalid, duplicate, or stale frames do not
+    // touch the displayed buffers.
+    if (result == light_belt::ParseResult::Ok && led_output.acceptFrame(frame, now_ms)) {
       safe_state_applied = false;
     }
   }
 
-  if (!safe_state_applied && now_ms - last_valid_frame_ms > SAFE_TIMEOUT_MS) {
+  if (!safe_state_applied && led_output.timedOut(now_ms)) {
     led_output.showBlack();
     safe_state_applied = true;
   }
