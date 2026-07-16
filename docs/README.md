@@ -15,6 +15,7 @@ directory defines its lifecycle; filenames alone do not determine authority.
 - [Cabin Lighting V3 operator guide](current/cabin-lighting-v3-operator-guide.md)
 - [ESP32 Windows commissioning](current/esp32-windows-commissioning.md)
 - [Show v2 authoring](current/show-v2-authoring.md)
+- [Host service deployment](current/host-service-deployment.md)
 
 ## Reference
 
