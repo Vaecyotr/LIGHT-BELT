@@ -45,8 +45,8 @@ class ChaseEffect(BaseEffect):
         self._color_source = config.get("effects.chase.color_source", "rainbow")
         self._beat_boost = config.get("effects.chase.beat_boost", 2.0)
         self._position: float = 0.0
+        self._bounce_phases: dict[str, float] = {}
         self._hue_offset: float = 0.0
-        self._last_direction: int = 1
 
     def _chase_color(
         self,
@@ -78,15 +78,12 @@ class ChaseEffect(BaseEffect):
             if ctx.audio_features.beat:
                 speed *= beat_boost
 
-        # Direction
-        if direction == "bounce":
-            dir_sign = self._last_direction
-        elif direction == "reverse":
+        if direction == "reverse":
             dir_sign = -1
-        else:
+            self._position += dir_sign * speed * ctx.delta_time
+        elif direction != "bounce":
             dir_sign = 1
-
-        self._position += dir_sign * speed * ctx.delta_time
+            self._position += dir_sign * speed * ctx.delta_time
         self._hue_offset = (self._hue_offset + ctx.delta_time * 30) % 360
 
         # Get video color if available
@@ -98,7 +95,11 @@ class ChaseEffect(BaseEffect):
 
         strips = []
 
-        for sd in ctx.mode_parameters.get("strip_defs", []):
+        active_bounce_ids = set()
+        for strip_index, sd in enumerate(
+            ctx.mode_parameters.get("strip_defs", [])
+        ):
+            strip_id = sd["id"]
             n = sd["pixel_count"]
             if n == 0:
                 continue
@@ -106,22 +107,34 @@ class ChaseEffect(BaseEffect):
             if period <= 0:
                 period = 1
             pixels = []
+            if direction == "bounce":
+                active_bounce_ids.add(strip_id)
+                phase = (
+                    self._bounce_phases.get(strip_id, 0.0)
+                    + speed * ctx.delta_time
+                )
+                self._bounce_phases[strip_id] = phase
+                max_position = n - 1
+                if max_position <= 0:
+                    pos = 0.0
+                else:
+                    span = float(max_position * 2)
+                    folded = phase % span
+                    pos = folded if folded <= max_position else span - folded
+                if strip_index == 0:
+                    self._position = pos
+            else:
+                pos = self._position
             for i in range(n):
                 # Compute distance from nearest chase dot
-                pos = self._position
                 if direction == "bounce":
-                    # For bounce, check both directions
-                    dist_fwd = (i - pos) % period
-                    dist_rev = (n - 1 - i - (n - 1 - pos)) % period
-                    dist = min(dist_fwd, dist_rev)
-                    # Bounce at boundaries
-                    if pos > n - 1 or pos < 0:
-                        self._last_direction *= -1
+                    dist = (i - pos) % period
                 else:
                     if dir_sign > 0:
                         dist = (i - pos) % period
                     else:
-                        dist = (pos - (n - 1 - i)) % period
+                        reverse_index = n - 1 - i
+                        dist = (reverse_index + pos) % period
 
                 if width > 0 and dist <= width:
                     intensity = 1.0 - (dist / width) * (1.0 - trail)
@@ -131,8 +144,11 @@ class ChaseEffect(BaseEffect):
                     pixels.append((0.0, 0.0, 0.0))
 
             strips.append(DigitalStrip(
-                strip_id=sd["id"], pixel_count=n, pixels=pixels
+                strip_id=strip_id, pixel_count=n, pixels=pixels
             ))
+
+        for stale_id in set(self._bounce_phases) - active_bounce_ids:
+            self._bounce_phases.pop(stale_id, None)
 
         zones = []
         for zd in ctx.mode_parameters.get("zone_defs", []):
@@ -147,8 +163,8 @@ class ChaseEffect(BaseEffect):
 
     def reset(self) -> None:
         self._position = 0.0
+        self._bounce_phases.clear()
         self._hue_offset = 0.0
-        self._last_direction = 1
 
     def get_parameters(self) -> dict:
         return {

@@ -40,13 +40,12 @@ class CalmEffect(BaseEffect):
         hue = (base_hue + math.sin(t * 2 * math.pi) * 10) % 360
         val = 0.1 + math.sin(t * 0.8) * 0.05 + 0.15
         val = min(0.35, val)
-        bri = val
         r, g, b = colorsys.hsv_to_rgb(hue / 360, 0.3, val)
 
         strips = []
         for sd in ctx.mode_parameters.get("strip_defs", []):
             n = sd["pixel_count"]
-            pixels = [(r * bri, g * bri, b * bri)] * n
+            pixels = [(r, g, b)] * n
             strips.append(DigitalStrip(
                 strip_id=sd["id"], pixel_count=n, pixels=pixels
             ))
@@ -55,7 +54,7 @@ class CalmEffect(BaseEffect):
         for zd in ctx.mode_parameters.get("zone_defs", []):
             zones.append(ZoneOutput(
                 zone_id=zd["id"],
-                color=rgb_to_rgbcct(r * bri, g * bri, b * bri),
+                color=rgb_to_rgbcct(r, g, b),
             ))
 
         return PixelFrame(

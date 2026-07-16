@@ -1,5 +1,7 @@
 """Tests for lighting effects."""
 
+import colorsys
+
 import pytest
 from light_engine.effects.comet import CometEffect
 from light_engine.effects import create_effect, list_effects, BaseEffect
@@ -342,8 +344,102 @@ def test_chase_runtime_speed_width_gap_and_direction_change_pixel_placement():
         ]
 
     assert lit_indexes(forward) == [0, 2, 3, 5, 6]
-    assert lit_indexes(reverse) == [0, 1, 3, 4, 6, 7]
+    assert lit_indexes(reverse) == [1, 2, 4, 5, 7]
     assert lit_indexes(wider_gap) == [1, 2, 3, 7]
+
+
+def test_chase_reverse_remains_visible_when_period_exceeds_node2_strip_lengths():
+    effect = create_effect("chase")
+    parameters = {
+        "strip_defs": [
+            {"id": "short", "pixel_count": 10},
+            {"id": "long", "pixel_count": 20},
+        ],
+        "zone_defs": [],
+        "speed": 2.2,
+        "width": 1,
+        "gap": 30,
+        "direction": "reverse",
+        "trail": 0.85,
+        "color_source": "static",
+        "beat_boost": 0.0,
+    }
+
+    def render_lit_indexes(sequence: int) -> dict[str, list[int]]:
+        frame = effect.process(
+            EffectContext(
+                timestamp=float(sequence),
+                delta_time=1.0,
+                sequence=sequence,
+                mode_parameters=parameters,
+            )
+        )
+        return {
+            strip.strip_id: [
+                index
+                for index, pixel in enumerate(strip.pixels)
+                if max(pixel) > 0.0
+            ]
+            for strip in frame.strips
+        }
+
+    assert render_lit_indexes(1) == {"short": [6], "long": [16]}
+    assert render_lit_indexes(2) == {"short": [4], "long": [14]}
+
+
+def test_chase_bounce_reflects_once_at_even_length_boundary():
+    effect = create_effect("chase")
+    effect.process(
+        EffectContext(
+            timestamp=2.0,
+            delta_time=2.0,
+            sequence=1,
+            mode_parameters={
+                "strip_defs": [{"id": "strip", "pixel_count": 8}],
+                "zone_defs": [],
+                "speed": 4.0,
+                "width": 1,
+                "gap": 7,
+                "direction": "bounce",
+                "trail": 1.0,
+                "color_source": "static",
+            },
+        )
+    )
+
+    assert effect.get_parameters()["position"] == pytest.approx(6.0)
+
+
+def test_chase_bounce_reflects_each_mixed_length_strip_at_its_own_boundary():
+    effect = create_effect("chase")
+    frame = effect.process(
+        EffectContext(
+            timestamp=2.0,
+            delta_time=2.0,
+            sequence=1,
+            mode_parameters={
+                "strip_defs": [
+                    {"id": "short", "pixel_count": 10},
+                    {"id": "long", "pixel_count": 20},
+                ],
+                "zone_defs": [],
+                "speed": 6.0,
+                "width": 1,
+                "gap": 30,
+                "direction": "bounce",
+                "trail": 1.0,
+                "color_source": "static",
+            },
+        )
+    )
+
+    lit = {
+        strip.strip_id: [
+            index for index, pixel in enumerate(strip.pixels) if max(pixel) > 0.0
+        ]
+        for strip in frame.strips
+    }
+    assert lit == {"short": [6, 7], "long": [12, 13]}
 
 
 def test_comet_runtime_speed_tail_length_and_decay_change_head_tail_output(monkeypatch):
@@ -373,6 +469,28 @@ def test_comet_runtime_speed_tail_length_and_decay_change_head_tail_output(monke
         7,
     ]
     assert dim_head.digital[0].pixels[3][0] == pytest.approx(0.5)
+
+
+def test_comet_uses_authored_color_instead_of_random_hue(monkeypatch):
+    monkeypatch.setattr(
+        "light_engine.effects.comet.random.uniform",
+        lambda _a, _b: pytest.fail("authored comet color must bypass random hue"),
+    )
+    frame = _render_fixed(
+        "comet",
+        {
+            "speed": 3.0,
+            "tail_length": 0.4,
+            "decay": 0.9,
+            "color": [1.0, 0.6, 0.1],
+        },
+    )
+
+    lit = [pixel for pixel in frame.digital[0].pixels if max(pixel) > 0.01]
+    assert lit
+    for red, green, blue in lit:
+        assert green == pytest.approx(red * 0.6)
+        assert blue == pytest.approx(red * 0.1)
 
 
 def test_video_ambient_smoothing_parameter_changes_deterministic_video_output():
@@ -460,6 +578,51 @@ def test_video_audio_fusion_runtime_weights_change_rendered_pixels():
 
     assert video_driven.strips[0].pixels[0][0] > 0.1
     assert audio_driven.strips[0].pixels[0] == pytest.approx((0.0, 0.0, 0.0))
+
+
+def test_video_audio_fusion_mid_gently_increases_saturation_on_all_outputs():
+    video = VideoFeatures(
+        timestamp=0.0,
+        average_rgb=(0.8, 0.5, 0.3),
+        dominant_rgb=(0.8, 0.5, 0.3),
+        brightness=1.0,
+        zone_colors={"center": (0.8, 0.5, 0.3)},
+    )
+    params = {
+        "strip_defs": [
+            {"id": "strip", "pixel_count": 1, "video_zone": "center"}
+        ],
+        "zone_defs": [{"id": "zone", "video_zone": "center"}],
+        "video_weight": 1.0,
+        "audio_weight": 0.0,
+        "bass_boost": 0.0,
+        "treble_limit": 0.0,
+    }
+
+    def render(mid: float):
+        return create_effect("video_audio_fusion").process(
+            EffectContext(
+                timestamp=0.0,
+                delta_time=0.1,
+                video_features=video,
+                audio_features=AudioFeatures(
+                    timestamp=0.0,
+                    mid=mid,
+                    silence=False,
+                ),
+                mode_parameters=params,
+            )
+        )
+
+    neutral = render(0.0)
+    boosted = render(1.0)
+    neutral_hsv = colorsys.rgb_to_hsv(*neutral.strips[0].pixels[0])
+    boosted_hsv = colorsys.rgb_to_hsv(*boosted.strips[0].pixels[0])
+
+    assert boosted_hsv[0] == pytest.approx(neutral_hsv[0])
+    assert boosted_hsv[1] == pytest.approx(neutral_hsv[1] * 1.2)
+    assert boosted_hsv[2] == pytest.approx(neutral_hsv[2])
+    assert boosted.zones[0].color != neutral.zones[0].color
 
 
 def test_adaptive_render_path_preserves_runtime_parameters_for_selected_effect():
@@ -632,6 +795,24 @@ def test_calm_runtime_period_and_color_change_rendered_channels():
 
     assert blue_fast.strips[0].pixels[0] != pytest.approx(red_slow.strips[0].pixels[0])
     assert blue_fast.strips[0].pixels[0][2] > blue_fast.strips[0].pixels[0][0]
+
+
+def test_calm_applies_its_low_value_once() -> None:
+    frame = create_effect("calm").process(
+        EffectContext(
+            timestamp=0.0,
+            delta_time=1.0,
+            sequence=1,
+            mode_parameters={
+                "strip_defs": [{"id": "strip", "pixel_count": 1}],
+                "zone_defs": [],
+                "period": 12.0,
+                "color": [0.3, 0.6, 0.5],
+            },
+        )
+    )
+
+    assert 0.2 <= max(frame.strips[0].pixels[0]) <= 0.35
 
 
 def test_demo_runtime_cycle_interval_and_effects_change_selected_effect():
