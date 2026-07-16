@@ -9,6 +9,7 @@ Engine Adapter —— 唯一和「下层」打交道的地方。
 
 import time
 import json
+import logging
 import os
 import uuid
 import socket
@@ -16,6 +17,8 @@ import subprocess
 from typing import Any
 from .config import SCENE_MAX_COUNT, SCENE_FILE_PATH, SHOWS_MANIFEST_PATH
 from .schemas import VALID_TARGET_IDS, VALID_EFFECT_TYPES
+
+_log = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════════
 # mpv IPC 客户端
@@ -90,14 +93,19 @@ _state = {
     "scene_id": None,
 }
 
-_shows = [
-    {"show_id": "teacher-demo-v1", "name": "Teacher Demo",
-     "duration_ms": 300000, "description": "Main demonstration show",
-     "media_path": "/home/topeet/assets/1.mp4"},
-    {"show_id": "ambient-loop", "name": "Ambient Loop",
-     "duration_ms": 600000, "description": "Background ambient lighting",
-     "media_path": "/home/topeet/assets/2.mp4"},
-]
+def _load_shows_manifest() -> list[dict]:
+    try:
+        with open(SHOWS_MANIFEST_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        _log.warning("shows manifest not found at %s; starting with empty show list", SHOWS_MANIFEST_PATH)
+        return []
+    except Exception as exc:
+        _log.warning("failed to load shows manifest: %s; starting with empty show list", exc)
+        return []
+
+
+_shows: list[dict] = _load_shows_manifest()
 
 _devices = [
     {"device_id": "analog.ceiling_left", "device_type": "light_zone",

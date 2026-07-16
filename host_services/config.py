@@ -22,6 +22,9 @@ HEARTBEAT_INTERVAL_SECONDS = 5
 SCENE_MAX_COUNT = 32
 SCENE_FILE_PATH = "data/scenes.json"    # 运行时数据，不进 git
 
+# ── 节目单 ──
+SHOWS_MANIFEST_PATH = "data/shows_manifest.json"  # 运行时数据，不进 git
+
 # ── mpv IPC（生产环境用） ──
 MPV_SOCKET_PATH = "/tmp/mpv.sock"
 
