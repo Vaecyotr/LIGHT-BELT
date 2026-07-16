@@ -1,6 +1,6 @@
 {
   "final_state": {
-    "bass_ambient": 0.9533542952848384,
+    "bass_ambient": 0.9533542952848385,
     "bass_pulse": 0.0,
     "beat_phase": 0.0,
     "beat_regularity": 0.0,
@@ -21,7 +21,7 @@
     "duration_seconds": 9.983333333333409,
     "energy_max": 0.9977080969226576,
     "energy_min": 0.24997422739433792,
-    "energy_trend_mean_after_warmup": -0.0008935439471390611,
+    "energy_trend_mean_after_warmup": -0.0008935439471390596,
     "frames": 600,
     "history_bound": 2488,
     "history_size": 1217,
