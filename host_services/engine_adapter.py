@@ -70,6 +70,12 @@ class MpvClient:
         r = self._send(["get_property", "time-pos"])
         return r.get("data") or 0.0
 
+    def set_volume(self, volume_0_1: float):
+        self._send(["set_property", "volume", volume_0_1 * 100])
+
+    def set_mute(self, muted: bool):
+        self._send(["set_property", "mute", muted])
+
 
 # ══════════════════════════════════════════════
 # 内存状态 —— Postman 测试时状态会随操作变化
@@ -274,6 +280,8 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     show = _find_show(show_id)
     if show is None:
         return None, "NOT_FOUND"
+    if start_ms is not None and start_ms > show["duration_ms"]:
+        return None, "INVALID_ARGUMENT"
     mpv = _ensure_mpv()
     mpv.play_file(show["media_path"])
     if start_ms and start_ms > 0:
@@ -332,10 +340,11 @@ def lights_set(target_id: str, brightness: float | None,
         return None, "NOT_FOUND"
     if brightness is None and color_temperature is None:
         return None, "INVALID_ARGUMENT"
-    if brightness is not None:
-        _state["brightness"] = brightness
-    if color_temperature is not None:
-        _state["color_temperature"] = color_temperature
+    if target_id == "all":
+        if brightness is not None:
+            _state["brightness"] = brightness
+        if color_temperature is not None:
+            _state["color_temperature"] = color_temperature
     _state["scene_id"] = None
     data: dict[str, Any] = {
         "target_id": target_id,
@@ -389,6 +398,16 @@ def audio_set(volume: float | None, muted: bool | None,
     if muted is not None:
         _state["muted"] = muted
     _state["scene_id"] = None
+    if _mpv is not None:
+        try:
+            if volume is not None:
+                _mpv.set_volume(volume)
+            if muted is not None:
+                _mpv.set_mute(muted)
+        except Exception as exc:
+            _log.warning("audio_set: mpv IPC failed: %s", exc)
+    else:
+        _log.warning("audio_set: mpv not running, state updated in memory only")
     return {
         "volume": _state["volume"],
         "muted": _state["muted"],
@@ -448,10 +467,11 @@ def scene_apply(scene_id: str,
             _state["muted"] = a["muted"]
     if scene.get("entries"):
         for e in scene["entries"]:
-            if "brightness" in e and e["brightness"] is not None:
-                _state["brightness"] = e["brightness"]
-            if "color_temperature" in e and e["color_temperature"] is not None:
-                _state["color_temperature"] = e["color_temperature"]
+            if e.get("target_id") == "all":
+                if "brightness" in e and e["brightness"] is not None:
+                    _state["brightness"] = e["brightness"]
+                if "color_temperature" in e and e["color_temperature"] is not None:
+                    _state["color_temperature"] = e["color_temperature"]
     _state["scene_id"] = scene_id
     return {
         "scene_id": scene_id,

@@ -278,3 +278,132 @@ def test_scene_delete_not_found(client, auth_headers):
         headers=auth_headers,
     )
     assert r.status_code == 404
+
+
+# ── Audio: mpv IPC sync (item 8) ─────────────────────────────────────────────
+
+def test_audio_set_calls_mpv_when_running(client, auth_headers, monkeypatch):
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    r = client.post(
+        "/api/v1/audio/set",
+        json={"volume": 0.6, "muted": True},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    mock_mpv.set_volume.assert_called_once_with(0.6)
+    mock_mpv.set_mute.assert_called_once_with(True)
+
+
+def test_audio_set_no_mpv_still_succeeds(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(engine_adapter, "_mpv", None)
+
+    r = client.post(
+        "/api/v1/audio/set",
+        json={"volume": 0.3},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["data"]["volume"] == pytest.approx(0.3)
+
+
+def test_audio_set_volume_scale_to_mpv(client, auth_headers, monkeypatch):
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    client.post("/api/v1/audio/set", json={"volume": 1.0}, headers=auth_headers)
+    mock_mpv.set_volume.assert_called_once_with(1.0)
+    # MpvClient.set_volume internally multiplies by 100 — verify via the method
+    from host_services.engine_adapter import MpvClient
+    sent = []
+    mc = MpvClient.__new__(MpvClient)
+    mc._send = lambda cmd: sent.append(cmd) or {}
+    mc.set_volume(0.75)
+    assert sent == [["set_property", "volume", 75.0]]
+
+
+# ── Playback: start_position_ms > duration_ms → 400 (item 9) ────────────────
+
+def test_playback_play_start_beyond_duration(client, auth_headers, monkeypatch):
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_ensure_mpv", lambda: mock_mpv)
+
+    r = client.post(
+        "/api/v1/playback/play",
+        json={"show_id": "test-show", "start_position_ms": 999999},
+        headers=auth_headers,
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "INVALID_ARGUMENT"
+
+
+# ── Lights: master state only for target "all" (item 10) ─────────────────────
+
+def test_lights_set_non_all_does_not_change_master_state(client, auth_headers):
+    # record the master brightness before
+    r = client.get("/api/v1/state", headers=auth_headers)
+    before = r.json()["data"]["brightness"]
+
+    # set brightness on a specific (non-all) target
+    r = client.post(
+        "/api/v1/lights/set",
+        json={"target_id": "ceiling_left", "brightness": 0.1},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+
+    # master brightness in /state must be unchanged
+    r = client.get("/api/v1/state", headers=auth_headers)
+    assert r.json()["data"]["brightness"] == before
+
+
+def test_lights_set_all_updates_master_state(client, auth_headers):
+    r = client.post(
+        "/api/v1/lights/set",
+        json={"target_id": "all", "brightness": 0.42},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+
+    r = client.get("/api/v1/state", headers=auth_headers)
+    assert r.json()["data"]["brightness"] == pytest.approx(0.42)
+
+
+# ── Scene apply: only "all" entries touch master state (item 10) ─────────────
+
+def test_scene_apply_non_all_entry_does_not_change_master_state(client, auth_headers):
+    # save scene with a non-"all" entry
+    r = client.post(
+        "/api/v1/scenes/save",
+        json={
+            "name": "Zone scene",
+            "entries": [{"target_id": "ceiling_left", "brightness": 0.05}],
+        },
+        headers=auth_headers,
+    )
+    scene_id = r.json()["data"]["scene_id"]
+
+    before = client.get("/api/v1/state", headers=auth_headers).json()["data"]["brightness"]
+
+    client.post("/api/v1/scenes/apply", json={"scene_id": scene_id}, headers=auth_headers)
+
+    after = client.get("/api/v1/state", headers=auth_headers).json()["data"]["brightness"]
+    assert after == before
+
+
+def test_scene_apply_all_entry_updates_master_state(client, auth_headers):
+    r = client.post(
+        "/api/v1/scenes/save",
+        json={
+            "name": "Master scene",
+            "entries": [{"target_id": "all", "brightness": 0.33}],
+        },
+        headers=auth_headers,
+    )
+    scene_id = r.json()["data"]["scene_id"]
+
+    client.post("/api/v1/scenes/apply", json={"scene_id": scene_id}, headers=auth_headers)
+
+    after = client.get("/api/v1/state", headers=auth_headers).json()["data"]["brightness"]
+    assert after == pytest.approx(0.33)

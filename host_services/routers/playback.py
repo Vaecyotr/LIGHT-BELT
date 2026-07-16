@@ -12,7 +12,12 @@ router = APIRouter(prefix="/api/v1/playback", tags=["Playback"],
 async def play(body: PlayRequest, request: Request):
     data, err = engine_adapter.playback_play(body.show_id, body.start_position_ms)
     if err:
-        code = 404 if err == "NOT_FOUND" else 409
+        if err == "NOT_FOUND":
+            code = 404
+        elif err == "INVALID_ARGUMENT":
+            code = 400
+        else:
+            code = 409
         return error(request, err, f"Playback play failed: {err}", code)
     return ok(request, data)
 
