@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request, Depends
-from schemas import PlayRequest, SeekRequest
-from deps import require_auth
-from response import ok, error
-import engine_adapter
+from ..schemas import PlayRequest, SeekRequest
+from ..deps import require_auth
+from ..response import ok, error
+from .. import engine_adapter
 
 router = APIRouter(prefix="/api/v1/playback", tags=["Playback"],
                    dependencies=[Depends(require_auth)])

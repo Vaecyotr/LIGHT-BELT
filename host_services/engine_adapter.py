@@ -14,8 +14,8 @@ import uuid
 import socket
 import subprocess
 from typing import Any
-from config import SCENE_MAX_COUNT, SCENE_FILE_PATH
-from schemas import VALID_TARGET_IDS, VALID_EFFECT_TYPES
+from .config import SCENE_MAX_COUNT, SCENE_FILE_PATH, SHOWS_MANIFEST_PATH
+from .schemas import VALID_TARGET_IDS, VALID_EFFECT_TYPES
 
 # ══════════════════════════════════════════════
 # mpv IPC 客户端
@@ -127,7 +127,7 @@ def _touch_devices():
 # ══════════════════════════════════════════════
 
 def get_status() -> dict:
-    from config import SERVICE_NAME, HOST_ID, API_VERSION, SERVICE_VERSION
+    from .config import SERVICE_NAME, HOST_ID, API_VERSION, SERVICE_VERSION
     return {
         "service": SERVICE_NAME,
         "host_id": HOST_ID,
@@ -246,7 +246,7 @@ def _playback_data() -> dict:
 
 def _ensure_mpv() -> MpvClient:
     global _mpv, _mpv_proc
-    from config import MPV_SOCKET_PATH
+    from .config import MPV_SOCKET_PATH
     sock = MPV_SOCKET_PATH
     if not os.path.exists(sock):
         os.makedirs(os.path.dirname(sock), exist_ok=True)

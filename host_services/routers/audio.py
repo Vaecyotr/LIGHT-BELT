@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request, Depends
-from schemas import AudioSetRequest
-from deps import require_auth
-from response import ok, invalid_argument
-import engine_adapter
+from ..schemas import AudioSetRequest
+from ..deps import require_auth
+from ..response import ok, invalid_argument
+from .. import engine_adapter
 
 router = APIRouter(prefix="/api/v1", tags=["Audio"],
                    dependencies=[Depends(require_auth)])
