@@ -7,9 +7,9 @@ import asyncio
 import json
 import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from auth_manager import consume_ws_ticket
-from config import HEARTBEAT_INTERVAL_SECONDS
-import engine_adapter
+from .auth_manager import consume_ws_ticket
+from .config import HEARTBEAT_INTERVAL_SECONDS
+from . import engine_adapter
 
 router = APIRouter()
 

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Request, Depends
-from schemas import PairRequest, RefreshRequest, WsTicketRequest, VALID_CLIENT_TYPES, VALID_WS_TYPES
-from deps import require_auth
-from response import ok, invalid_argument, error
-import auth_manager
-from config import PAIRING_CODE
+from ..schemas import PairRequest, RefreshRequest, WsTicketRequest, VALID_CLIENT_TYPES, VALID_WS_TYPES
+from ..deps import require_auth
+from ..response import ok, invalid_argument, error
+from .. import auth_manager
+from ..config import PAIRING_CODE
 
 router = APIRouter(prefix="/api/v1", tags=["Auth"])
 

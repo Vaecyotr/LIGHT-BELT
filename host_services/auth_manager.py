@@ -7,7 +7,7 @@ import time
 import uuid
 import jwt
 from fastapi import Request
-from config import (
+from .config import (
     JWT_SECRET, JWT_ALGORITHM,
     ACCESS_TOKEN_EXPIRE_SECONDS,
     REFRESH_TOKEN_EXPIRE_SECONDS,

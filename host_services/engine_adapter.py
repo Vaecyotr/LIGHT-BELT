@@ -9,13 +9,16 @@ Engine Adapter —— 唯一和「下层」打交道的地方。
 
 import time
 import json
+import logging
 import os
 import uuid
 import socket
 import subprocess
 from typing import Any
-from config import SCENE_MAX_COUNT, SCENE_FILE_PATH
-from schemas import VALID_TARGET_IDS, VALID_EFFECT_TYPES
+from .config import SCENE_MAX_COUNT, SCENE_FILE_PATH, SHOWS_MANIFEST_PATH
+from .schemas import VALID_TARGET_IDS, VALID_EFFECT_TYPES
+
+_log = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════════
 # mpv IPC 客户端
@@ -67,6 +70,12 @@ class MpvClient:
         r = self._send(["get_property", "time-pos"])
         return r.get("data") or 0.0
 
+    def set_volume(self, volume_0_1: float):
+        self._send(["set_property", "volume", volume_0_1 * 100])
+
+    def set_mute(self, muted: bool):
+        self._send(["set_property", "mute", muted])
+
 
 # ══════════════════════════════════════════════
 # 内存状态 —— Postman 测试时状态会随操作变化
@@ -90,14 +99,19 @@ _state = {
     "scene_id": None,
 }
 
-_shows = [
-    {"show_id": "teacher-demo-v1", "name": "Teacher Demo",
-     "duration_ms": 300000, "description": "Main demonstration show",
-     "media_path": "/home/topeet/assets/1.mp4"},
-    {"show_id": "ambient-loop", "name": "Ambient Loop",
-     "duration_ms": 600000, "description": "Background ambient lighting",
-     "media_path": "/home/topeet/assets/2.mp4"},
-]
+def _load_shows_manifest() -> list[dict]:
+    try:
+        with open(SHOWS_MANIFEST_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        _log.warning("shows manifest not found at %s; starting with empty show list", SHOWS_MANIFEST_PATH)
+        return []
+    except Exception as exc:
+        _log.warning("failed to load shows manifest: %s; starting with empty show list", exc)
+        return []
+
+
+_shows: list[dict] = _load_shows_manifest()
 
 _devices = [
     {"device_id": "analog.ceiling_left", "device_type": "light_zone",
@@ -127,7 +141,7 @@ def _touch_devices():
 # ══════════════════════════════════════════════
 
 def get_status() -> dict:
-    from config import SERVICE_NAME, HOST_ID, API_VERSION, SERVICE_VERSION
+    from .config import SERVICE_NAME, HOST_ID, API_VERSION, SERVICE_VERSION
     return {
         "service": SERVICE_NAME,
         "host_id": HOST_ID,
@@ -246,7 +260,7 @@ def _playback_data() -> dict:
 
 def _ensure_mpv() -> MpvClient:
     global _mpv, _mpv_proc
-    from config import MPV_SOCKET_PATH
+    from .config import MPV_SOCKET_PATH
     sock = MPV_SOCKET_PATH
     if not os.path.exists(sock):
         os.makedirs(os.path.dirname(sock), exist_ok=True)
@@ -266,6 +280,8 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     show = _find_show(show_id)
     if show is None:
         return None, "NOT_FOUND"
+    if start_ms is not None and start_ms > show["duration_ms"]:
+        return None, "INVALID_ARGUMENT"
     mpv = _ensure_mpv()
     mpv.play_file(show["media_path"])
     if start_ms and start_ms > 0:
@@ -324,10 +340,11 @@ def lights_set(target_id: str, brightness: float | None,
         return None, "NOT_FOUND"
     if brightness is None and color_temperature is None:
         return None, "INVALID_ARGUMENT"
-    if brightness is not None:
-        _state["brightness"] = brightness
-    if color_temperature is not None:
-        _state["color_temperature"] = color_temperature
+    if target_id == "all":
+        if brightness is not None:
+            _state["brightness"] = brightness
+        if color_temperature is not None:
+            _state["color_temperature"] = color_temperature
     _state["scene_id"] = None
     data: dict[str, Any] = {
         "target_id": target_id,
@@ -381,6 +398,16 @@ def audio_set(volume: float | None, muted: bool | None,
     if muted is not None:
         _state["muted"] = muted
     _state["scene_id"] = None
+    if _mpv is not None:
+        try:
+            if volume is not None:
+                _mpv.set_volume(volume)
+            if muted is not None:
+                _mpv.set_mute(muted)
+        except Exception as exc:
+            _log.warning("audio_set: mpv IPC failed: %s", exc)
+    else:
+        _log.warning("audio_set: mpv not running, state updated in memory only")
     return {
         "volume": _state["volume"],
         "muted": _state["muted"],
@@ -440,10 +467,11 @@ def scene_apply(scene_id: str,
             _state["muted"] = a["muted"]
     if scene.get("entries"):
         for e in scene["entries"]:
-            if "brightness" in e and e["brightness"] is not None:
-                _state["brightness"] = e["brightness"]
-            if "color_temperature" in e and e["color_temperature"] is not None:
-                _state["color_temperature"] = e["color_temperature"]
+            if e.get("target_id") == "all":
+                if "brightness" in e and e["brightness"] is not None:
+                    _state["brightness"] = e["brightness"]
+                if "color_temperature" in e and e["color_temperature"] is not None:
+                    _state["color_temperature"] = e["color_temperature"]
     _state["scene_id"] = scene_id
     return {
         "scene_id": scene_id,

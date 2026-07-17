@@ -5,7 +5,7 @@
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from auth_manager import get_request_id
+from .auth_manager import get_request_id
 
 
 def ok(request: Request, data: dict) -> JSONResponse:

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request, Depends
-from schemas import PlayRequest, SeekRequest
-from deps import require_auth
-from response import ok, error
-import engine_adapter
+from ..schemas import PlayRequest, SeekRequest
+from ..deps import require_auth
+from ..response import ok, error
+from .. import engine_adapter
 
 router = APIRouter(prefix="/api/v1/playback", tags=["Playback"],
                    dependencies=[Depends(require_auth)])
@@ -12,7 +12,12 @@ router = APIRouter(prefix="/api/v1/playback", tags=["Playback"],
 async def play(body: PlayRequest, request: Request):
     data, err = engine_adapter.playback_play(body.show_id, body.start_position_ms)
     if err:
-        code = 404 if err == "NOT_FOUND" else 409
+        if err == "NOT_FOUND":
+            code = 404
+        elif err == "INVALID_ARGUMENT":
+            code = 400
+        else:
+            code = 409
         return error(request, err, f"Playback play failed: {err}", code)
     return ok(request, data)
 

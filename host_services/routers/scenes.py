@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request, Depends
-from schemas import SceneSaveRequest, SceneApplyRequest, SceneDeleteRequest
-from deps import require_auth
-from response import ok, error, invalid_argument, not_found
-import engine_adapter
+from ..schemas import SceneSaveRequest, SceneApplyRequest, SceneDeleteRequest
+from ..deps import require_auth
+from ..response import ok, error, invalid_argument, not_found
+from .. import engine_adapter
 
 router = APIRouter(prefix="/api/v1", tags=["Scenes"],
                    dependencies=[Depends(require_auth)])
