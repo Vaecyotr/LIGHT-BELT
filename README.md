@@ -1,137 +1,86 @@
-# Light Engine
+# LIGHT-BELT
 
-Video/music driven multi-zone lighting algorithm prototype for immersive pressurized oxygen chamber.
+LIGHT-BELT is the RK3588-hosted lighting controller for the provisional cabin
+installation: 13 independent 24V WS2811 RGB strips, each on its own ESP32-S3,
+and one RGB+CCT COB zone through STM32 RS-485. Every production ESP32 has one
+UDP v3 output (`output_id: 1`) on GPIO4; the protocol retains its general
+one-to-three-output capability.
 
-## Scope
+The topology, protocol, and scheduled-presentation software contracts are
+accepted by the final regression suite.
+Physical wiring, endpoint assignment, power distribution, cross-node timing,
+and visible output remain **NOT HARDWARE VERIFIED**.
 
-This prototype implements the RK3588-side lighting algorithm and software simulator. It does NOT require actual hardware (STM32, ESP32, LED strips) to run.
+All production UDP v3 node packets for one logical frame share sequence,
+media time, and one Host-monotonic `apply_at_us` 20 ms in the future. A
+broadcast clock beacon lets each ESP32 convert that deadline into its local
+clock using the minimum offset in a bounded sample window; firmware pre-encodes
+the frame and compensates the 10/20/40-group SPI wire times before completing
+the WS2811 latch at the shared deadline.
+Production images require this scheduled path, while explicit diagnostics
+remain immediate. The scheduling software is implemented; actual multi-node
+latch skew is still **NOT HARDWARE VERIFIED** and requires powered logic
+analyzer acceptance.
 
-**Current phase**: Algorithm prototype with synthetic data and media file support.
+At scheduled session start, sequence 1 is fully encoded for every node before
+any packet is sent, then delivered in three byte-identical per-node rounds 2 ms
+apart with one apply/media identity. Firmware deduplicates those copies
+idempotently. A fully prepared KEY admits the session; a later physical-output
+failure rolls back but lets the next complete scheduled frame recover. The
+output loop checks safe timeout every pass and never blindly retries scheduled
+SPI after its deadline.
 
-## Quick Start
+## Start here
 
-### Prerequisites
+- [Install and run](INSTALL_AND_RUN.md)
+- [Documentation index](docs/README.md)
+- [Cabin operator guide](docs/current/cabin-lighting-v3-operator-guide.md)
+- [Show v2 authoring](docs/current/show-v2-authoring.md)
+- [Effect reference](docs/reference/effect-reference.md)
 
-- Python 3.11+ (embedded Python included in `.python/`)
-- Dependencies pre-installed in `.python/`
+## Quick validation
 
-### Run Demo (synthetic data, no media files needed)
+Use only the bundled Windows interpreter:
 
-```bash
-PYTHONPATH=. .python/python.exe -m light_engine demo
+```powershell
+.\.python\Scripts\python.exe -m light_engine `
+  --config config/profiles/cabin-lighting-v3-production.yaml `
+  validate-show --show config/shows/cabin-show-v2.yaml
+
+.\.python\Scripts\python.exe -m light_engine `
+  --config config/profiles/cabin-lighting-v3-production.yaml `
+  inspect-topology --show config/shows/cabin-show-v2.yaml
 ```
 
-### Run with Video File
+The production profile intentionally contains placeholder endpoints and fails
+explicitly until real installation values are supplied. Memory and fake
+transports require explicit configuration.
 
-```bash
-PYTHONPATH=. .python/python.exe -m light_engine run --video /path/to/video.mp4
-```
+The current field subset uses
+`config/profiles/ws2811-installed-one-esp-per-strip.yaml`: nodes 1, 2, 4, 5,
+6, 7, 8, 9, and 10 at `192.168.31.201` through `.210` with the unused node 3
+address omitted. The complete target also reserves nodes 3, 11, 12, and 13 at
+`.203` and `.211` through `.213`. Logical `strip_*` IDs and Show v2 content do
+not change when physical nodes change. All endpoint and visible-output claims
+remain **NOT HARDWARE VERIFIED**.
 
-### Run with Audio File
+Use `config/shows/ws2811-stage3-installed-300s.yaml` for the current nine-node
+digital acceptance scope and `config/shows/ws2811-stage3-full-300s.yaml` only
+for a physically complete thirteen-node digital scope.
 
-```bash
-PYTHONPATH=. .python/python.exe -m light_engine run --audio /path/to/audio.wav
-```
+## Repository map
 
-### Run with Video + Audio
+| Path | Purpose |
+| --- | --- |
+| `light_engine/` | Runtime, analysis, effects, mapping, protocols, and outputs |
+| `firmware/` | STM32 and ESP32-S3 firmware plus shared golden vectors |
+| `config/` | Runtime defaults, profiles, shows, examples, and acceptance inputs |
+| `tests/` | Unit, integration, golden, and software acceptance tests |
+| `docs/current/` | Current operating and authoring instructions |
+| `docs/reference/` | Current API and effect reference material |
+| `docs/acceptance/` | Human-readable accepted software evidence |
+| `docs/history/` | Historical plans and legacy prototype documentation |
+| `artifacts/baselines/` | Committed acceptance evidence; normal tests do not write here |
+| `artifacts/runs/` | Disposable local acceptance output; ignored by Git |
 
-```bash
-PYTHONPATH=. .python/python.exe -m light_engine run --video /path/to/video.mp4 --audio /path/to/audio.wav --effect video_audio_fusion
-```
-
-### Terminal Simulator
-
-```bash
-PYTHONPATH=. .python/python.exe -m light_engine simulator
-```
-
-### Export to JSONL (Headless)
-
-```bash
-PYTHONPATH=. .python/python.exe -m light_engine export --video /path/to/video.mp4 --audio /path/to/audio.wav --output output.jsonl
-```
-
-### Run Tests
-
-```bash
-PYTHONPATH=. .python/python.exe -m pytest tests/
-```
-
-### Benchmark
-
-```bash
-PYTHONPATH=. .python/python.exe -m light_engine benchmark
-```
-
-## Configuration
-
-Configuration files are in `config/`:
-- `system.yaml` — frame rates, audio, smoothing, video, logging
-- `layout.yaml` — zones, strips, video zone mapping
-- `effects.yaml` — active effect and per-effect parameters
-- `outputs.yaml` — output backends (simulator, json, null, udp, serial)
-
-Override config directory: `LIGHT_ENGINE_CONFIG_DIR=/path/to/config`
-
-## Architecture
-
-```
-light_engine/
-├── models.py       — Data models (VideoFeatures, AudioFeatures, PixelFrame, etc.)
-├── config/         — Configuration loading and validation
-├── color/          — RGB/HSV/RGBW conversion, gamma, interpolation
-├── media/          — VideoReader, AudioReader
-├── analysis/       — VideoAnalyzer, AudioAnalyzer
-├── effects/        — 12 lighting effects (BaseEffect interface)
-├── engine/         — Main loop, feature fusion, output routing
-├── mapping/        — Layout, zone/strip definitions
-├── outputs/        — LightOutput abstraction + Null/Json/Simulator/UDP/Serial
-├── simulator/      — Terminal-based strip visualization
-├── data/           — Synthetic data sources for demo/testing
-├── cli/            — CLI commands: demo, run, simulator, export, benchmark
-└── util/           — Smoothers, envelopes, history, noise gate
-```
-
-## Effects (P0: 8 required)
-
-| Effect | Description |
-|--------|-------------|
-| `static` | Constant color |
-| `breath` | Slow brightness oscillation |
-| `color_wave` | Color flows continuously along strips |
-| `chase` | Running light with configurable patterns |
-| `comet` | Meteor with decaying tail |
-| `audio_pulse` | Brightness follows music RMS energy |
-| `bass_pulse` | Bass-driven pulse |
-| `spectrum` | Frequency bands mapped to zones |
-| `video_ambient` | Strip colors follow video zone colors |
-| `video_audio_fusion` | Video color + audio energy fusion |
-| `calm` | Low-stimulation slow color drift |
-| `demo` | Auto-cycles through effects |
-
-## No-Hardware Operation
-
-- `.\.python\python.exe -m light_engine demo` — uses synthetic data, no media files
-- `.\.python\python.exe -m light_engine simulator` — terminal visualization, no GUI
-- `.\.python\python.exe -m light_engine export` — JSONL export for offline analysis
-- `.\.python\python.exe -m light_engine benchmark` — performance testing with NullOutput
-
-## Verified / Unverified
-
-**Verified** (current machine):
-- All 100 tests pass
-- Engine runs with synthetic data
-- All 12 effects produce valid output
-- Terminal simulator displays strips
-- JSONL export works
-
-**Unverified** (requires hardware):
-- RK3588 ARM64 performance (target: 30 FPS)
-- UDP communication with ESP32-S3
-- Serial/RS-485 with STM32
-- Actual LED strip output
-- PyAV/librosa ARM64 compatibility
-
-## License
-
-Proprietary — internal prototype.
+License: proprietary, internal use.

@@ -1,10 +1,8 @@
-# Python虚拟环境
+# Python environments and caches
 .python/
 .venv/
 venv/
 env/
-
-# Python缓存
 __pycache__/
 *.py[cod]
 *$py.class
@@ -13,34 +11,60 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
-
-# 构建与安装产物
-build/
-dist/
 *.egg-info/
 
-# 运行输出
+# Build and package output
+build/
+dist/
+.pio/
+.pio-core/
+firmware/**/.pio/
+
+# Runtime and acceptance output
 output/
 logs/
 *.log
+artifacts/runs/
 
-# IDE
+# Local hardware freezes and credential-bearing field images
+/artifacts/baselines/ws2811-two-node-good-effects-20260717/
+/firmware/esp32_ws2811_node/baselines/**/firmware.bin
+/tmp/
+
+# Local tools, worktrees, and bootstrap caches
+.agent-worktrees/
+.python_broken_backup/
+.python-build/
+.python-temp/
+.python-runtime-*/
+.python-runtime-*.zip
+.pip-cache/
+.tmp/
+.tmp-pip/
+
+# Local firmware credentials and certificates
+firmware/**/src/config.local.h
+.env
+.env.*
+secrets/
+certs/
+
+# IDE and operating-system files
 .vscode/
 .idea/
-
-# 操作系统
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# 临时文件
+# Temporary and ad-hoc files
 *.tmp
 *.temp
 *.bak
 *.swp
 ~$*
+/*.zip
 
-# 大型媒体测试文件
+# Large local media fixtures
 *.mp4
 *.mkv
 *.avi
@@ -48,19 +72,3 @@ desktop.ini
 *.flac
 *.wav
 *.mp3
-
-# PlatformIO构建缓存
-.pio/
-firmware/**/.pio/
-
-# 本地环境和密钥
-.env
-.env.*
-secrets/
-
-
-.agent-worktrees/
-.pip-cache/
-.python-temp/
-.python-runtime-*/
-.python-runtime-*.zip

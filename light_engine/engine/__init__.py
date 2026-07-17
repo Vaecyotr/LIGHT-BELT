@@ -8,7 +8,8 @@ from typing import Optional
 
 import numpy as np
 
-from light_engine.analysis import AudioAnalyzer, VideoAnalyzer
+from light_engine.analysis import AudioAnalyzer, MusicControlAnalyzer, VideoAnalyzer
+from light_engine.clock import Clock, ClockError, MediaEnded, OfflineRenderClock
 from light_engine.config import Config
 from light_engine.effects.base import BaseEffect, create_effect, list_effects
 from light_engine.mapping import Layout, ZoneDef, PhysicalMapping
@@ -16,8 +17,8 @@ from light_engine.media import AudioReader, VideoReader
 from light_engine.models import (
     AudioFeatures,
     EffectContext,
+    MusicControlState,
     PixelFrame,
-    RoutedFrame,
     VideoFeatures,
 )
 from light_engine.outputs import (
@@ -26,17 +27,27 @@ from light_engine.outputs import (
     open_all,
     send_all,
     close_all,
+    health_summary,
 )
 from light_engine.outputs.transform import OutputTransform
 from light_engine.data.generators import SyntheticDataSource
+from light_engine.show.compositor import ShowRuntime, black_base_frame
 
 logger = logging.getLogger(__name__)
+
+_SEQUENCE_MODULUS = 1 << 32
 
 
 class Engine:
     """Main lighting engine orchestrating analysis, effects, and output."""
 
-    def __init__(self, config: Optional[Config] = None):
+    def __init__(
+        self,
+        config: Optional[Config] = None,
+        clock: Optional[Clock] = None,
+        *,
+        sequence_seed: Optional[int] = None,
+    ):
         if config is None:
             config = Config.get_instance()
         self._config = config
@@ -53,6 +64,7 @@ class Engine:
         # Analyzers (lazy init)
         self._video_analyzer: Optional[VideoAnalyzer] = None
         self._audio_analyzer: Optional[AudioAnalyzer] = None
+        self._music_control_analyzer = MusicControlAnalyzer()
 
         # Media readers
         self._video_reader: Optional[VideoReader] = None
@@ -64,18 +76,31 @@ class Engine:
         # Current effect
         self._effect: Optional[BaseEffect] = None
         self._effect_name: str = ""
+        self._show_runtime: Optional[ShowRuntime] = None
 
         # Outputs
         self._outputs: dict[str, LightOutput] = {}
+        transform_config = config.get("outputs.transform", {})
         self._output_transform = OutputTransform(
-            global_brightness=config.get("system.smoothing.max_brightness", 0.85)
+            global_brightness=config.get("system.smoothing.max_brightness", 0.85),
+            gamma=config.get("system.smoothing.gamma", 1.0),
+            power_limit=transform_config.get("power_limit", 5.0),
+            per_zone_warm_bias=transform_config.get("per_zone_warm_bias", {}),
+            per_zone_cool_bias=transform_config.get("per_zone_cool_bias", {}),
         )
+        self._clock: Clock = clock or OfflineRenderClock(fps=self._output_fps)
 
         # State
         self._running = False
         self._timestamp: float = 0.0
+        self._last_clock_time: float = self._clock.now()
         self._frame_count: int = 0
-        self._sequence: int = 0
+        if sequence_seed is None:
+            sequence_seed = 0
+        if not isinstance(sequence_seed, int) or not 0 <= sequence_seed < _SEQUENCE_MODULUS:
+            raise ValueError("sequence_seed must be a uint32")
+        self._sequence_seed: int = sequence_seed
+        self._sequence: int = sequence_seed
         self._fps_stats: list[float] = []
         self._run_start_wall: float = 0.0
         self._run_end_wall: float = 0.0
@@ -83,6 +108,7 @@ class Engine:
         # Latest features
         self._latest_video: Optional[VideoFeatures] = None
         self._latest_audio: Optional[AudioFeatures] = None
+        self._latest_music_control_state: Optional[MusicControlState] = None
 
         # Diagnostic state
         self._diagnostics: dict = {
@@ -135,14 +161,53 @@ class Engine:
         """Set the active lighting effect."""
         self._effect = create_effect(name)
         self._effect_name = name
+        self._show_runtime = None
         self._diagnostics["mode"] = name
         logger.info("Effect set to: %s", name)
         return self._effect
+
+    def set_show_runtime(self, runtime: ShowRuntime) -> None:
+        """Use an explicit show runtime instead of the single-effect path."""
+        self._show_runtime = runtime
+        self._effect = None
+        self._effect_name = runtime.show.id
+        self._diagnostics["mode"] = runtime.show.id
+
+    def reset(self) -> None:
+        """Explicitly reset stateful runtime components before replaying from start."""
+        self._handle_timeline_reset()
+        self._timestamp = 0.0
+        self._last_clock_time = self._clock.now()
 
     def init_outputs(self) -> None:
         """Initialize output backends from config."""
         self._outputs = create_outputs(self._config)
         open_all(self._outputs)
+
+    def _begin_run_session(self) -> None:
+        """Reset Engine-owned state and reopen outputs for one Host session."""
+        if isinstance(self._clock, OfflineRenderClock):
+            self._clock.reset()
+        self._handle_timeline_reset()
+        self._timestamp = self._clock.now()
+        self._last_clock_time = self._timestamp
+        self._sequence = self._sequence_seed
+        self._frame_count = 0
+        self._fps_stats.clear()
+        self._run_start_wall = 0.0
+        self._run_end_wall = 0.0
+        self._diagnostics["last_error"] = None
+
+        if not self._outputs:
+            self.init_outputs()
+            return
+        closed_outputs = {
+            name: output
+            for name, output in self._outputs.items()
+            if not output.is_open()
+        }
+        if closed_outputs:
+            open_all(closed_outputs)
 
     # ---- Main loop ----
 
@@ -157,11 +222,10 @@ class Engine:
             duration: Maximum run duration in seconds.
             max_frames: Maximum number of output frames.
         """
-        if self._effect is None:
+        if self._effect is None and self._show_runtime is None:
             self.set_effect(self._config.get("effects.active", "demo"))
 
-        if not self._outputs:
-            self.init_outputs()
+        self._begin_run_session()
 
         self._running = True
         self._diagnostics["running"] = True
@@ -171,6 +235,12 @@ class Engine:
         frame_period = 1.0 / self._output_fps
         video_period = 1.0 / self._video_fps if self._video_fps > 0 else 0.1
         audio_period = 1.0 / self._audio_fps if self._audio_fps > 0 else 0.016
+        explicit_duration_owns_synthetic_end = (
+            duration is not None
+            and isinstance(self._data_source, SyntheticDataSource)
+            and self._video_reader is None
+            and self._audio_reader is None
+        )
 
         last_video_time = -video_period
         last_audio_time = -audio_period
@@ -179,6 +249,25 @@ class Engine:
         try:
             while self._running:
                 frame_start = time.perf_counter()
+                dt = self._clock.tick()
+                self._timestamp = self._clock.now()
+                clock_delta = self._timestamp - self._last_clock_time
+                if dt <= 0.0:
+                    dt = max(0.0, clock_delta)
+                if clock_delta < -frame_period:
+                    raise RuntimeError(
+                        "engine clock moved backward; call reset/replay before rendering earlier show time"
+                    )
+                seek_detected = dt > frame_period * 2
+                paused = self._clock.paused or dt < frame_period * 0.1
+                if self._clock.ended:
+                    break
+
+                if seek_detected:
+                    self._handle_timeline_reset()
+                    last_video_time = -video_period
+                    last_audio_time = -audio_period
+                self._last_clock_time = self._timestamp
 
                 # Check stop conditions
                 if duration is not None and self._timestamp >= duration:
@@ -200,9 +289,13 @@ class Engine:
                     else True
                 )
                 data_finished = (
-                    self._timestamp >= self._data_source.duration()
-                    if self._data_source is not None
-                    else True
+                    False
+                    if explicit_duration_owns_synthetic_end
+                    else (
+                        self._timestamp >= self._data_source.duration()
+                        if self._data_source is not None
+                        else True
+                    )
                 )
 
                 has_any_media = (
@@ -215,35 +308,50 @@ class Engine:
                     break
 
                 # Video analysis
-                if self._timestamp - last_video_time >= video_period:
+                if not paused and self._timestamp - last_video_time >= video_period:
                     self._latest_video = self._get_video_features()
                     last_video_time = self._timestamp
 
                 # Audio analysis
-                if self._timestamp - last_audio_time >= audio_period:
+                if not paused and self._timestamp - last_audio_time >= audio_period:
                     self._latest_audio = self._get_audio_features()
+                    self._latest_music_control_state = self._get_music_control_state(
+                        self._latest_audio
+                    )
                     last_audio_time = self._timestamp
 
                 # Build context and run effect
-                self._sequence += 1
+                self._advance_sequence()
+                context_dt = dt if dt > 0.0 else 1e-9
                 ctx = EffectContext(
                     timestamp=self._timestamp,
-                    delta_time=frame_period,
+                    delta_time=context_dt,
                     sequence=self._sequence,
                     video_features=self._latest_video,
                     audio_features=self._latest_audio,
+                    music_control_state=self._latest_music_control_state,
                     mode_parameters={
                         "strip_defs": self._strip_defs,
                         "zone_defs": self._zone_defs,
                     },
                 )
-                frame = self._effect.process(ctx)
+                if self._show_runtime is None:
+                    if self._effect is None:
+                        raise RuntimeError("single-effect engine path has no active effect")
+                    frame = self._effect.process(ctx)
+                else:
+                    base = black_base_frame(
+                        timestamp=self._timestamp,
+                        sequence=self._sequence,
+                        analog_zones=self._layout.zones,
+                        digital_strips=self._layout.strips,
+                    )
+                    frame = self._show_runtime.render(ctx, base)
                 frame = self._output_transform.apply_to_frame(frame)
                 physical_frame = self._physical_mapping.map(frame)
-                routed_frame = RoutedFrame(logical=frame, physical=physical_frame)
 
                 # Send to outputs
-                send_all(self._outputs, routed_frame)
+                send_all(self._outputs, physical_frame)
 
                 # Update diagnostics
                 self._frame_count += 1
@@ -256,15 +364,41 @@ class Engine:
                 sleep_time = frame_period - elapsed
                 if sleep_time > 0:
                     time.sleep(sleep_time)
-                self._timestamp += frame_period
 
         except KeyboardInterrupt:
             logger.info("Engine interrupted by user")
+        except MediaEnded:
+            logger.info("Media clock reached end of media")
+        except ClockError as e:
+            logger.exception("Engine clock error")
+            self._diagnostics["last_error"] = str(e)
+            raise
         except Exception as e:
             logger.exception("Engine error")
             self._diagnostics["last_error"] = str(e)
+            raise
         finally:
             self._shutdown()
+
+    def _handle_timeline_reset(self) -> None:
+        """Reset stateful analysis/effect components after a media seek."""
+        if self._video_analyzer is not None and hasattr(self._video_analyzer, "reset"):
+            self._video_analyzer.reset()
+        if self._audio_analyzer is not None and hasattr(self._audio_analyzer, "reset"):
+            self._audio_analyzer.reset()
+        self._music_control_analyzer.reset()
+        if self._effect is not None:
+            self._effect.reset()
+        if self._show_runtime is not None:
+            self._show_runtime.reset()
+        self._latest_video = None
+        self._latest_audio = None
+        self._latest_music_control_state = None
+
+    def _advance_sequence(self) -> int:
+        """Advance the Engine-owned logical sequence with protocol uint32 wrap."""
+        self._sequence = (self._sequence + 1) % _SEQUENCE_MODULUS
+        return self._sequence
 
     def _get_video_features(self) -> Optional[VideoFeatures]:
         """Get latest video features from reader or synthetic source."""
@@ -289,10 +423,32 @@ class Engine:
             return self._data_source.get_audio_features(self._timestamp)
         return None
 
+    def _get_music_control_state(
+        self, audio_features: Optional[AudioFeatures]
+    ) -> Optional[MusicControlState]:
+        """Derive bounded music-control state from the latest audio features."""
+        if audio_features is None:
+            return None
+        return self._music_control_analyzer.update(audio_features)
+
     def _shutdown(self) -> None:
         """Clean shutdown of all resources."""
         self._running = False
         self._run_end_wall = time.perf_counter()
+        try:
+            if self._config.get("outputs.exit_safe_state", True):
+                self._advance_sequence()
+                safe_frame = OutputTransform.generate_safe_frame(
+                    timestamp=self._timestamp,
+                    sequence=self._sequence,
+                    zone_ids=[zone["id"] for zone in self._zone_defs],
+                    strips=self._strip_defs,
+                )
+                physical_safe_frame = self._physical_mapping.map(safe_frame)
+                send_all(self._outputs, physical_safe_frame)
+        except Exception as e:
+            logger.exception("Failed to send shutdown safe frame")
+            self._diagnostics["last_error"] = str(e)
         close_all(self._outputs)
         if self._video_reader:
             self._video_reader.close()
@@ -304,14 +460,7 @@ class Engine:
 
     def diagnostics(self) -> dict:
         """Return current diagnostic state."""
-        health = {}
-        for name, out in self._outputs.items():
-            health[name] = {
-                "healthy": out.health().healthy,
-                "frames_sent": out.health().frames_sent,
-                "last_error": out.health().last_error,
-            }
-        self._diagnostics["output_health"] = health
+        self._diagnostics["output_health"] = health_summary(self._outputs)
         return self._diagnostics
 
     def get_fps_stats(self) -> dict:

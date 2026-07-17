@@ -1,0 +1,7 @@
+{
+  "artifact_sha256": {
+    "artifacts/authoring_modulation_acceptance/sample_evidence.json": "2ae28bf7b7c4e9de350f76d85ee18914021eae748f8930736ef9dfc62b6fa986",
+    "artifacts/authoring_modulation_acceptance/two_run_digests.json": "71d5b5b2e2ebe2c4e05004a93e2a8f5eabe1cdb3661e30fed299e522e89173bc"
+  },
+  "not_hardware_verified": "NOT HARDWARE VERIFIED"
+}

@@ -1,75 +1,61 @@
-"""Phase-scoped output compatibility matrix tests."""
+"""Phase 6 output matrix tests."""
 
 from __future__ import annotations
 
 import json
 
-from light_engine.mapping.physical import PhysicalFrame
-from light_engine.models import (
-    DigitalStrip,
-    PixelFrame,
-    RGBCCTColor,
-    RoutedFrame,
-    ZoneOutput,
+from light_engine.mapping.physical import (
+    AnalogNodeCommand,
+    DigitalNodeFrame,
+    PhysicalFrame,
 )
-from light_engine.outputs import JsonOutput, NullOutput, SimulatorOutput, send_all
-from light_engine.outputs.serial_output import SerialOutput, SerialStreamParser
-from light_engine.outputs.udp_output import UdpOutput
+from light_engine.models import RGBCCTColor
+from light_engine.outputs import JsonOutput, NullOutput, OutputMode, SimulatorOutput, send_all
+from light_engine.outputs.rs485_v2 import FRAME_LENGTH
+from light_engine.outputs.serial_output import SerialOutputV2
+from light_engine.outputs.udp_output import UdpOutputV2
+from light_engine.outputs.udp_v2 import UdpV2Packet
 
 
-class RecordingSocket:
-    def __init__(self) -> None:
-        self.sent: list[tuple[bytes, tuple[str, int]]] = []
-
-    def sendto(self, data: bytes, address: tuple[str, int]) -> int:
-        self.sent.append((data, address))
-        return len(data)
-
-
-def _memory_serial_output() -> SerialOutput:
-    output = SerialOutput()
-    output._open = True
-    output._running = True
-    output._use_memory = True
-    output._memory_transport = bytearray()
-    output._parser = SerialStreamParser()
-    return output
-
-
-def test_phase_3_legacy_outputs_continue_to_use_logical_frame(tmp_path) -> None:
-    logical = PixelFrame(
+def _physical_frame() -> PhysicalFrame:
+    return PhysicalFrame(
         timestamp=0.5,
         sequence=21,
-        strips=[
-            DigitalStrip(
-                strip_id="strip_a",
-                pixel_count=1,
+        analog_commands=[
+            AnalogNodeCommand(
+                node_id=node_id,
+                zone_id=f"zone_{node_id}",
+                color=RGBCCTColor(r=0.1, g=0.2, b=0.3, warm_white=0.4),
+            )
+            for node_id in range(1, 7)
+        ],
+        digital_frames=[
+            DigitalNodeFrame(
+                node_id=7,
+                host="127.0.0.1",
+                port=9001,
                 pixels=[(0.1, 0.2, 0.3)],
             )
         ],
-        zones=[
-            ZoneOutput(
-                zone_id="zone_a",
-                color=RGBCCTColor(r=0.1, g=0.2, b=0.3, warm_white=0.4),
-            )
-        ],
     )
-    routed = RoutedFrame(
-        logical=logical,
-        physical=PhysicalFrame(sequence=21, timestamp=0.5),
-    )
+
+
+def test_phase_6_outputs_consume_physical_frame_directly(tmp_path) -> None:
+    frame = _physical_frame()
     json_path = tmp_path / "frames.jsonl"
     null_output = NullOutput()
     simulator_output = SimulatorOutput()
     json_output = JsonOutput(str(json_path))
-    serial_output = _memory_serial_output()
-    udp_socket = RecordingSocket()
-    udp_output = UdpOutput(host="127.0.0.1", port=9001)
-    udp_output._open = True
-    udp_output._enabled = True
-    udp_output._socket = udp_socket
+    serial_output = SerialOutputV2(mode=OutputMode.MEMORY)
+    udp_output = UdpOutputV2(mode=OutputMode.MEMORY)
 
-    for output in (null_output, simulator_output, json_output):
+    for output in (
+        null_output,
+        simulator_output,
+        json_output,
+        serial_output,
+        udp_output,
+    ):
         output.open()
 
     try:
@@ -78,25 +64,28 @@ def test_phase_3_legacy_outputs_continue_to_use_logical_frame(tmp_path) -> None:
                 "null": null_output,
                 "simulator": simulator_output,
                 "json": json_output,
-                "serial": serial_output,
-                "udp": udp_output,
+                "rs485_v2": serial_output,
+                "udp_v2": udp_output,
             },
-            routed,
+            frame,
         )
 
         assert null_output.health().frames_sent == 1
-        assert simulator_output.pop_latest() is logical
-        assert serial_output.health().frames_sent == 1
-        assert serial_output.health().packets_sent == 0
-        assert len(serial_output._write_queue) == 1
-        assert udp_output.health().frames_sent == 1
+        assert simulator_output.pop_latest() is frame
+        assert serial_output.health().logical_frames_sent == 1
+        assert serial_output.health().packets_sent == 6
+        assert len(serial_output.get_memory_bytes()) == FRAME_LENGTH * 6
+        assert udp_output.health().logical_frames_sent == 1
         assert udp_output.health().packets_sent == 1
-        assert len(udp_socket.sent) == 1
+
+        decoded_udp = UdpV2Packet.decode(udp_output.get_sent_datagrams()[0][0])
+        assert decoded_udp is not None
+        assert decoded_udp.sequence == 21
 
         data = json.loads(json_path.read_text(encoding="utf-8").strip())
         assert data["sequence"] == 21
-        assert data["strips"][0]["strip_id"] == "strip_a"
-        assert "physical" not in data
+        assert data["analog_commands"][0]["node_id"] == 1
+        assert data["digital_frames"][0]["node_id"] == 7
     finally:
         for output in (
             null_output,

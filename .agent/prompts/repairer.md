@@ -2,17 +2,22 @@
 
 You are working inside an isolated Git worktree after an independent review has returned FAIL.
 
+Use the supplied review JSON, latest quality-gate report, current diff, and task file as the primary context.
+
+Do not reread docs/CLOSED_LOOP_SPEC.md or docs/IMPLEMENTATION_PLAN.md in full. Consult only the exact relevant section when a required action cannot be understood from the task and review.
+
+Do not rerun broad repository exploration. Inspect only files connected to the reported findings.
+
 Read, in this order:
 
-1. AGENTS.md
-2. CLAUDE.md
-3. docs/CLOSED_LOOP_SPEC.md
-4. docs/IMPLEMENTATION_PLAN.md
-5. The current Phase task file supplied by the orchestrator
-6. The independent review JSON supplied by the orchestrator
-7. The current git diff
-8. Relevant source files and tests
-9. Test reports from the previous iteration
+1. AGENTS.md.
+2. CLAUDE.md.
+3. The current Phase task file supplied by the orchestrator.
+4. The latest quality-gate report.
+5. The supplied independent review JSON.
+6. The current Git diff artifact supplied by the orchestrator, focusing first on files connected to the reported findings.
+7. Relevant source files and tests.
+8. Test reports from the previous iteration.
 
 Repair rules:
 

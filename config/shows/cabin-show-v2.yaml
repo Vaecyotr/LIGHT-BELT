@@ -1,0 +1,65 @@
+schema_version: 2
+
+show:
+  id: "cabin-v2-authoring"
+  duration: 60.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: "replace"
+
+  virtual_paths:
+    - id: "screen_to_top"
+      origin: "center"
+      targets:
+        - {type: "digital_strip", id: "strip_11"}
+        - {type: "digital_strip", id: "strip_21"}
+        - {type: "digital_strip", id: "strip_31"}
+        - {type: "digital_strip", id: "strip_41"}
+        - {type: "digital_strip", id: "strip_12"}
+    - id: "screen_to_bottom_and_left"
+      origin: "end"
+      targets:
+        - {type: "digital_strip", id: "strip_11"}
+        - {type: "digital_strip", id: "strip_22"}
+        - {type: "analog_zone", id: "zone_32"}
+        - {type: "digital_strip", id: "strip_91"}
+        - {type: "digital_strip", id: "strip_92"}
+    - id: "screen_to_right_wall"
+      origin: "start"
+      targets:
+        - {type: "digital_strip", id: "strip_41"}
+        - {type: "digital_strip", id: "strip_42"}
+        - {type: "digital_strip", id: "strip_43"}
+        - {type: "digital_strip", id: "strip_44"}
+        - {type: "digital_strip", id: "strip_45"}
+        - {type: "digital_strip", id: "strip_93"}
+
+  cues:
+    - id: "right-wall-release"
+      start: 0.0
+      end: 60.0
+      priority: 10
+      target: {type: "digital_strip", id: "strip_41"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "chase"
+        params:
+          speed: 9.0
+          width: 2
+          gap: 4
+          color_source: "static"
+      color:
+        mode: "palette"
+        colors:
+          - [0.1, 0.4, 1.0]
+          - [0.8, 0.1, 0.5]
+      branches:
+        - after:
+            virtual_path: "screen_to_right_wall"
+            target: "strip_41"
+          target:
+            type: "digital_set"
+            ids: ["strip_42", "strip_43", "strip_44", "strip_45", "strip_93"]
+          origin: "edges"

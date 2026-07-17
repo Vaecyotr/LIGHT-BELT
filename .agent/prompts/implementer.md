@@ -6,12 +6,25 @@ Before editing:
 
 1. Read AGENTS.md.
 2. Read CLAUDE.md.
-3. Read docs/CLOSED_LOOP_SPEC.md.
-4. Read docs/IMPLEMENTATION_PLAN.md.
-5. Read the current task file supplied by the orchestrator.
-6. Run git status.
-7. Verify the bundled project Python interpreter.
-8. Run the baseline test command required by the task.
+3. Read the current task file supplied by the orchestrator.
+4. Treat the current task file as the primary Phase specification.
+5. Do not read docs/CLOSED_LOOP_SPEC.md or docs/IMPLEMENTATION_PLAN.md in full.
+6. Consult project documentation only when the task file lacks information required for an acceptance criterion.
+7. When consulting docs/IMPLEMENTATION_PLAN.md, read only the section for the current Phase, stopping before the next Phase heading.
+8. Use targeted searches such as `rg` rather than dumping entire large documents.
+9. On Windows, always read text explicitly as UTF-8 when using PowerShell.
+10. Run git status.
+11. Verify the bundled project Python interpreter.
+12. Run the baseline test command required by the task.
+
+Context efficiency rules:
+
+- Do not dump entire large Markdown files into the session.
+- Do not reread files already supplied by the orchestrator.
+- Start with the task file and inspect only source files directly relevant to its Allowed Files and acceptance criteria.
+- Use `rg -n`, targeted `Get-Content -Encoding UTF8`, or small line ranges.
+- Do not recursively inspect unrelated directories.
+- Keep command output concise.
 
 Implementation rules:
 

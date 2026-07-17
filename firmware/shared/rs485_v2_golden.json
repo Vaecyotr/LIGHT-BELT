@@ -1,0 +1,19 @@
+{
+  "protocol": "rs485_v2",
+  "vectors": [
+    {
+      "name": "rgbcct_node_3_sequence_wrap",
+      "command": 1,
+      "node_id": 3,
+      "sequence": 255,
+      "r": 17,
+      "g": 34,
+      "b": 51,
+      "warm_white": 68,
+      "cool_white": 85,
+      "fade_ms": 1000,
+      "flags": 1,
+      "encoded_hex": "a55a020103ff112233445503e801dfd2"
+    }
+  ]
+}

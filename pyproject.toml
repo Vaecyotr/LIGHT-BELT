@@ -13,6 +13,7 @@ dependencies = [
     "opencv-python>=4.8",
     "soundfile>=0.12",
     "pyyaml>=6.0",
+    "pyserial>=3.5",
     "typing-extensions>=4.0",
 ]
 
@@ -28,3 +29,5 @@ include = ["light_engine*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "--basetemp=.tmp/pytest"
+cache_dir = ".tmp/pytest-cache"
