@@ -5,7 +5,7 @@ import math
 import random
 
 from light_engine.config import Config
-from light_engine.effects.base import BaseEffect, runtime_float
+from light_engine.effects.base import BaseEffect, runtime_float, runtime_rgb
 from light_engine.models import (
     DigitalStrip,
     EffectContext,
@@ -32,6 +32,11 @@ class CometEffect(BaseEffect):
         speed = runtime_float(ctx, "speed", self._speed)
         tail_length = runtime_float(ctx, "tail_length", self._tail_len)
         decay = runtime_float(ctx, "decay", self._decay)
+        authored_color = (
+            runtime_rgb(ctx, "color", (1.0, 1.0, 1.0))
+            if "color" in ctx.mode_parameters
+            else None
+        )
         strips = []
 
         for sd in ctx.mode_parameters.get("strip_defs", []):
@@ -42,7 +47,9 @@ class CometEffect(BaseEffect):
 
             if sid not in self._positions:
                 self._positions[sid] = 0.0
-                self._hues[sid] = random.uniform(0, 360)
+                self._hues[sid] = (
+                    0.0 if authored_color is not None else random.uniform(0, 360)
+                )
                 self._tails[sid] = []
 
             self._positions[sid] += speed * ctx.speed * ctx.delta_time
@@ -51,13 +58,19 @@ class CometEffect(BaseEffect):
             # Wrap around
             if pos > n + 2:
                 pos -= n + 2
-                self._hues[sid] = (self._hues[sid] + 60) % 360
+                if authored_color is None:
+                    self._hues[sid] = (self._hues[sid] + 60) % 360
                 self._tails[sid] = []
             self._positions[sid] = pos
 
             # Add new head
-            hue = self._hues[sid]
-            head_r, head_g, head_b = colorsys.hsv_to_rgb(hue / 360, 1.0, 1.0)
+            if authored_color is None:
+                hue = self._hues[sid]
+                head_r, head_g, head_b = colorsys.hsv_to_rgb(
+                    hue / 360, 1.0, 1.0
+                )
+            else:
+                head_r, head_g, head_b = authored_color
             self._tails[sid].append((pos, head_r, head_g, head_b))
 
             # Decay and remove old tails

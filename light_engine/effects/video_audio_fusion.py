@@ -28,6 +28,17 @@ from light_engine.models import (
 from light_engine.util import AttackReleaseEnvelope, ColorSmoother
 
 
+def _apply_mid_saturation(
+    rgb: tuple[float, float, float],
+    mid: float,
+) -> tuple[float, float, float]:
+    """Increase saturation gently while preserving hue and value."""
+
+    hue, saturation, value = colorsys.rgb_to_hsv(*rgb)
+    boosted = min(1.0, saturation * (1.0 + 0.2 * mid))
+    return colorsys.hsv_to_rgb(hue, boosted, value)
+
+
 class VideoAudioFusionEffect(BaseEffect):
     """Fusion of video color and audio energy for dynamic lighting."""
 
@@ -101,6 +112,9 @@ class VideoAudioFusionEffect(BaseEffect):
             zone_r = base_rgb[0] * 0.7 + sr * 0.3
             zone_g = base_rgb[1] * 0.7 + sg * 0.3
             zone_b = base_rgb[2] * 0.7 + sb * 0.3
+            zone_r, zone_g, zone_b = _apply_mid_saturation(
+                (zone_r, zone_g, zone_b), mid
+            )
 
             pixels = []
             for i in range(n):
@@ -145,6 +159,7 @@ class VideoAudioFusionEffect(BaseEffect):
             zr = base_rgb[0] * 0.7 + sr * 0.3
             zg = base_rgb[1] * 0.7 + sg * 0.3
             zb = base_rgb[2] * 0.7 + sb * 0.3
+            zr, zg, zb = _apply_mid_saturation((zr, zg, zb), mid)
             zone_bri = bri + bass_pulse * 0.2
             zones.append(ZoneOutput(
                 zone_id=zid,

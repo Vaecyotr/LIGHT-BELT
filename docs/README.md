@@ -23,6 +23,13 @@ directory defines its lifecycle; filenames alone do not determine authority.
 - [Host API v1 changelog](reference/host-api-v1-changelog.md)
 - `reference/host-api-v1.openapi.yaml`
 
+## Deferred design
+
+- [Hybrid cached/live playback requirements](reference/deferred-hybrid-playback.md)
+
+Deferred design records are non-authoritative future requirements. They do not
+approve implementation and must not override the current implementation plan.
+
 ## Acceptance
 
 - [Cabin Lighting V3 software acceptance](acceptance/cabin-lighting-v3-software-acceptance.md)

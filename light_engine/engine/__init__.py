@@ -217,6 +217,12 @@ class Engine:
         frame_period = 1.0 / self._output_fps
         video_period = 1.0 / self._video_fps if self._video_fps > 0 else 0.1
         audio_period = 1.0 / self._audio_fps if self._audio_fps > 0 else 0.016
+        explicit_duration_owns_synthetic_end = (
+            duration is not None
+            and isinstance(self._data_source, SyntheticDataSource)
+            and self._video_reader is None
+            and self._audio_reader is None
+        )
 
         last_video_time = -video_period
         last_audio_time = -audio_period
@@ -265,9 +271,13 @@ class Engine:
                     else True
                 )
                 data_finished = (
-                    self._timestamp >= self._data_source.duration()
-                    if self._data_source is not None
-                    else True
+                    False
+                    if explicit_duration_owns_synthetic_end
+                    else (
+                        self._timestamp >= self._data_source.duration()
+                        if self._data_source is not None
+                        else True
+                    )
                 )
 
                 has_any_media = (

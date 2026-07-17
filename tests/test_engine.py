@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from light_engine.clock import Clock
 from light_engine.config import Config
 import light_engine.engine as engine_module
 from light_engine.engine import Engine
@@ -49,6 +50,21 @@ class RecordingOutput(NullOutput):
 
     def send_frame(self, frame):
         self.frames.append(frame)
+
+
+class ScriptedClock(Clock):
+    def __init__(self, times):
+        self._times = list(times)
+        self._time = self._times[0] if self._times else 0.0
+
+    def now(self):
+        return self._time
+
+    def tick(self):
+        previous = self._time
+        if self._times:
+            self._time = self._times.pop(0)
+        return max(0.0, self._time - previous)
 
 
 class TestFrameSequence:
@@ -253,6 +269,35 @@ class TestSyntheticSource:
         engine._output_fps = 300.0
         engine.run(max_frames=200)
         assert engine.frame_count == 200
+
+    @staticmethod
+    def _engine_at(times):
+        Config.reset()
+        engine = Engine(Config(), clock=ScriptedClock(times))
+        engine.use_synthetic(seed=42)
+        engine.set_effect("static")
+        output = RecordingOutput()
+        output.open()
+        engine._outputs = {"recording": output}
+        return engine, output
+
+    def test_explicit_duration_outlives_synthetic_fixture(self, monkeypatch):
+        monkeypatch.setattr(engine_module.time, "sleep", lambda _seconds: None)
+        engine, output = self._engine_at([119.9, 120.0, 299.9, 300.0])
+
+        engine.run(duration=300.0)
+
+        authored = [frame for frame in output.frames if not frame.metadata.get("SAFE_STATE")]
+        assert [frame.timestamp for frame in authored] == [119.9, 120.0, 299.9]
+
+    def test_synthetic_fixture_still_ends_naturally_without_duration(self, monkeypatch):
+        monkeypatch.setattr(engine_module.time, "sleep", lambda _seconds: None)
+        engine, output = self._engine_at([119.9, 120.0])
+
+        engine.run()
+
+        authored = [frame for frame in output.frames if not frame.metadata.get("SAFE_STATE")]
+        assert [frame.timestamp for frame in authored] == [119.9]
 
 
 class TestAudioOnlyStop:
