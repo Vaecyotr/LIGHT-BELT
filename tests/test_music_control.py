@@ -18,7 +18,6 @@ from light_engine.models import AudioFeatures, MusicControlState
 
 
 FIXTURE_DIR = Path("tests/fixtures/audio/show_orchestration_v1")
-GENERATED_DIR = Path("tests/fixtures/audio/generated_show_orchestration")
 G7_PATH = Path("tests/goldens/show_orchestration/v1/G7_music_expectations.json")
 
 
@@ -54,14 +53,19 @@ def _stream_fixture(name: str) -> tuple[list[MusicControlState], MusicControlAna
     return states, music
 
 
-def _write_summary(name: str, states: list[MusicControlState], analyzer: MusicControlAnalyzer) -> None:
-    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+def _write_summary(
+    generated_dir: Path,
+    name: str,
+    states: list[MusicControlState],
+    analyzer: MusicControlAnalyzer,
+) -> None:
+    generated_dir.mkdir(parents=True, exist_ok=True)
     payload = {
         "fixture": name,
         "summary": analyzer.summary(states),
         "final_state": analyzer.state_dict(states[-1]),
     }
-    (GENERATED_DIR / f"{Path(name).stem}_music_control_summary.json").write_text(
+    (generated_dir / f"{Path(name).stem}_music_control_summary.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True),
         encoding="utf-8",
     )
@@ -95,13 +99,14 @@ def test_locked_wav_hashes_match_manifest_before_analysis():
         assert path.stat().st_size == item["size_bytes"]
 
 
-def test_locked_fixture_music_expectations_and_json_summaries():
+def test_locked_fixture_music_expectations_and_json_summaries(tmp_path: Path):
     expectations = json.loads(G7_PATH.read_text(encoding="utf-8"))["fixtures"]
+    generated_dir = tmp_path / "generated_show_orchestration"
     results: dict[str, tuple[list[MusicControlState], MusicControlAnalyzer]] = {}
     for item in _fixture_manifest()["fixtures"]:
         states, analyzer = _stream_fixture(item["file"])
         _finite_states(states)
-        _write_summary(item["file"], states, analyzer)
+        _write_summary(generated_dir, item["file"], states, analyzer)
         results[item["file"]] = (states, analyzer)
 
     rhythmic = results["rhythmic_120bpm.wav"][0]

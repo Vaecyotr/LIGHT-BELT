@@ -32,9 +32,20 @@ def touch(path: Path) -> None:
     path.write_text("", encoding="utf-8")
 
 
+def project_python_paths(root: Path) -> tuple[Path, Path]:
+    if sys.platform == "win32":
+        return (
+            root / ".python" / "Scripts" / "python.exe",
+            root / ".python" / "python.exe",
+        )
+    return (
+        root / ".python" / "bin" / "python",
+        root / ".python" / "python",
+    )
+
+
 def test_pipeline_prefers_standard_venv_python(tmp_path: Path) -> None:
-    standard = tmp_path / ".python" / "Scripts" / "python.exe"
-    legacy = tmp_path / ".python" / "python.exe"
+    standard, legacy = project_python_paths(tmp_path)
     touch(standard)
     touch(legacy)
 
@@ -42,7 +53,7 @@ def test_pipeline_prefers_standard_venv_python(tmp_path: Path) -> None:
 
 
 def test_pipeline_accepts_legacy_project_python(tmp_path: Path) -> None:
-    legacy = tmp_path / ".python" / "python.exe"
+    _, legacy = project_python_paths(tmp_path)
     touch(legacy)
 
     assert agent_pipeline.find_project_python(tmp_path) == legacy
@@ -54,8 +65,7 @@ def test_pipeline_reports_missing_project_python(tmp_path: Path) -> None:
 
 
 def test_campaign_prefers_standard_venv_python(tmp_path: Path) -> None:
-    standard = tmp_path / ".python" / "Scripts" / "python.exe"
-    legacy = tmp_path / ".python" / "python.exe"
+    standard, legacy = project_python_paths(tmp_path)
     touch(standard)
     touch(legacy)
 

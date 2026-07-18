@@ -32,5 +32,5 @@ acceptance:
     trigger: strip_41
     same_frame_release: [strip_42, strip_43, strip_44, strip_45, strip_93]
   golden:
-    json_sha256: ff764f8efa49f30f42f41b6e5474572f126ad20be64735a1ab44a2c2bcc55ebf
+    json_sha256: 431309b362b3541e5efffd7e8b2c90761d5f309d2ce10ec20c5c9834fe61434e
   deterministic_replay_sha256: fe47009b7e6060b9840b3eb29f486dcde4070a73eb110f07d23485bb2e32052f

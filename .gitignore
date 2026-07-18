@@ -26,6 +26,7 @@ logs/
 *.log
 artifacts/runs/
 data/
+/tests/fixtures/audio/generated_show_orchestration/
 
 # Local hardware freezes and credential-bearing field images
 /artifacts/baselines/ws2811-two-node-good-effects-20260717/

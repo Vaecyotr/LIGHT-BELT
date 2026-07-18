@@ -1,0 +1,6 @@
+/firmware/shared/rs485_v2_golden.h text eol=lf
+/firmware/shared/udp_v2_golden.h text eol=lf
+/firmware/shared/udp_v3_golden.h text eol=lf
+/firmware/shared/udp_v3_golden.json text eol=lf
+/firmware/stm32_rgbcct_node/test/golden_vectors.h text eol=lf
+/firmware/esp32_ws2811_node/test/golden_vectors.h text eol=lf
