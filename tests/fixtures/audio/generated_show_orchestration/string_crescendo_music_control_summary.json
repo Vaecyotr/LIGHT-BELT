@@ -21,7 +21,7 @@
     "duration_seconds": 9.983333333333409,
     "energy_max": 0.9980350889584828,
     "energy_min": 0.2499762468585776,
-    "energy_trend_mean_after_warmup": -0.008344875053156758,
+    "energy_trend_mean_after_warmup": -0.008344875053156772,
     "frames": 600,
     "history_bound": 2488,
     "history_size": 1251,

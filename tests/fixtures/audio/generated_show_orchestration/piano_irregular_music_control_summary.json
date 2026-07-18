@@ -1,17 +1,17 @@
 {
   "final_state": {
-    "bass_ambient": 3.557699145648408e-05,
-    "bass_pulse": 0.0002134275270542923,
+    "bass_ambient": 3.5576991456484084e-05,
+    "bass_pulse": 0.00021342752705429206,
     "beat_phase": 0.0,
     "beat_regularity": 0.0,
-    "beat_strength": 0.0002134275270542923,
+    "beat_strength": 0.00021342752705429206,
     "energy": 0.40055633755962833,
     "energy_trend": 0.13547256931922436,
     "spectral_motion": 0.0,
     "tempo_bpm": 0.0,
     "tempo_confidence": 0.0,
     "timestamp": 9.983333333333409,
-    "transient": 0.00016007064529071922
+    "transient": 0.00016007064529071903
   },
   "fixture": "piano_irregular.wav",
   "summary": {
