@@ -1,0 +1,46 @@
+# Short NODE7 / strip_31 smoke test.
+# Every color or effect transition is separated by a black interval.
+# NOT HARDWARE VERIFIED.
+schema_version: 2
+
+show:
+  id: "ws2811-ab-node7-strip31-smoke-18s"
+  duration: 18.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: "replace"
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+
+  cues:
+    - id: "node7-strip31-red"
+      start: 2.0
+      end: 4.0
+      target: {type: "digital_strip", id: "strip_31"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: {mode: "solid", color: [0.65, 0.0, 0.0]}
+
+    - id: "node7-strip31-green"
+      start: 5.0
+      end: 7.0
+      target: {type: "digital_strip", id: "strip_31"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: {mode: "solid", color: [0.0, 0.65, 0.0]}
+
+    - id: "node7-strip31-blue"
+      start: 8.0
+      end: 10.0
+      target: {type: "digital_strip", id: "strip_31"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: &blue {mode: "solid", color: [0.0, 0.0, 0.65]}
+
+    - id: "node7-strip31-blue-breath"
+      start: 11.0
+      end: 16.0
+      target: {type: "digital_strip", id: "strip_31"}
+      effect:
+        mode: "fixed"
+        id: "breath"
+        params: {period: 3.0, min_brightness: 0.20}
+      color: *blue

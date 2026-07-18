@@ -1,0 +1,49 @@
+# Pre-arm one static strip before starting dynamic writes on the other node.
+# The static cue stays continuous so exact-content dedupe can suppress rewrites.
+# NOT HARDWARE VERIFIED.
+schema_version: 2
+
+show:
+  id: "ws2811-ab-two-node-static-prearm-coupling-85s"
+  duration: 85.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: "replace"
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+
+  cues:
+    - id: "phase-a-strip42-prearmed-blue-static"
+      start: 5.0
+      end: 40.0
+      target: {type: "digital_strip", id: "strip_42"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: &blue {mode: "solid", color: [0.0, 0.0, 0.65]}
+
+    - id: "phase-a-strip41-blue-breath"
+      start: 15.0
+      end: 35.0
+      target: {type: "digital_strip", id: "strip_41"}
+      effect:
+        mode: "fixed"
+        id: "breath"
+        params: {period: 6.0, min_brightness: 0.20}
+      color: *blue
+
+    - id: "phase-b-strip41-prearmed-blue-static"
+      start: 45.0
+      end: 80.0
+      target: {type: "digital_strip", id: "strip_41"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: *blue
+
+    - id: "phase-b-strip42-blue-breath"
+      start: 55.0
+      end: 75.0
+      target: {type: "digital_strip", id: "strip_42"}
+      effect:
+        mode: "fixed"
+        id: "breath"
+        params: {period: 6.0, min_brightness: 0.20}
+      color: *blue

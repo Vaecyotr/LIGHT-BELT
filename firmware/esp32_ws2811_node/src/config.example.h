@@ -16,9 +16,9 @@
 #error "WS2811_COLOR_ORDER must be RGB or GRB"
 #endif
 
-// The production profiles address Nodes 1-13 at 192.168.31.201-213. Keep the
-// firmware on the same fixed subnet instead of relying on an undocumented
-// DHCP reservation.
+// The production profiles use fixed 192.168.31.x addresses selected by each
+// node header. Keep the firmware on this subnet instead of relying on an
+// undocumented DHCP reservation.
 #define WIFI_IPV4_A 192
 #define WIFI_IPV4_B 168
 #define WIFI_IPV4_C 31

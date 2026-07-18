@@ -1,6 +1,7 @@
 # Installed UDP v3 topology for the nine strips currently in scope. Each strip
 # has one ESP32 and one GPIO4 output. Physical wiring and addresses are
 # NOT HARDWARE VERIFIED.
+# Onsite addresses apply only on the "灵境" Wi-Fi network.
 
 outputs:
   mode: "production"
@@ -63,7 +64,7 @@ layout:
     - {node_id: 2, host: "192.168.31.202", port: 9001, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
     - {node_id: 4, host: "192.168.31.204", port: 9001, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
     - {node_id: 5, host: "192.168.31.205", port: 9001, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 6, host: "192.168.31.206", port: 9001, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 6, host: "192.168.31.199", port: 9001, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
     - {node_id: 7, host: "192.168.31.207", port: 9001, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
     - {node_id: 8, host: "192.168.31.208", port: 9001, pixel_count: 20, max_udp_payload: 1400, protocol_version: 3}
     - {node_id: 9, host: "192.168.31.209", port: 9001, pixel_count: 20, max_udp_payload: 1400, protocol_version: 3}

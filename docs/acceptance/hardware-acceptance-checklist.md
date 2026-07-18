@@ -44,7 +44,7 @@ The authoritative complete mapping is:
 | 3 | `strip_44` | 20 | `192.168.31.203` |
 | 4 | `strip_12` | 40 | `192.168.31.204` |
 | 5 | `strip_22` | 40 | `192.168.31.205` |
-| 6 | `strip_21` | 10 | `192.168.31.206` |
+| 6 | `strip_21` | 10 | `192.168.31.199` |
 | 7 | `strip_31` | 10 | `192.168.31.207` |
 | 8 | `strip_42` | 20 | `192.168.31.208` |
 | 9 | `strip_91` | 20 | `192.168.31.209` |
@@ -52,6 +52,8 @@ The authoritative complete mapping is:
 | 11 | `strip_43` | 20 | `192.168.31.211` |
 | 12 | `strip_45` | 20 | `192.168.31.212` |
 | 13 | `strip_93` | 20 | `192.168.31.213` |
+
+Site IPv4 assignments in this table are valid only on the `灵境` Wi-Fi network.
 
 ## Exact profile/show commands
 

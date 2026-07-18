@@ -2,7 +2,7 @@
 #define LIGHT_BELT_ESP32_NODE_6_H
 
 #define NODE_ID 6
-#define NODE_IPV4_D 206
+#define NODE_IPV4_D 199
 #define OUTPUT_COUNT 1
 #define OUTPUT_0_ID 1
 #define OUTPUT_0_GPIO 4

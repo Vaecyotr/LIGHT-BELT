@@ -111,7 +111,7 @@ Select the physical node only through its PlatformIO environment:
 | `esp32-s3-node-3` | 3 | `strip_44` | `192.168.31.203` | 1 | 4 | 20 |
 | `esp32-s3-node-4` | 4 | `strip_12` | `192.168.31.204` | 1 | 4 | 40 |
 | `esp32-s3-node-5` | 5 | `strip_22` | `192.168.31.205` | 1 | 4 | 40 |
-| `esp32-s3-node-6` | 6 | `strip_21` | `192.168.31.206` | 1 | 4 | 10 |
+| `esp32-s3-node-6` | 6 | `strip_21` | `192.168.31.199` | 1 | 4 | 10 |
 | `esp32-s3-node-7` | 7 | `strip_31` | `192.168.31.207` | 1 | 4 | 10 |
 | `esp32-s3-node-8` | 8 | `strip_42` | `192.168.31.208` | 1 | 4 | 20 |
 | `esp32-s3-node-9` | 9 | `strip_91` | `192.168.31.209` | 1 | 4 | 20 |
@@ -119,6 +119,8 @@ Select the physical node only through its PlatformIO environment:
 | `esp32-s3-node-11` | 11 | `strip_43` | `192.168.31.211` | 1 | 4 | 20 |
 | `esp32-s3-node-12` | 12 | `strip_45` | `192.168.31.212` | 1 | 4 | 20 |
 | `esp32-s3-node-13` | 13 | `strip_93` | `192.168.31.213` | 1 | 4 | 20 |
+
+Site IPv4 assignments in this table are valid only on the `灵境` Wi-Fi network.
 
 Every production environment enables `LIGHT_BELT_FIXED_GPIO4_SPI`. SPI2 is
 routed to GPIO4 once during initialization and remains attached while frames

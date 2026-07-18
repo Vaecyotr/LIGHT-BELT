@@ -1,0 +1,258 @@
+# Four-node capability-boundary Show.
+# Relay order: NODE2/strip_41 -> NODE8/strip_42 ->
+# NODE6/strip_21 -> NODE7/strip_31.
+# Every authored transition has a directed black gap.
+# NOT HARDWARE VERIFIED.
+schema_version: 2
+
+show:
+  id: "ws2811-four-node-capability-boundary-272s"
+  duration: 272.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: "replace"
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+
+  virtual_paths:
+    - id: "node2-node8-node6-node7-relay"
+      origin: "start"
+      targets:
+        - {type: "digital_strip", id: "strip_41"}
+        - {type: "digital_strip", id: "strip_42"}
+        - {type: "digital_strip", id: "strip_21"}
+        - {type: "digital_strip", id: "strip_31"}
+
+  cues:
+    # Four individual identifiers. The one-second gaps are black.
+    - id: "identify-node2-strip41-red"
+      start: 1.0
+      end: 3.0
+      target: {type: "digital_strip", id: "strip_41"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: {mode: "solid", color: [0.65, 0.0, 0.0]}
+    - id: "identify-node8-strip42-green"
+      start: 4.0
+      end: 6.0
+      target: {type: "digital_strip", id: "strip_42"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: {mode: "solid", color: [0.0, 0.65, 0.0]}
+    - id: "identify-node6-strip21-blue"
+      start: 7.0
+      end: 9.0
+      target: {type: "digital_strip", id: "strip_21"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: &blue {mode: "solid", color: [0.0, 0.0, 0.65]}
+    - id: "identify-node7-strip31-cyan"
+      start: 10.0
+      end: 12.0
+      target: {type: "digital_strip", id: "strip_31"}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: {mode: "solid", color: [0.0, 0.45, 0.45]}
+    - id: "anchor-all-amber"
+      start: 13.0
+      end: 15.0
+      target: &all {type: "digital_set", ids: ["strip_41", "strip_42", "strip_21", "strip_31"]}
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: &amber {mode: "solid", color: [0.58, 0.20, 0.0]}
+    - id: "anchor-all-low-blue"
+      start: 16.0
+      end: 18.0
+      target: *all
+      effect: {mode: "fixed", id: "static", params: {}}
+      color: {mode: "solid", color: [0.0, 0.0, 0.20]}
+
+    # A single dot traverses the 50-group path at three rates.
+    - id: "speed-slow-2pps"
+      start: 20.0
+      end: 26.0
+      target: &relay {type: "virtual_path", id: "node2-node8-node6-node7-relay"}
+      origin: "start"
+      effect: {mode: "fixed", id: "single_dot", params: {speed: 2.0, direction: "forward"}}
+      color: *blue
+    - id: "speed-medium-5pps"
+      start: 27.0
+      end: 33.0
+      target: *relay
+      origin: "start"
+      effect: {mode: "fixed", id: "single_dot", params: {speed: 5.0, direction: "forward"}}
+      color: *blue
+    - id: "speed-fast-10pps"
+      start: 34.0
+      end: 40.0
+      target: *relay
+      origin: "start"
+      effect: {mode: "fixed", id: "single_dot", params: {speed: 10.0, direction: "forward"}}
+      color: *blue
+    - id: "cadence-all-two-state-blue"
+      start: 41.0
+      end: 49.0
+      target: *all
+      effect:
+        mode: "fixed"
+        id: "step_pulse"
+        params:
+          period: 1.0
+          low_color: [0.0, 0.0, 0.20]
+          high_color: [0.0, 0.0, 0.65]
+      color: {mode: "effect_default"}
+
+    # Complete 17-effect relay. Each effect is followed by one second black.
+    - id: "relay-static"
+      start: 50.0
+      end: 62.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "static"
+        params:
+          color_timeline: &relay_colors
+            interpolation: "rgb_linear"
+            keyframes:
+              - {time: 0.0, color: [0.0, 0.0, 0.65]}
+              - {time: 6.0, color: [0.0, 0.45, 0.45]}
+              - {time: 11.9, color: [0.58, 0.20, 0.0]}
+      color: {mode: "effect_default"}
+    - id: "relay-breath"
+      start: 63.0
+      end: 75.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "breath"
+        params: {period: 4.0, min_brightness: 0.20, color_timeline: *relay_colors}
+      color: {mode: "effect_default"}
+    - id: "relay-color-wave"
+      start: 76.0
+      end: 88.0
+      target: *relay
+      effect: {mode: "fixed", id: "color_wave", params: {speed: 0.65, width: 0.45, hue_cycle_rate: 0.08}}
+      color: {mode: "effect_default"}
+    - id: "relay-chase"
+      start: 89.0
+      end: 101.0
+      target: *relay
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "chase"
+        params: {speed: 6.5, width: 2, gap: 5, direction: "forward", trail: 0.20, color_source: "rainbow", beat_boost: 0.0}
+      color: {mode: "effect_default"}
+    - id: "relay-comet"
+      start: 102.0
+      end: 114.0
+      target: *relay
+      origin: "start"
+      effect: {mode: "fixed", id: "comet", params: {speed: 6.5, tail_length: 0.30, decay: 0.84}}
+      color: {mode: "effect_default"}
+    - id: "relay-audio-pulse"
+      start: 115.0
+      end: 127.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "audio_pulse"
+        params: {attack: 0.20, release: 0.35, color_timeline: *relay_colors}
+      color: {mode: "effect_default"}
+    - id: "relay-bass-pulse"
+      start: 128.0
+      end: 140.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "bass_pulse"
+        params: {attack: 0.35, release: 0.50, color_timeline: *relay_colors}
+      color: {mode: "effect_default"}
+    - id: "relay-spectrum"
+      start: 141.0
+      end: 153.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "spectrum"
+        params:
+          bass_zones: []
+          mid_zones: []
+          treble_zones: ["__virtual_path__:node2-node8-node6-node7-relay"]
+      color: {mode: "effect_default"}
+    - id: "relay-video-ambient"
+      start: 154.0
+      end: 166.0
+      target: *relay
+      effect: {mode: "fixed", id: "video_ambient", params: {smoothing: 0.20}}
+      color: {mode: "effect_default"}
+    - id: "relay-video-audio-fusion"
+      start: 167.0
+      end: 179.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "video_audio_fusion"
+        params: {video_weight: 0.65, audio_weight: 0.35, bass_boost: 1.20, treble_limit: 0.20}
+      color: {mode: "effect_default"}
+    - id: "relay-calm"
+      start: 180.0
+      end: 192.0
+      target: *relay
+      effect: {mode: "fixed", id: "calm", params: {period: 8.0, color_timeline: *relay_colors}}
+      color: {mode: "effect_default"}
+    - id: "relay-color-wipe"
+      start: 193.0
+      end: 205.0
+      target: *relay
+      origin: "start"
+      effect: {mode: "fixed", id: "color_wipe", params: {speed: 5.0, color_timeline: *relay_colors}}
+      color: {mode: "effect_default"}
+    - id: "relay-twinkle"
+      start: 206.0
+      end: 218.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "twinkle"
+        params: {density: 0.40, fade_time: 0.80, color_source: "solid", color_timeline: *relay_colors}
+      color: {mode: "effect_default"}
+    - id: "relay-demo"
+      start: 219.0
+      end: 231.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "demo"
+        params:
+          cycle_interval: 2.0
+          effects: ["static", "breath", "color_wave", "chase", "comet", "color_wipe"]
+      color: *blue
+    - id: "relay-step-pulse"
+      start: 232.0
+      end: 244.0
+      target: *relay
+      effect:
+        mode: "fixed"
+        id: "step_pulse"
+        params:
+          period: 2.0
+          low_color: [0.0, 0.0, 0.20]
+          high_color: [0.58, 0.20, 0.0]
+      color: {mode: "effect_default"}
+    - id: "relay-single-dot"
+      start: 245.0
+      end: 257.0
+      target: *relay
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "single_dot"
+        params: {speed: 7.5, direction: "forward", color_timeline: *relay_colors}
+      color: {mode: "effect_default"}
+    - id: "relay-theater-phase"
+      start: 258.0
+      end: 270.0
+      target: *relay
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "theater_phase"
+        params: {speed: 5.0, color_timeline: *relay_colors}
+      color: {mode: "effect_default"}

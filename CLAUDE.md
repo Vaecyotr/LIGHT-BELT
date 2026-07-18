@@ -67,7 +67,7 @@ configuration; logical IDs remain independent of node IDs, GPIO, and IP.
 | 3 | `strip_44` | 20 | 1 | 4 | `192.168.31.203` |
 | 4 | `strip_12` | 40 | 1 | 4 | `192.168.31.204` |
 | 5 | `strip_22` | 40 | 1 | 4 | `192.168.31.205` |
-| 6 | `strip_21` | 10 | 1 | 4 | `192.168.31.206` |
+| 6 | `strip_21` | 10 | 1 | 4 | `192.168.31.199` |
 | 7 | `strip_31` | 10 | 1 | 4 | `192.168.31.207` |
 | 8 | `strip_42` | 20 | 1 | 4 | `192.168.31.208` |
 | 9 | `strip_91` | 20 | 1 | 4 | `192.168.31.209` |
@@ -75,6 +75,8 @@ configuration; logical IDs remain independent of node IDs, GPIO, and IP.
 | 11 | `strip_43` | 20 | 1 | 4 | `192.168.31.211` |
 | 12 | `strip_45` | 20 | 1 | 4 | `192.168.31.212` |
 | 13 | `strip_93` | 20 | 1 | 4 | `192.168.31.213` |
+
+These site IPv4 assignments are valid only on the `灵境` Wi-Fi network.
 
 The current field subset is nodes `1`, `2`, `4`, `5`, `6`, `7`, `8`, `9`, and
 `10`. Nodes `3`, `11`, `12`, and `13` belong to the complete target but are not

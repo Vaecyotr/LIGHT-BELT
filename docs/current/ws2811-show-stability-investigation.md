@@ -1,7 +1,8 @@
 # WS2811 Show Stability Investigation
 
-Status: active investigation; a corrected 5 V level-shifter baseline is being
-retested before the 30 FPS physical-output gate; updated 2026-07-17.
+Status: active investigation; after correcting the previously missing
+SN74LVC1T45 VCCB-side ground connections, either node's breath activity can
+corrupt the other strip's held static state; updated 2026-07-18.
 
 All physical conclusions in this document are **NOT HARDWARE VERIFIED** unless
 the specific observation is recorded below. This document is an evidence
@@ -299,7 +300,7 @@ MAC `28:84:85:8A:36:B0` and verified every written partition. The preserved
 image is 727952 bytes with SHA-256
 `C5BAC80C948578AC3EA6D0873D004795B0C42B97C0221BA05F1EB56D8126A44B`.
 
-The latest onsite isolation observation reported that strip 41 can still
+An earlier onsite isolation observation reported that strip 41 can still
 flash during its Node 2-only breath phase. No exact event count or complete
 counter delta accompanied that observation, so it is a visual failure record,
 not a quantified acceptance run. It does establish that simultaneous changing
@@ -354,6 +355,287 @@ image. The complete diagnostic snapshot is in
 SHA-256 inventory and verifier. These exact readbacks preserve the current
 good-effects state; they do not change its **NOT HARDWARE VERIFIED** status or
 remove the residual wrong-color observation.
+
+### 2026-07-18 repeated single-node pass and joint-dynamic discriminator
+
+After the operator changed the Dupont-wire routing, the current fixture became
+substantially more stable. Node 2 / strip 41 then completed the 40-second
+15 FPS pure-blue breath three consecutive times with all ten groups behaving
+normally. These were real onsite visual runs initiated by the operator. Node 8
+/ strip 42 also completed its isolated blue-breath run normally. The directed
+black phases extinguished both strips normally. These observations supersede
+the earlier unquantified suggestion that strip 41 necessarily flashes during
+every Node 2-only breath, but they do not erase that historical failure under
+the earlier fixture state.
+
+At that test stage, the remaining failure was conditional on joint dynamic
+physical output. In that staged run, strip 42 remained normal throughout. Strip 41 was normal
+while isolated, but when both nodes breathed it showed random wrong-color
+flashes without a persistent bad block. The failure did not settle at one
+group or one wrong color. This does not support the simple claim that the
+strip-41 wire is independently bad whenever Node 2 drives it. The strongest
+interim hypothesis was instead that the strip-41 path had lower noise margin
+and is disturbed by Node 8 activity through data-line coupling, the shared
+ground return, or a shared VCCB/power-rail interaction. This is a hypothesis,
+not a located component failure.
+
+Node 8's preserved firmware already delays its non-skipped Immediate physical
+writes by 30 ms. Therefore the joint-output failure does not require exact
+simultaneous transaction edges. The offset result remains compatible with
+longer-lived ground/rail disturbance, coupling between nearby data branches,
+or Node 8 edges landing at another vulnerable point in the Node 2/strip-41
+cycle. It does not establish strict cross-node synchronization or a production
+repair. The current two-node Show path remains **NOT HARDWARE VERIFIED**.
+
+The next single-variable discriminator must hold total LED load present while
+changing which node continues to produce data edges:
+
+| Phase | Commanded state | Intended physical-write behavior after dedupe | Interpretation if strip 41 flashes |
+|---|---|---|---|
+| A | strip 41 breath + strip 42 static blue | Node 2 keeps writing; Node 8 holds after its changed static frame | Supports shared load/ground or a strip-41 dynamic-path weakness; does not require continuing Node 8 edges |
+| B | strip 41 static blue + strip 42 breath | Node 2 holds after its changed static frame; Node 8 keeps writing | Strongly supports Node 8 data-edge/rail activity coupling into the lower-margin strip-41 path |
+
+Place a directed black interval before the first phase, between phases, and at
+the end, without changing wiring, firmware, brightness, FPS, or the two static
+and breath colors. If strip 41 flashes only in phase B, Node 8 activity is the
+key discriminator. If it flashes in both phases, shared current/ground loading
+or the strip-41 dynamic path remains implicated. If both phases are clean,
+repeat the unchanged test before treating the wiring change as a repair. This
+test design is **NOT HARDWARE VERIFIED** until it is actually run; it cannot by
+itself identify the exact conductor, translator, rail, or first receiver.
+
+#### 60-second edge/load discriminator result and remaining ambiguity
+
+The first onsite run of the 60-second discriminator produced this sequence:
+
+- Phase A, strip 41 breathing while strip 42 held static blue, was normal.
+- Every directed black interval extinguished both strips normally.
+- In phase B, strip 42 flashed bright white once after strip 41 entered static
+  blue and strip 42 began breathing. Strip 42 then recovered, while part of
+  strip 41 outside its first physical group became white and remained white.
+
+Several unchanged repetitions were nondeterministic. Either phase could
+complete normally, but the static side could instead show its first physical
+group correctly while groups after it became white and held that state. The
+other strip could continue breathing normally during the held static-side
+failure. This does not support the earlier phase-B-only interpretation or
+localize the disturbance to one node's continuing data edges. It shows that a
+static-side latched error can coexist with apparently normal continuing
+animation on the other branch.
+
+The held-versus-transient appearance is compatible with exact-content dedupe,
+but dedupe is not established as the sole cause. A static transition normally
+requires one changed physical write; if that transaction is misdecoded beyond
+the node, subsequent identical Host frames are skipped and the wrong physical
+state remains latched. A breathing output continues to change, so a bad write
+may appear as a flash before a later changed frame restores the commanded
+state. The 60-second phase boundaries do not fully test this explanation:
+both strips begin each active phase by changing from black to a blue value, so
+the static side's first write was not isolated from the other side's first
+active write.
+
+The recurring pattern in which the first physical group remains correct while
+the downstream groups turn white points to a boundary after the first
+receiver has consumed its own color: its regenerated data output, the
+downstream data/ground/power path, or a later receiver. It does not yet locate
+the failing receiver, conductor, translator, rail, or interference source.
+
+The next shortest discriminator is an 85-second pre-arm sequence that makes
+the static transition well before the other branch begins changing:
+
+| Time | Commanded state | Observation focus |
+|---|---|---|
+| 0-5 s | both black | directed initial black |
+| 5-15 s | strip 42 static blue; strip 41 black | strip 42 static pre-arm |
+| 15-35 s | strip 42 static blue; strip 41 breath | static state during and after strip-41 activity |
+| 35-40 s | strip 42 static blue; strip 41 black | whether the pre-armed state remained correct |
+| 40-45 s | both black | directed middle black |
+| 45-55 s | strip 41 static blue; strip 42 black | strip 41 static pre-arm |
+| 55-75 s | strip 41 static blue; strip 42 breath | static state during and after strip-42 activity |
+| 75-80 s | strip 41 static blue; strip 42 black | whether the pre-armed state remained correct |
+| 80-85 s | both black | directed final black |
+
+For each half, score the static strip at pre-arm, while the other strip is
+breathing, and after that breathing stops. If a pre-armed correct static state
+changes only when the other node begins dynamic writes, that is direct evidence
+of cross-branch physical interference rather than corruption confined to the
+simultaneous black-to-blue phase boundary. The sequence and its interpretation
+remain **NOT HARDWARE VERIFIED** until the run is observed.
+
+#### 85-second pre-arm historical result: directional Node 8 activity coupling
+
+The operator repeated the unchanged 85-second pre-arm sequence and reported a
+directional result:
+
+- In phase A, strip 42 remained correctly static blue while Node 2 / strip 41
+  breathed. Strip-41 activity did not make strip 42 turn white.
+- In phase B, strip 41 was first established as correct static blue. Each
+  reproduced corruption began only while Node 8 / strip 42 was breathing:
+  strip 41 then turned white.
+- When strip 42 stopped breathing, strip 41 retained the wrong white state.
+- Every directed black interval was normal and cleared the wrong state.
+
+This removes a bad strip-41 static first write as a necessary condition for
+this reproduction. The static cue had already been established continuously
+before phase B activity began. With exact-content dedupe, Node 2 does not keep
+rewriting that unchanged static payload, while Node 8 continues physical
+writes for the breath. Node 8 also already applies a 30 ms Immediate
+physical-write offset, so exact simultaneous Node 2 and Node 8 transaction
+edges are not required. The result strongly supports a one-way relationship:
+continuing Node 8 activity disturbs the physical strip-41 path after the Host
+has produced the correct payload and after Node 2's dedupe decision. Once the
+wrong physical state is latched, the unchanged static command supplies no
+corrective physical write; the later directed black transition does.
+
+This directionality does not identify a failed component. Remaining candidates
+are coupling from the Node 8 `B -> DI` branch into the strip-41 data path, a
+shared-ground or shared-VCCB/power-rail transient, and marginal behavior at
+strip 41's first receiver or its regenerated downstream cascade. The fastest
+controlled repair order is:
+
+1. Shorten both data runs, route each beside its own ground return, and keep
+   the Node 8 pair physically separated from the strip-41 pair.
+2. Use a short, heavy-gauge star ground directly joining supply negative, both
+   controllers/translators, and both strip-input grounds.
+3. Add a 220-330 ohm source resistor to each data branch and 100 nF local
+   decoupling at each translator.
+4. If the unchanged discriminator still fails, replace the data interface with
+   a 5 V 74AHCT125/74HCT125-class unidirectional buffer and repeat it.
+
+The onsite visual sequence is hardware evidence for the directional trigger;
+the proposed electrical mechanisms and repair candidates remain **NOT HARDWARE
+VERIFIED** until measured or accepted by an unchanged rerun.
+
+#### VCCB-side ground correction supersedes the directional baseline
+
+After the directional runs above, the operator found that the VCCB-side GND
+connection on each SN74 module had not been connected. The modules' B-side
+outputs therefore did not have the intended reliable ground reference during
+those runs, even though the documented fixture assumption required both nodes,
+both translators, and both strip inputs to share ground. The earlier observation
+that only Node 8 / strip 42 breath disturbed strip 41 is retained as history,
+but it is no longer a valid baseline for the intended topology and must not be
+used to conclude that Node 8 is the sole or directional aggressor.
+
+The operator then connected the VCCB-side grounds into the common ground. With
+that required correction in place, the interference became reciprocal: strip
+41 breath could make the held static state on strip 42 turn white, and strip 42
+breath could make the held static state on strip 41 turn white. The breathing
+side could continue normally while the other strip retained the wrong white
+state. This symmetric reproduction supports bidirectional physical coupling
+between the two `B -> DI` branches, through their ground references, or through
+the shared VCCB/power rail. It does not yet distinguish those mechanisms or
+locate a failed component.
+
+Connecting the VCCB-side ground is mandatory and must not be reversed as a
+workaround. The controlled physical repair order for the valid topology is:
+
+1. Join supply negative, both controller grounds, both translator grounds, and
+   both strip-input grounds with short, heavy-gauge star-ground conductors.
+2. Route each B-side data conductor beside its own local ground return, shorten
+   both pairs, and physically separate the two pairs.
+3. Place 100 nF local decoupling from VCCA to ground and from VCCB to ground at
+   each translator.
+4. Place a 220-330 ohm series resistor at the source of each B-side data branch.
+5. If the unchanged discriminator still fails, replace the interface with a
+   5 V 74AHCT125/74HCT125-class unidirectional buffer and rerun it.
+
+Exact-content dedupe remains compatible with the persistence mechanism: after
+a static strip has latched one corrupted transaction, subsequent identical
+Host frames can be skipped, so no physical write repairs the held state until
+a changed command such as directed black arrives. That explains why a wrong
+static state may remain visible; it does not explain or locate the electrical
+coupling that produced the corrupted transaction. The reciprocal onsite visual
+result is hardware evidence. The coupling mechanism, component attribution,
+and all proposed repairs remain **NOT HARDWARE VERIFIED** until controlled A/B
+testing or electrical measurement confirms them.
+
+#### First series-resistor A/B result: confirmed 120-ohm Node 8 path
+
+The operator's initial physical-change description was: "给node8的DI加了一个
+330Ω的电阻". That original wording is retained as chronology, but the operator
+later inspected the component and corrected its actual value to 120 ohms. The
+operator also confirmed that it is installed in series between the `B`
+connection point of the SN74LVC1T45 used by Node 8 and the strip 42 green wire.
+
+With that confirmed 120-ohm series resistor as the only reported change, the operator ran the unchanged
+85-second pre-arm Show twice. In both runs, Node 8 / strip 42 breathing no
+longer affected strip 41. These are two real onsite hardware passes for that
+bounded direction and fixture state. They do not yet establish reciprocal
+stability, a production-ready interface, or stability outside this Show.
+
+The operator subsequently ran the complete 272-second capability-boundary Show
+with the 30 FPS Immediate profile and reported the entire run as normal. This
+is one onsite hardware pass for that exact Show and current fixture. It makes
+120 ohms a candidate value for this fixture; it is not long-duration,
+full-system, or production acceptance. The record does not establish that a
+second resistor was physically installed on the Node 2 / strip 41 path.
+
+This confirmed installation and the two-run improvement strongly support fast
+output edges, ringing, or a ground-
+reference disturbance on that Node 8 physical path as a material contributor.
+It does not prove which mechanism is responsible, prove that the resistor is
+the only required repair, or locate the original disturbance at one component.
+Those mechanism claims remain **NOT HARDWARE VERIFIED** without waveform or
+electrical measurements.
+
+The next controlled gate is:
+
+1. Keep the confirmed Node 8 120-ohm resistor installed between the `B`
+   connection point of its SN74LVC1T45 and the strip 42 green wire.
+2. Do not record a Node 2 resistor as installed until its value and two physical
+   connection points are explicitly confirmed.
+3. Add a 330-ohm series resistor between the `B` connection point of the
+   SN74LVC1T45 used by Node 2 and the strip 41 green wire.
+4. Run the unchanged 85-second pre-arm Show three times. In every run, verify
+   that Node 2 / strip 41 breathing does not make strip 42 turn white, that
+   Node 8 / strip 42 breathing does not make strip 41 turn white, and that all
+   directed black intervals are fully black.
+
+Only a three-run pass in both directions supports the bounded conclusion that
+the two installed series resistors stabilize this corrected-ground fixture for
+the 85-second Show. Broader Show, duration, color, frame-rate, and production
+acceptance remain **NOT HARDWARE VERIFIED**.
+
+#### Prepared four-NODE Scheduled capability Show
+
+A four-NODE capability Show has been prepared for the currently connected
+installation:
+
+| NODE | strip | WS2811 group count | Current field IPv4 address |
+|---|---|---:|---|
+| NODE2 | `strip_41` | 10 | `192.168.31.202` |
+| NODE8 | `strip_42` | 20 | `192.168.31.208` |
+| NODE6 | `strip_21` | 10 | `192.168.31.199` |
+| NODE7 | `strip_31` | 10 | `192.168.31.207` |
+
+The profile is
+`config/profiles/ws2811-ab-four-node-2-6-7-8-scheduled-30fps.yaml`.
+It specifies 30 FPS, Scheduled application, a 60 ms apply lead, a 100 ms
+runtime beacon interval, and brightness `0.35`. NODE6 and NODE7 run standard
+firmware that requires Scheduled application, so this four-NODE Show cannot
+reuse the NODE2 and NODE8 Immediate profile. NODE8's preserved 30 ms physical
+write offset applies only to Immediate application and does not operate during
+this Scheduled Show.
+
+The Show is
+`config/shows/ws2811-four-node-capability-boundary-272s.yaml`. Its authored
+strip path is `strip_41 -> strip_42 -> strip_21 -> strip_31`. It first
+identifies each strip separately, then exercises the speed boundary and all
+17 registered effects over that path. Every effect transition includes one
+second of commanded black, and the Show ends with two seconds of commanded
+black.
+
+Software-only evidence currently recorded for these assets is:
+
+- `validate-show` returned exit code 0 and reported 27 cues over 272 seconds.
+- The focused four-NODE Show tests passed: `4 passed in 1.29s`.
+
+This four-NODE configuration and Show are **NOT HARDWARE VERIFIED**. The four
+configured IPv4 addresses did not answer ICMP during the preparation check,
+but lack of an ICMP response does not establish that an ESP32 is offline.
+Each NODE's online state and the complete visual result must be recorded while
+the Show is run on the connected installation.
 
 The reproduced visual corruption does not require Python effects, Show
 mapping, UDP reception, scheduled clock estimation, RGB/GRB selection, a
@@ -440,6 +722,12 @@ threshold during transmission.
 | Power-of-two channel values define a continuous safe color range | Disproved as a promotion claim | Static and FLOW states passed selected values, but the two-level pulse in Gate 1k failed in both observed runs |
 | The two-level fixed-red pulse is accepted for emergency playback | Disproved on this fixture | Both onsite Gate 1k runs contained an unintended visible event |
 | UDP playback can repair the autonomous physical-output fault | Not supported | UDP may reduce physical writes through node-side content dedupe, but every changed payload still requires the same unverified WS2811 transaction |
+| Node 2 / strip 41 is unstable whenever it breathes alone on the current wiring | Not supported by the latest repeated gate | The operator ran the 40-second blue breath three consecutive times with normal output; earlier fixture states did fail and are retained above |
+| Each node/strip path could run the isolated blue breath before the VCCB-side ground correction | Observed on the earlier fixture state | Node 2 / strip 41 passed three consecutive 40-second runs; Node 8 / strip 42 also passed its isolated run, but those observations do not validate the corrected ground topology |
+| Joint two-node output without the new series-resistor A/B is stable on the corrected-ground fixture | Disproved | With the required VCCB-side grounds connected, either node's breath could make the other strip's held static state turn white |
+| The confirmed Node 8 120-ohm series resistor between its SN74LVC1T45 `B` connection point and the strip 42 green wire prevents Node 8 / strip 42 breath from corrupting strip 41 in the 85-second Show | Observed twice on this fixture | Two consecutive onsite passes; no matching resistor on the Node 2 / strip 41 path has been confirmed |
+| The two-node 30 FPS Immediate capability-boundary Show is stable with the current fixture | Observed once on this fixture | The operator reported one normal complete 272-second run; this is not long-duration, full-system, or production acceptance |
+| Node 8 is the sole directional aggressor | Withdrawn | The directional observation was made while both VCCB-side ground connections were missing; after correction, the failure reproduces in both directions |
 | The APP can expose arbitrary color or brightness controls | Not authorized | Only exact payloads and directed transitions that pass a bounded gate may be emergency candidates |
 | Every other strip/node has the same failure | Unknown | The decisive cadence gate has only been run on Node 2 / strip 41 |
 | Multiple nodes can now run a synchronized dynamic Show | Not verified | Single-output 30 FPS stability must pass first |

@@ -113,7 +113,7 @@ node uses `output_id: 1` on GPIO4.
 | 3 | 1 / GPIO4 | `strip_44` | 20 | `192.168.31.203` | no |
 | 4 | 1 / GPIO4 | `strip_12` | 40 | `192.168.31.204` | yes |
 | 5 | 1 / GPIO4 | `strip_22` | 40 | `192.168.31.205` | yes |
-| 6 | 1 / GPIO4 | `strip_21` | 10 | `192.168.31.206` | yes |
+| 6 | 1 / GPIO4 | `strip_21` | 10 | `192.168.31.199` | yes |
 | 7 | 1 / GPIO4 | `strip_31` | 10 | `192.168.31.207` | yes |
 | 8 | 1 / GPIO4 | `strip_42` | 20 | `192.168.31.208` | yes |
 | 9 | 1 / GPIO4 | `strip_91` | 20 | `192.168.31.209` | yes |
@@ -121,6 +121,8 @@ node uses `output_id: 1` on GPIO4.
 | 11 | 1 / GPIO4 | `strip_43` | 20 | `192.168.31.211` | no |
 | 12 | 1 / GPIO4 | `strip_45` | 20 | `192.168.31.212` | no |
 | 13 | 1 / GPIO4 | `strip_93` | 20 | `192.168.31.213` | no |
+
+Site IPv4 assignments in this table are valid only on the `灵境` Wi-Fi network.
 
 The complete target is 13 ESP32-S3 nodes, 13 WS2811 strips, 260 pixel groups,
 and one independent RGB+CCT COB (`zone_32`). The current field profile contains
