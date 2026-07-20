@@ -66,6 +66,9 @@ desktop.ini
 ~$*
 /*.zip
 
+# Snapshot subdirectories from other workstations
+LIGHT-BELT-codex-one-esp-per-strip/
+
 # Large local media fixtures
 *.mp4
 *.mkv
