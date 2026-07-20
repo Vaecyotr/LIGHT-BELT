@@ -38,3 +38,13 @@ testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--basetemp=.tmp/pytest"
 cache_dir = ".tmp/pytest-cache"
+
+[dependency-groups]
+dev = [
+    "fastapi>=0.139.2",
+    "httpx>=0.28.1",
+    "pyjwt>=2.13.0",
+    "pytest>=9.1.1",
+    "uvicorn>=0.51.0",
+    "websockets>=16.1.1",
+]

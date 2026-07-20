@@ -38,7 +38,6 @@ def test_site_esp32_headers_match_complete_udp_v3_mapping() -> None:
         outputs[output["node_id"]].append(output)
 
     assert set(nodes) == set(range(1, 14))
-    assert shared["UDP_PORT"] == 9001
     for node_id, node in nodes.items():
         configured = _defines(NODE_CONFIG_DIR / f"node_{node_id}.h")
         expected = sorted(outputs[node_id], key=lambda item: item["output_id"])
@@ -46,7 +45,7 @@ def test_site_esp32_headers_match_complete_udp_v3_mapping() -> None:
         assert configured["NODE_ID"] == node_id
         assert configured["NODE_IPV4_D"] == int(node["host"].rsplit(".", 1)[1])
         assert node["host"] == f"192.168.31.{configured['NODE_IPV4_D']}"
-        assert node["port"] == shared["UDP_PORT"]
+        assert node["port"] == 4048
         assert configured["OUTPUT_COUNT"] == len(expected) == 1
         assert sum(item["pixel_count"] for item in expected) == node["pixel_count"]
         for index, output in enumerate(expected):

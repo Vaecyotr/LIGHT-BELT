@@ -77,7 +77,7 @@ def test_emergency_show_emits_only_allowlisted_exact_udp_payloads() -> None:
                 expected_node_id=2,
                 expected_outputs={1: (4, 10)},
             )
-            assert address == ("192.168.31.202", 9001)
+            assert address == ("192.168.31.58", 4048)
             assert packet is not None
             assert packet.outputs[0].pixels == _expected_payload(timestamp)
 

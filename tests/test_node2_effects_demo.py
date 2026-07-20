@@ -16,8 +16,12 @@ from light_engine.models import (
     VideoFeatures,
 )
 from light_engine.outputs.transform import OutputTransform
-from light_engine.outputs.udp_output import UdpOutputV3
-from light_engine.outputs.udp_v3 import FLAG_KEY_FRAME, UdpV3Packet
+from light_engine.outputs.ddp_output import (
+    DDP_FLAGS_PUSH,
+    DDP_HEADER_LEN,
+    DDP_TYPE_RGB24,
+    DdpOutput,
+)
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
@@ -247,7 +251,7 @@ def test_node2_show_is_bit_exact_invariant_to_video_audio_and_beat() -> None:
     )
 
 
-def test_node2_first_17_seconds_encode_one_exact_warm_udp_frame_at_30_fps() -> None:
+def test_node2_first_17_seconds_encode_one_exact_warm_ddp_frame_at_30_fps() -> None:
     Config.reset()
     try:
         config = Config.get_instance(PROFILE_PATH)
@@ -256,9 +260,8 @@ def test_node2_first_17_seconds_encode_one_exact_warm_udp_frame_at_30_fps() -> N
         runtime = ShowRuntime.from_layout(show, layout)
         transform = _transform(config)
         mapping = PhysicalMapping(layout)
-        output = UdpOutputV3()
+        output = DdpOutput()
         output.open()
-        expected_outputs = {1: (4, 10), 2: (5, 20), 3: (6, 20)}
         active_colors: set[tuple[int, int, int]] = set()
         fps = 30.0
 
@@ -291,24 +294,18 @@ def test_node2_first_17_seconds_encode_one_exact_warm_udp_frame_at_30_fps() -> N
             datagrams = output.get_sent_datagrams()
             assert len(datagrams) == sequence
             raw, address = datagrams[-1]
-            assert address == ("192.168.31.202", 9001)
-            assert len(raw) == 201
-            packet = UdpV3Packet.decode(
-                raw,
-                expected_node_id=2,
-                expected_outputs=expected_outputs,
-            )
-            assert packet is not None
-            assert packet.sequence == sequence
-            assert packet.media_timestamp_us == round(timestamp * 1_000_000)
-            assert packet.flags == (FLAG_KEY_FRAME if sequence == 1 else 0)
-            assert packet.apply_at_us is None
-            assert [
-                (item.output_id, item.gpio, len(item.pixels))
-                for item in packet.outputs
-            ] == [(1, 4, 10), (2, 5, 20), (3, 6, 20)]
-
-            pixels = {item.output_id: item.pixels for item in packet.outputs}
+            assert address == ("192.168.31.58", 4048)
+            assert len(raw) == DDP_HEADER_LEN + 150
+            assert raw[0] & DDP_FLAGS_PUSH
+            assert raw[2] == DDP_TYPE_RGB24
+            assert raw[4:8] == b"\x00\x00\x00\x00"
+            assert raw[8:10] == (150).to_bytes(2, "big")
+            payload = raw[DDP_HEADER_LEN:]
+            pixels = {
+                1: tuple(tuple(payload[index:index + 3]) for index in range(0, 30, 3)),
+                2: tuple(tuple(payload[index:index + 3]) for index in range(30, 90, 3)),
+                3: tuple(tuple(payload[index:index + 3]) for index in range(90, 150, 3)),
+            }
             assert pixels[1] == expected_pixels["strip_41"]
             assert pixels[2] == expected_pixels["strip_42"]
             assert pixels[3] == expected_pixels["strip_43"]
@@ -342,28 +339,22 @@ def test_node2_mapping_preserves_distinct_strip_identity_and_direction() -> None
                 for strip_id, pixels in strip_pixels.items()
             ],
         )
-        output = UdpOutputV3()
+        output = DdpOutput()
         output.open()
         output.send_frame(PhysicalMapping(layout).map(frame))
 
         datagrams = output.get_sent_datagrams()
         assert len(datagrams) == 1
-        packet = UdpV3Packet.decode(
-            datagrams[0][0],
-            expected_node_id=2,
-            expected_outputs={1: (4, 10), 2: (5, 20), 3: (6, 20)},
+        raw, address = datagrams[0]
+        assert address == ("192.168.31.58", 4048)
+        payload = raw[DDP_HEADER_LEN:]
+        expected = bytes(
+            channel
+            for strip_id in ("strip_41", "strip_42", "strip_43")
+            for pixel in strip_pixels[strip_id]
+            for channel in tuple(round(value * 255) for value in pixel)
         )
-        assert packet is not None
-        by_output = {item.output_id: item.pixels for item in packet.outputs}
-        for output_id, strip_id in (
-            (1, "strip_41"),
-            (2, "strip_42"),
-            (3, "strip_43"),
-        ):
-            assert by_output[output_id] == tuple(
-                tuple(round(channel * 255) for channel in pixel)
-                for pixel in strip_pixels[strip_id]
-            )
+        assert payload == expected
     finally:
         Config.reset()
 

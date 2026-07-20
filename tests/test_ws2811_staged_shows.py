@@ -97,23 +97,23 @@ INSTALLED_EXPECTED_STRIPS = {
     10: {1: "strip_92"},
 }
 EXPECTED_ADDRESSES = {
-    ("192.168.31.201", 9001): 1,
-    ("192.168.31.202", 9001): 2,
-    ("192.168.31.204", 9001): 4,
-    ("192.168.31.205", 9001): 5,
-    ("192.168.31.206", 9001): 6,
-    ("192.168.31.207", 9001): 7,
-    ("192.168.31.208", 9001): 8,
-    ("192.168.31.209", 9001): 9,
-    ("192.168.31.210", 9001): 10,
+    ("192.168.31.201", 4048): 1,
+    ("192.168.31.58", 4048): 2,
+    ("192.168.31.204", 4048): 4,
+    ("192.168.31.205", 4048): 5,
+    ("192.168.31.206", 4048): 6,
+    ("192.168.31.207", 4048): 7,
+    ("192.168.31.208", 4048): 8,
+    ("192.168.31.209", 4048): 9,
+    ("192.168.31.210", 4048): 10,
 }
 TWO_NODE_EXPECTED_OUTPUTS = {
     2: {1: (4, 10)},
     8: {1: (4, 20)},
 }
 TWO_NODE_EXPECTED_ADDRESSES = {
-    ("192.168.31.202", 9001): 2,
-    ("192.168.31.208", 9001): 8,
+    ("192.168.31.58", 4048): 2,
+    ("192.168.31.208", 4048): 8,
 }
 FULL_EXPECTED_ROUTES = {
     1: ("strip_11", 10),
@@ -135,8 +135,19 @@ FULL_EXPECTED_OUTPUTS = {
     for node_id, (_strip_id, pixel_count) in FULL_EXPECTED_ROUTES.items()
 }
 FULL_EXPECTED_ADDRESSES = {
-    (f"192.168.31.{200 + node_id}", 9001): node_id
-    for node_id in FULL_EXPECTED_ROUTES
+    ("192.168.31.201", 4048): 1,
+    ("192.168.31.58", 4048): 2,
+    ("192.168.31.203", 4048): 3,
+    ("192.168.31.204", 4048): 4,
+    ("192.168.31.205", 4048): 5,
+    ("192.168.31.206", 4048): 6,
+    ("192.168.31.207", 4048): 7,
+    ("192.168.31.208", 4048): 8,
+    ("192.168.31.209", 4048): 9,
+    ("192.168.31.210", 4048): 10,
+    ("192.168.31.211", 4048): 11,
+    ("192.168.31.212", 4048): 12,
+    ("192.168.31.213", 4048): 13,
 }
 
 
@@ -411,7 +422,7 @@ def test_stage1_static_emits_identical_node2_pixels_for_300_refreshes() -> None:
         assert len(datagrams) == 300
         pixel_frames = []
         for sequence, (raw, address) in enumerate(datagrams, start=1):
-            assert address == ("192.168.31.202", 9001)
+            assert address == ("192.168.31.58", 4048)
             packet = UdpV3Packet.decode(
                 raw,
                 expected_node_id=2,
@@ -550,7 +561,7 @@ def test_stage2_crossfade_survives_transform_mapping_and_node2_packet() -> None:
             )
             output.send_frame(mapping.map(transform.apply_to_frame(logical)))
             raw, address = output.get_sent_datagrams()[-1]
-            assert address == ("192.168.31.202", 9001)
+            assert address == ("192.168.31.58", 4048)
             packet = UdpV3Packet.decode(
                 raw,
                 expected_node_id=2,

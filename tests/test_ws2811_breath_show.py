@@ -52,7 +52,6 @@ def test_breath_show_is_uniform_blue_with_black_guards(
         visible_levels: set[int] = set()
 
         assert config.get("system.output_fps") == fps
-        assert config.get("outputs.udp_v3.presentation.mode") == "immediate"
         assert show.duration == 40.0
         for index in range(int(show.duration * fps) - 1):
             timestamp = (index + 1) / fps
@@ -77,7 +76,7 @@ def test_breath_show_is_uniform_blue_with_black_guards(
                 expected_node_id=2,
                 expected_outputs={1: (4, 10)},
             )
-            assert address == ("192.168.31.202", 9001)
+            assert address == ("192.168.31.58", 4048)
             assert packet is not None
             pixels = packet.outputs[0].pixels
             assert len(set(pixels)) == 1

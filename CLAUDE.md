@@ -63,7 +63,7 @@ configuration; logical IDs remain independent of node IDs, GPIO, and IP.
 | ESP32 node | Logical strip | Groups | Output | GPIO | Site IPv4 |
 |---:|---|---:|---:|---:|---|
 | 1 | `strip_11` | 10 | 1 | 4 | `192.168.31.201` |
-| 2 | `strip_41` | 10 | 1 | 4 | `192.168.31.202` |
+| 2 | `strip_41` | 10 | 1 | 4 | `192.168.31.58` |
 | 3 | `strip_44` | 20 | 1 | 4 | `192.168.31.203` |
 | 4 | `strip_12` | 40 | 1 | 4 | `192.168.31.204` |
 | 5 | `strip_22` | 40 | 1 | 4 | `192.168.31.205` |

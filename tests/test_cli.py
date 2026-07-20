@@ -34,7 +34,7 @@ def test_cabin_show_inspection_traces_all_fourteen_fixtures() -> None:
     assert strip_42["output_id"] == 1
     assert strip_42["gpio"] == 4
     assert strip_42["host"] == "192.0.2.8"
-    assert strip_42["port"] == 9001
+    assert strip_42["port"] == 4048
     assert strip_42["transport_enabled"] is True
     cob = next(region for region in regions if region["logical_id"] == "zone_32")
     assert cob["node_id"] == 17

@@ -4,6 +4,7 @@ Provides a unified LightOutput interface and concrete implementations:
 - NullOutput: discards all frames (benchmarking)
 - JsonOutput: writes frames as JSON Lines (debugging)
 - SimulatorOutput: feeds the simulator
+- DdpOutput: sends WLED-compatible DDP RGB24 realtime frames
 - UdpOutputV2: legacy continuous-payload physical-node UDP v2 frames
 - UdpOutputV3: complete multi-output physical-node UDP v3 frames (ESP32-S3)
 - SerialOutputV2: sends RS-485 v2 RGB+CCT frames (STM32)
@@ -147,6 +148,7 @@ class LightOutput(ABC):
 from light_engine.outputs.null_output import NullOutput
 from light_engine.outputs.json_output import JsonOutput
 from light_engine.outputs.simulator_output import SimulatorOutput
+from light_engine.outputs.ddp_output import DdpOutput
 from light_engine.outputs.udp_output import UdpOutputV2, UdpOutputV3
 from light_engine.outputs.serial_output import SerialOutputV2
 
@@ -166,6 +168,7 @@ def create_outputs(config: Any) -> dict[str, LightOutput]:
         "null",
         "json",
         "simulator",
+        "ddp",
         "udp_v2",
         "udp_v3",
         "rs485_v2",
@@ -196,6 +199,11 @@ def create_outputs(config: Any) -> dict[str, LightOutput]:
         )
     if "simulator" in enabled:
         outputs["simulator"] = SimulatorOutput()
+    if "ddp" in enabled:
+        outputs["ddp"] = DdpOutput(
+            mode=mode,
+            port=config.get("outputs.ddp.port", 4048),
+        )
     if "udp_v2" in enabled:
         outputs["udp_v2"] = UdpOutputV2(mode=mode)
     if "udp_v3" in enabled:

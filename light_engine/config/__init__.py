@@ -19,6 +19,7 @@ _KNOWN_OUTPUTS = {
     "null",
     "rs485_v2",
     "simulator",
+    "ddp",
     "udp_v2",
     "udp_v3",
 }
@@ -234,6 +235,11 @@ def validate_config(data: dict[str, Any]) -> None:
                 "outputs", "enabled", enabled, "unique known output names"
             )
         seen_outputs.add(output_name)
+
+    ddp = _require_mapping(outputs.get("ddp"), "outputs.ddp", "ddp")
+    ddp_port = _require_int(ddp.get("port"), "outputs.ddp", "port", 1)
+    if ddp_port > 65535:
+        raise ConfigError("outputs.ddp", "port", ddp_port, "integer in [1, 65535]")
 
     udp_v3 = _require_mapping(
         outputs.get("udp_v3"), "outputs.udp_v3", "udp_v3"
@@ -453,15 +459,16 @@ def validate_config(data: dict[str, Any]) -> None:
                 None,
                 "explicit topology v3 production policy",
             )
-        if "udp_v3" not in seen_outputs:
+        if not ({"ddp", "udp_v3"} & seen_outputs):
             raise ConfigError(
                 "outputs",
                 "enabled",
                 enabled,
-                "udp_v3 enabled for topology v3 production",
+                "ddp or udp_v3 enabled for topology v3 production",
             )
         if (
-            digital_output_policy == "one_output_gpio4"
+            "udp_v3" in seen_outputs
+            and digital_output_policy == "one_output_gpio4"
             and udp_presentation_mode != "scheduled"
         ):
             raise ConfigError(
@@ -586,9 +593,9 @@ def validate_config(data: dict[str, Any]) -> None:
 
     if topology_version == 3:
         if any(version != 3 for version in digital_node_versions.values()):
-            raise ConfigError("layout.digital_nodes", "protocol_version", 2, "UDP v3 for every cabin digital node")
+            raise ConfigError("layout.digital_nodes", "protocol_version", 2, "WLED/DDP-compatible topology v3 node metadata")
         if digital_segments:
-            raise ConfigError("layout", "digital_segments", digital_segments, "empty for UDP v3 topology")
+            raise ConfigError("layout", "digital_segments", digital_segments, "empty for topology v3 independent-output mapping")
         if not digital_outputs:
             raise ConfigError("layout", "digital_outputs", digital_outputs, "non-empty complete output mapping")
         seen_strips: set[str] = set()
