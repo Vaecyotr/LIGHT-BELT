@@ -1,0 +1,43 @@
+# Demo: two 20-pixel physical outputs displayed as one 40-pixel path.
+# Forward wipe crosses pixel 19 -> 20, the boundary between WLED outputs.
+schema_version: 2
+
+show:
+  id: "wled-two-output-20-20-as-one-demo"
+  duration: 18.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: "replace"
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+
+  virtual_paths:
+    - id: "two_outputs_as_one_40px"
+      origin: "start"
+      targets:
+        - {type: "digital_strip", id: "strip_left"}
+        - {type: "digital_strip", id: "strip_right"}
+
+  cues:
+    - id: "forward_wipe_cross_output_boundary"
+      start: 0.0
+      end: 8.5
+      target: {type: "virtual_path", id: "two_outputs_as_one_40px"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "color_wipe"
+        params: {speed: 6.0}
+      color: {mode: "solid", color: [0.0, 1.0, 0.20]}
+
+    - id: "reverse_wipe_cross_output_boundary"
+      start: 9.0
+      end: 17.5
+      target: {type: "virtual_path", id: "two_outputs_as_one_40px"}
+      origin: "end"
+      effect:
+        mode: "fixed"
+        id: "color_wipe"
+        params: {speed: 6.0}
+      color: {mode: "solid", color: [1.0, 0.35, 0.0]}

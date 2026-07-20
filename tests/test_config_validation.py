@@ -10,7 +10,7 @@ import pytest
 
 from light_engine.config import Config, ConfigError, validate_config
 from light_engine.outputs import create_outputs
-from light_engine.outputs.udp_output import UdpOutputV3
+from light_engine.outputs.ddp_output import DdpOutput
 
 
 def _default_data() -> dict:
@@ -89,6 +89,7 @@ def test_topology_v3_production_requires_explicit_output_policy() -> None:
 
 def test_one_output_gpio4_production_requires_scheduled_presentation() -> None:
     data = deepcopy(_cabin_v3_data())
+    data["outputs"]["enabled"] = list(data["outputs"]["enabled"]) + ["udp_v3"]
     data["outputs"]["udp_v3"]["presentation"] = {"mode": "immediate"}
 
     with pytest.raises(ConfigError) as exc_info:
@@ -153,16 +154,13 @@ def test_create_outputs_wires_production_schedule_from_profile() -> None:
     config = Config(Path("config/profiles/cabin-lighting-v3-site-local.yaml"))
 
     outputs = create_outputs(config)
-    udp = outputs["udp_v3"]
+    ddp = outputs["ddp"]
 
-    assert isinstance(udp, UdpOutputV3)
-    capabilities = udp.capabilities()
-    assert capabilities["scheduled_apply_enabled"] is True
-    assert capabilities["schedule_lead_us"] == 20_000
-    assert capabilities["session_start_repeats"] == 3
-    assert capabilities["session_start_spacing_us"] == 2_000
-    assert capabilities["clock_beacon_interval_us"] == 500_000
-    assert capabilities["clock_beacon_targets"] == 13
+    assert isinstance(ddp, DdpOutput)
+    capabilities = ddp.capabilities()
+    assert capabilities["supports_digital"] is True
+    assert capabilities["protocol"] == "DDP RGB24 realtime"
+    assert capabilities["port"] == 4048
 
 
 @pytest.mark.parametrize(

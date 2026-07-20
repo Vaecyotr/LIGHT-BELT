@@ -382,12 +382,13 @@ def cmd_validate_show(args: argparse.Namespace) -> int:
     return 0
 
 
-def _configured_outputs(config: Config) -> tuple[bool, bool]:
-    """Return explicitly enabled UDP v3 and RS-485 v2 transport states."""
+def _configured_outputs(config: Config) -> tuple[bool, bool, bool]:
+    """Return explicitly enabled DDP, UDP v3, and RS-485 v2 transport states."""
     enabled = set(config.get("outputs.enabled", []))
+    ddp_enabled = "ddp" in enabled and config.get("outputs.ddp.enabled", True) is not False
     udp_enabled = "udp_v3" in enabled and config.get("outputs.udp_v3.enabled", False) is True
     rs485_enabled = "rs485_v2" in enabled and config.get("outputs.rs485_v2.enabled", True) is not False
-    return udp_enabled, rs485_enabled
+    return ddp_enabled, udp_enabled, rs485_enabled
 
 
 def _digital_inspection_row(layout: Layout, strip_id: str, *, source_start: int, pixel_count: int, direction: str) -> dict:
@@ -445,7 +446,7 @@ def build_topology_inspection(config: Config, show_path: str | None = None) -> d
     constructed.
     """
     layout = Layout.from_config(config)
-    udp_enabled, rs485_enabled = _configured_outputs(config)
+    ddp_enabled, udp_enabled, rs485_enabled = _configured_outputs(config)
     virtual_paths: list[dict] = []
 
     if show_path:
@@ -459,7 +460,7 @@ def build_topology_inspection(config: Config, show_path: str | None = None) -> d
                         pixel_count=layout.get_strip(target.id).pixel_count,  # type: ignore[union-attr]
                         direction=layout.get_strip(target.id).direction,  # type: ignore[union-attr]
                     )
-                    region["transport_enabled"] = udp_enabled
+                    region["transport_enabled"] = ddp_enabled or udp_enabled
                 elif target.kind == "analog_zone" and target.id is not None:
                     region = _analog_inspection_row(layout, config, target.id)
                     region["transport_enabled"] = rs485_enabled
@@ -485,7 +486,7 @@ def build_topology_inspection(config: Config, show_path: str | None = None) -> d
                     direction=segment.direction,
                 )
                 region["region_index"] = index
-                region["transport_enabled"] = udp_enabled
+                region["transport_enabled"] = ddp_enabled or udp_enabled
                 regions.append(region)
             virtual_paths.append({
                 "id": path.id,
@@ -505,6 +506,7 @@ def build_topology_inspection(config: Config, show_path: str | None = None) -> d
         "source": source,
         "output_mode": config.get("outputs.mode"),
         "transports": {
+            "ddp_enabled": ddp_enabled,
             "udp_v3_enabled": udp_enabled,
             "rs485_v2_enabled": rs485_enabled,
         },

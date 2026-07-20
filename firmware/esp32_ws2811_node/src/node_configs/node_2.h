@@ -2,7 +2,7 @@
 #define LIGHT_BELT_ESP32_NODE_2_H
 
 #define NODE_ID 2
-#define NODE_IPV4_D 202
+#define NODE_IPV4_D 58
 #if defined(LIGHT_BELT_NODE2_GPIO4_STRIP42_DIAGNOSTIC) && \
     defined(LIGHT_BELT_NODE2_LEGACY_MULTI_OUTPUT)
 #error "strip 42 isolation and legacy multi-output modes are mutually exclusive"

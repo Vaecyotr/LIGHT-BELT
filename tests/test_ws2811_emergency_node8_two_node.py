@@ -58,7 +58,7 @@ CASES = (
         nodes=(
             NodeSpec(
                 node_id=2,
-                host="192.168.31.202",
+                host="192.168.31.58",
                 pixel_count=10,
                 active_windows=(),
             ),
@@ -77,7 +77,7 @@ CASES = (
         nodes=(
             NodeSpec(
                 node_id=2,
-                host="192.168.31.202",
+                host="192.168.31.58",
                 pixel_count=10,
                 active_windows=((5.0, 45.0),),
             ),
@@ -115,7 +115,7 @@ CASES = (
         nodes=(
             NodeSpec(
                 node_id=2,
-                host="192.168.31.202",
+                host="192.168.31.58",
                 pixel_count=10,
                 active_windows=((5.0, 35.0), (75.0, 105.0)),
             ),
@@ -143,7 +143,7 @@ CASES = (
         nodes=(
             NodeSpec(
                 node_id=2,
-                host="192.168.31.202",
+                host="192.168.31.58",
                 pixel_count=10,
                 active_windows=((5.0, 10.0), (25.0, 30.0)),
                 fill_color=GREEN20,
@@ -252,7 +252,7 @@ def test_emergency_profiles_emit_exact_per_node_udp_packets(case: Case) -> None:
         assert len(datagrams) == logical_frames * packets_per_frame
 
         specs_by_address = {
-            (spec.host, 9001): spec
+            (spec.host, 4048): spec
             for spec in case.nodes
         }
         for logical_index in range(logical_frames):

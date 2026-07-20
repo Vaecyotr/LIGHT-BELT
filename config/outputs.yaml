@@ -37,8 +37,13 @@ outputs:
   null:
     enabled: false
 
-  # UDP v2 is retained only for legacy regression/codec work.  New cabin
-  # production topology uses udp_v3: one complete multi-output node frame.
+  # DDP is the WLED-compatible realtime RGB24 transport.
+  ddp:
+    enabled: false
+    port: 4048
+
+  # UDP v2/v3 are retained for custom ESP32 firmware regression/codec work.
+  # WLED receivers should use DDP instead.
   udp_v2:
     enabled: false
     protocol_version: 2

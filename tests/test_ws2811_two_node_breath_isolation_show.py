@@ -15,7 +15,8 @@ PROFILE = Path("config/profiles/ws2811-ab-two-node-41-42-immediate-15fps.yaml")
 SHOW = Path("config/shows/ws2811-ab-two-node-blue-breath-isolation-74s.yaml")
 FPS = 15.0
 BLACK = (0, 0, 0)
-NODE_SPECS = {2: ("192.168.31.202", 10), 8: ("192.168.31.208", 20)}
+NODE_SPECS = {2: ("192.168.31.58", 10), 8: ("192.168.31.208", 20)}
+_HOST_TO_NODE = {host: node_id for node_id, (host, _) in NODE_SPECS.items()}
 
 
 def _active(node_id: int, timestamp: float) -> bool:
@@ -56,9 +57,9 @@ def test_short_breath_isolation_packets_match_each_stage() -> None:
             output.send_frame(mapping.map(transform.apply_to_frame(logical)))
             pixels_by_node = {}
             for raw, address in output.get_sent_datagrams()[-2:]:
-                node_id = 2 if address[0].endswith(".202") else 8
+                node_id = _HOST_TO_NODE[address[0]]
                 host, pixel_count = NODE_SPECS[node_id]
-                assert address == (host, 9001)
+                assert address == (host, 4048)
                 packet = UdpV3Packet.decode(
                     raw,
                     expected_node_id=node_id,
@@ -88,7 +89,7 @@ def test_short_breath_isolation_packets_match_each_stage() -> None:
         )
         output.send_frame(mapping.map(safe))
         for raw, address in output.get_sent_datagrams()[-2:]:
-            node_id = 2 if address[0].endswith(".202") else 8
+            node_id = _HOST_TO_NODE[address[0]]
             _, pixel_count = NODE_SPECS[node_id]
             packet = UdpV3Packet.decode(
                 raw,

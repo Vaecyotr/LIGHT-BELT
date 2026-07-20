@@ -124,7 +124,7 @@ def test_gate1m_renders_600_exact_frames_then_one_safe_frame() -> None:
     for index, (raw, address) in enumerate(datagrams[:RENDER_FRAMES]):
         packet = _decode(raw)
         timestamp = (index + 1) / FPS
-        assert address == ("192.168.31.202", 9001)
+        assert address == ("192.168.31.58", 4048)
         assert packet.sequence == index + 1
         assert packet.outputs[0].pixels == _expected_payload(timestamp)
         assert packet.outputs[0].pixels[0] == BLACK
@@ -157,7 +157,7 @@ def test_two_independent_gate1m_sessions_emit_identical_exact_payloads() -> None
         first_packet = _decode(first_raw)
         second_packet = _decode(second_raw)
 
-        assert first_address == second_address == ("192.168.31.202", 9001)
+        assert first_address == second_address == ("192.168.31.58", 4048)
         assert first_raw == second_raw
         assert first_packet.outputs[0].pixels == second_packet.outputs[0].pixels
         first_payloads.append(first_packet.outputs[0].pixels)

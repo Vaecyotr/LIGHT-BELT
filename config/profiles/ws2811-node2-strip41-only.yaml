@@ -3,10 +3,13 @@
 
 outputs:
   mode: "production"
-  enabled: ["udp_v3"]
+  enabled: ["ddp"]
   exit_safe_state: true
-  udp_v3:
+  ddp:
     enabled: true
+    port: 4048
+  udp_v3:
+    enabled: false
     protocol_version: 3
     presentation:
       mode: "scheduled"
@@ -15,7 +18,7 @@ outputs:
       session_start_spacing_us: 2000
       beacon:
         host: "192.168.31.255"
-        port: 9001
+        port: 4048
         interval_us: 500000
         startup_count: 16
         startup_spacing_us: 100000
@@ -50,7 +53,7 @@ layout:
   strips:
     - {id: "strip_41", type: digital, pixel_count: 10, video_zone: right, direction: forward}
   digital_nodes:
-    - {node_id: 2, host: "192.168.31.202", port: 9001, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 2, host: "192.168.31.58", port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
   digital_segments: []
   digital_outputs:
     - {node_id: 2, output_id: 1, gpio: 4, strip_id: "strip_41", pixel_count: 10, direction: forward}
