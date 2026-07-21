@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends
 from ..schemas import AudioSetRequest
 from ..deps import require_auth
-from ..response import ok, invalid_argument
+from ..response import ok, error
 from .. import engine_adapter
 
 router = APIRouter(prefix="/api/v1", tags=["Audio"],
@@ -19,5 +19,5 @@ async def audio_set(body: AudioSetRequest, request: Request):
         body.volume, body.muted, body.transition_ms or 0,
     )
     if err:
-        return invalid_argument(request, "volume or muted required")
+        return error(request, err, err, 400)
     return ok(request, data)

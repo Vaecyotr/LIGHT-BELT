@@ -258,19 +258,32 @@ def _playback_data() -> dict:
     }
 
 
+def _wait_for_socket(path: str, timeout: float = 5.0, interval: float = 0.05) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if os.path.exists(path):
+            return True
+        time.sleep(interval)
+    return False
+
+
 def _ensure_mpv() -> MpvClient:
     global _mpv, _mpv_proc
     from .config import MPV_SOCKET_PATH
     sock = MPV_SOCKET_PATH
     if not os.path.exists(sock):
         os.makedirs(os.path.dirname(sock), exist_ok=True)
+        env = dict(os.environ)
+        if "DISPLAY" not in env:
+            env.pop("DISPLAY", None)
         _mpv_proc = subprocess.Popen(
             ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
              "--no-terminal"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            env={**os.environ,"DISPLAY":":0"}
+            env=env,
         )
-        time.sleep(1)
+        if not _wait_for_socket(sock):
+            _log.warning("mpv socket %s did not appear within timeout", sock)
     if _mpv is None:
         _mpv = MpvClient(sock)
     return _mpv
@@ -285,7 +298,12 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     mpv = _ensure_mpv()
     mpv.play_file(show["media_path"])
     if start_ms and start_ms > 0:
-        time.sleep(0.5)
+        # Poll until mpv reports a non-zero duration (file loaded), then seek.
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if mpv.get_duration() > 0:
+                break
+            time.sleep(0.05)
         mpv.seek(start_ms / 1000)
     _state["playback_state"] = "playing"
     _state["show_id"] = show_id

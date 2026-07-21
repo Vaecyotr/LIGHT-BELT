@@ -31,7 +31,8 @@ TLS_CERTFILE = "/etc/light-belt/cert.pem"
 TLS_KEYFILE = "/etc/light-belt/key.pem"
 
 # ── mpv IPC（生产环境用） ──
-MPV_SOCKET_PATH = "/tmp/mpv.sock"
+# 生产路径；本地测试可改为 "/tmp/mpv.sock"
+MPV_SOCKET_PATH = "/run/light-belt/mpv.sock"
 
 # ── 版本信息 ──
 SERVICE_NAME = "light-belt-host"
