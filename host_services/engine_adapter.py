@@ -25,6 +25,10 @@ from .schemas import VALID_EFFECT_TYPES
 _log = logging.getLogger(__name__)
 
 
+class MpvUnavailableError(RuntimeError):
+    """Raised when mpv cannot be started or its socket directory cannot be created."""
+
+
 # ══════════════════════════════════════════════
 # Layout vocabulary (derived at import time)
 # ══════════════════════════════════════════════
@@ -367,15 +371,31 @@ def _ensure_mpv() -> MpvClient:
         # Probe succeeded — mpv is alive; skip restart.
 
     if not os.path.exists(sock):
-        os.makedirs(os.path.dirname(sock), exist_ok=True)
+        try:
+            os.makedirs(os.path.dirname(sock), exist_ok=True)
+        except Exception as exc:
+            _log.error(
+                "mpv: cannot create socket directory %s: %s — "
+                "ensure /run/light-belt exists or set RuntimeDirectory=light-belt in the systemd unit",
+                os.path.dirname(sock), exc,
+            )
+            raise MpvUnavailableError(f"Cannot create mpv socket directory: {exc}") from exc
         env = os.environ.copy()
         env.setdefault("DISPLAY", MPV_DISPLAY)
-        _mpv_proc = subprocess.Popen(
-            ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
-             "--no-terminal"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-            env=env,
-        )
+        try:
+            _mpv_proc = subprocess.Popen(
+                ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
+                 "--no-terminal"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                env=env,
+            )
+        except Exception as exc:
+            _log.error(
+                "mpv: failed to start mpv subprocess: %s — "
+                "check that mpv is installed and the socket path %s is writable",
+                exc, sock,
+            )
+            raise MpvUnavailableError(f"Cannot start mpv: {exc}") from exc
         _drain_stderr(_mpv_proc, "mpv")
         if not _wait_until(lambda: os.path.exists(sock)):
             _log.warning("mpv IPC socket %s not ready after timeout", sock)
@@ -392,7 +412,10 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     if start_ms is not None and start_ms > show["duration_ms"]:
         return None, "INVALID_ARGUMENT"
     if show.get("media_path"):
-        mpv = _ensure_mpv()
+        try:
+            mpv = _ensure_mpv()
+        except MpvUnavailableError:
+            return None, "MPV_UNAVAILABLE"
         mpv.play_file(show["media_path"])
         if start_ms and start_ms > 0:
             if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):

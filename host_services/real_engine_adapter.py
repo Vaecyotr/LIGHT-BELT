@@ -21,6 +21,7 @@ import logging
 import os
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -30,6 +31,14 @@ from typing import Any
 import yaml
 
 _log = logging.getLogger(__name__)
+
+
+def _drain_stderr(proc: subprocess.Popen, label: str) -> None:
+    """Read proc.stderr line-by-line in a daemon thread and log each line as a warning."""
+    def _reader():
+        for raw in proc.stderr:
+            _log.warning("[%s] %s", label, raw.decode(errors="replace").rstrip())
+    threading.Thread(target=_reader, daemon=True, name=f"stderr-{label}").start()
 
 
 def _kill_proc(proc: subprocess.Popen | None, name: str = "engine") -> None:
@@ -54,7 +63,7 @@ class RealEngineAdapter:
         self,
         profile_path: str,
         mpv_socket_path: str,
-        python_executable: str = "python",
+        python_executable: str = sys.executable,
         strip_ids: frozenset[str] | set[str] | None = None,
     ) -> None:
         self._profile = profile_path
@@ -97,8 +106,15 @@ class RealEngineAdapter:
 
         _log.info("real adapter: starting playback engine: %s", " ".join(cmd))
         self._playback_proc = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
         )
+        _drain_stderr(self._playback_proc, "playback-engine")
+        time.sleep(0.3)
+        if self._playback_proc.poll() is not None:
+            _log.error(
+                "real adapter: playback engine exited immediately (exit code %s)",
+                self._playback_proc.returncode,
+            )
 
         # Start aux_triggers polling thread.
         aux_triggers = show.get("aux_triggers") or []
@@ -136,14 +152,27 @@ class RealEngineAdapter:
         ]
         _log.info("real adapter: starting manual engine: %s", " ".join(cmd))
         self._manual_proc = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
         )
+        _drain_stderr(self._manual_proc, "manual-engine")
+        time.sleep(0.3)
+        if self._manual_proc.poll() is not None:
+            _log.error(
+                "real adapter: manual engine exited immediately (exit code %s)",
+                self._manual_proc.returncode,
+            )
 
     def _build_manual_show(self, target_states: list[dict]) -> str | None:
         """Write a schema_version 2 show YAML for infinite static cues and return path."""
         cues = []
         for i, ts in enumerate(target_states):
             tid = ts.get("target_id", "")
+            if self._strip_ids and tid not in self._strip_ids:
+                _log.warning(
+                    "real adapter: skipping manual cue for target %r (not in known strip IDs)",
+                    tid,
+                )
+                continue
             effect_type = ts.get("effect_type", "static")
             color = ts.get("color", [1.0, 1.0, 1.0])
             cues.append({

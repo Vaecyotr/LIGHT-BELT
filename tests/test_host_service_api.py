@@ -519,3 +519,48 @@ def test_playback_play_no_media(client, auth_headers, monkeypatch):
     )
     assert r.status_code == 200
     assert r.json()["data"]["playback_state"] == "playing"
+
+
+# ── Round-3 fixes ─────────────────────────────────────────────────────────────
+
+def test_global_exception_handler_returns_structured_error(monkeypatch):
+    """Problem 2: unhandled exceptions must return ok=false JSON (not bare 500)."""
+    def _boom(*_a, **_kw):
+        raise RuntimeError("simulated crash")
+    monkeypatch.setattr(engine_adapter, "get_state", _boom)
+
+    # raise_server_exceptions=False lets the FastAPI exception handler respond
+    # instead of propagating the exception to the test process.
+    with TestClient(app, raise_server_exceptions=False) as c:
+        # Acquire a token via pairing so we have valid auth headers.
+        pair = c.post("/api/v1/auth/pair", json=_PAIR_BODY)
+        token = pair.json()["data"]["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        r = c.get("/api/v1/state", headers=headers)
+
+    assert r.status_code == 500
+    body = r.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "INTERNAL"
+    assert "RuntimeError" in body["error"]["message"]
+    assert "request_id" in body
+
+
+def test_playback_play_mpv_unavailable_returns_503(client, auth_headers, monkeypatch):
+    """Problem 3: MpvUnavailableError must surface as 503 MPV_UNAVAILABLE."""
+    from host_services.engine_adapter import MpvUnavailableError
+
+    def _raise(*_a, **_kw):
+        raise MpvUnavailableError("mpv not found")
+    monkeypatch.setattr(engine_adapter, "_ensure_mpv", _raise)
+
+    r = client.post(
+        "/api/v1/playback/play",
+        json={"show_id": "test-show"},
+        headers=auth_headers,
+    )
+
+    assert r.status_code == 503
+    body = r.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "MPV_UNAVAILABLE"

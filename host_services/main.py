@@ -11,11 +11,28 @@ LIGHT-BELT Host Service 入口。
   WebSocket: ws://localhost:8443/ws?ticket=<ticket>
 """
 
+import logging
+
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from .config import HOST, PORT, ENABLE_TLS, TLS_CERTFILE, TLS_KEYFILE
 
+_log = logging.getLogger(__name__)
+
 app = FastAPI(title="LIGHT-BELT Host Service", version="1.0")
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    _log.exception("Unhandled exception in %s %s", request.method, request.url.path)
+    from .response import error as _error
+    return _error(
+        request,
+        code="INTERNAL",
+        message=f"{type(exc).__name__}: {exc}",
+        status_code=500,
+    )
 
 # ── 注册路由，相当于 @ComponentScan ──
 from .routers import status, auth, state, shows, capabilities
