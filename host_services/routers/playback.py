@@ -16,6 +16,11 @@ async def play(body: PlayRequest, request: Request):
             code = 404
         elif err == "INVALID_ARGUMENT":
             code = 400
+        elif err == "MPV_UNAVAILABLE":
+            return error(request, err,
+                         "mpv is not available; check that mpv is installed and "
+                         "/run/light-belt exists (or RuntimeDirectory=light-belt in the systemd unit)",
+                         503)
         else:
             code = 409
         return error(request, err, f"Playback play failed: {err}", code)
