@@ -69,7 +69,7 @@ desktop.ini
 # Snapshot subdirectories from other workstations
 LIGHT-BELT-codex-one-esp-per-strip/
 
-# Large local media fixtures
+# Large local media fixtures (tracked in assets/ subdirs, not committed)
 *.mp4
 *.mkv
 *.avi
@@ -77,5 +77,11 @@ LIGHT-BELT-codex-one-esp-per-strip/
 *.flac
 *.wav
 *.mp3
-assets/*
-!assets/README.md
+# Ignore media inside assets/ subdirs but keep yaml, README, and other text files
+assets/**/*.mp4
+assets/**/*.mkv
+assets/**/*.avi
+assets/**/*.mov
+assets/**/*.flac
+assets/**/*.wav
+assets/**/*.mp3
