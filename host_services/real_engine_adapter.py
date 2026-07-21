@@ -144,6 +144,9 @@ class RealEngineAdapter:
         cues = []
         for i, ts in enumerate(target_states):
             tid = ts.get("target_id", "")
+            if tid == "all":
+                # engine_adapter expands "all" before calling here; skip defensively.
+                continue
             effect_type = ts.get("effect_type", "static")
             color = ts.get("color", [1.0, 1.0, 1.0])
             cues.append({
