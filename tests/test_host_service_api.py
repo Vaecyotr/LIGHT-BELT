@@ -454,6 +454,7 @@ def test_ensure_mpv_stale_socket(monkeypatch):
     mock_proc.stderr = iter([])
     mock_popen = MagicMock(return_value=mock_proc)
 
+    monkeypatch.setattr(engine_adapter.socket, "AF_UNIX", 1, raising=False)
     monkeypatch.setattr(engine_adapter, "_mpv", None)
     monkeypatch.setattr(engine_adapter, "_mpv_proc", None)
     monkeypatch.setattr(engine_adapter.os.path, "exists", mock_exists)
