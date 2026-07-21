@@ -1366,19 +1366,31 @@ data 字段解释：
 ### target_id
 
 这些值是 Host Service 暴露给 APP 的逻辑目标，不是文件路径，也不是硬件节点地址。
+**实际可用的 `target_id` 列表由引擎配置文件（`ENGINE_PROFILE_PATH`）中的布局在启动时动态生成，
+通过 `GET /capabilities` 的 `targets` 数组获取。** 固定项如下：
 
 | 值 | 说明 |
 |---|---|
-| `all` | 全部区域。 |
-| `ceiling_left` | 左侧顶部区域。 |
-| `ceiling_right` | 右侧顶部区域。 |
-| `wall_left` | 左墙区域。 |
-| `wall_right` | 右墙区域。 |
-| `front` | 前方区域。 |
-| `rear` | 后方区域。 |
-| `screen` | 屏幕区域。 |
-| `screen_surround` | 屏幕环绕区域。 |
-| `virtual_path.screen_to_wall` | 屏幕到墙面的连续路径。 |
+| `all` | 全部数字灯带（广播目标）。 |
+| `strip_<label>` | 单条数字灯带，label 为物理标签，例如 `strip_11`、`strip_22`。具体列表从布局文件派生。 |
+| `starry_sky` | 星空灯（UDP 拨动设备，192.168.31.205:3333）。独立目标，不属于数字灯带。 |
+
+`starry_sky` 支持的 `effect_type`：
+
+| `effect_type` | 说明 |
+|---|---|
+| `twinkle` | 开启星空灯（闪烁效果）。 |
+| 其他值 | 关闭星空灯。 |
+
+`starry_sky` 的 `GET /capabilities` 响应格式：
+
+```json
+{
+  "target_id": "starry_sky",
+  "name": "starry_sky",
+  "supported_effects": ["twinkle"]
+}
+```
 
 ### effect_type
 
