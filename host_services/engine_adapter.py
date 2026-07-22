@@ -148,9 +148,6 @@ def _load_shows() -> list[dict]:
     from . import shows_loader
     return shows_loader.load_shows()
 
-
-_shows: list[dict] = _load_shows()
-
 _scenes: dict[str, dict] = {}  # 启动时由下方 _scenes.update(_load_scenes()) 从 SCENE_FILE_PATH 恢复
 
 
@@ -245,9 +242,8 @@ def get_state() -> dict:
 def get_shows() -> list[dict]:
     return [
         {k: v for k, v in s.items() if k not in _SHOW_INTERNAL_FIELDS}
-        for s in _shows
+        for s in _load_shows()
     ]
-
 
 # ══════════════════════════════════════════════
 # Capabilities
@@ -308,7 +304,7 @@ _mpv_proc: subprocess.Popen | None = None
 
 
 def _find_show(show_id: str) -> dict | None:
-    for s in _shows:
+    for s in _load_shows():
         if s["show_id"] == show_id:
             return s
     return None
