@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import logging
 import socket
+import os
 
 _log = logging.getLogger(__name__)
 
-HOST = "192.168.31.205"
-PORT = 3333
+HOST = os.environ.get("STARRY_SKY_HOST", "192.168.31.205")
+PORT = int(os.environ.get("STARRY_SKY_PORT", "3333"))
 _UDP_TIMEOUT = 1.0
 
 _assumed_on: bool = False
