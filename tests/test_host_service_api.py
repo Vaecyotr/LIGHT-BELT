@@ -27,6 +27,7 @@ def reset_engine_state(monkeypatch):
     ])
     monkeypatch.setattr(engine_adapter, "_scenes", {})
     monkeypatch.setattr(engine_adapter, "_save_scenes", lambda: None)
+    monkeypatch.setattr(engine_adapter, "_manual_targets", {})
     monkeypatch.setitem(engine_adapter._state, "playback_state", "idle")
     monkeypatch.setitem(engine_adapter._state, "show_id", None)
     monkeypatch.setitem(engine_adapter._state, "position_ms", 0)
@@ -408,3 +409,262 @@ def test_scene_apply_all_entry_updates_master_state(client, auth_headers):
 
     after = client.get("/api/v1/state", headers=auth_headers).json()["data"]["brightness"]
     assert after == pytest.approx(0.33)
+
+
+# ── Round-2 fixes ─────────────────────────────────────────────────────────────
+
+def test_lights_set_color_only(client, auth_headers):
+    """lights/set with only color (no brightness/CT) must return 200."""
+    r = client.post(
+        "/api/v1/lights/set",
+        json={"target_id": "all", "color": {"r": 255, "g": 0, "b": 128}},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["color"] == {"r": 255, "g": 0, "b": 128}
+
+
+def test_playback_play_clears_scene_id(client, auth_headers, monkeypatch):
+    """Starting playback must clear scene_id in state."""
+    monkeypatch.setitem(engine_adapter._state, "scene_id", "some-scene")
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_ensure_mpv", lambda: mock_mpv)
+
+    r = client.post("/api/v1/playback/play", json={"show_id": "test-show"}, headers=auth_headers)
+    assert r.status_code == 200
+    assert engine_adapter._state["scene_id"] is None
+
+
+def test_ensure_mpv_stale_socket(monkeypatch):
+    """_ensure_mpv must detect a stale socket, remove it, and restart mpv."""
+    exists_calls = []
+
+    def mock_exists(p):
+        # First call: socket appears to exist (stale).
+        # Subsequent calls: socket is gone (after unlink) → triggers mpv start.
+        exists_calls.append(p)
+        return len(exists_calls) == 1
+
+    unlinked = []
+    mock_probe = MagicMock()
+    mock_probe.connect.side_effect = ConnectionRefusedError("stale")
+
+    mock_proc = MagicMock()
+    mock_proc.stderr = iter([])
+    mock_popen = MagicMock(return_value=mock_proc)
+
+    monkeypatch.setattr(engine_adapter.socket, "AF_UNIX", 1, raising=False)
+    monkeypatch.setattr(engine_adapter, "_mpv", None)
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", None)
+    monkeypatch.setattr(engine_adapter.os.path, "exists", mock_exists)
+    monkeypatch.setattr(engine_adapter.os, "makedirs", MagicMock())
+    monkeypatch.setattr(engine_adapter.os, "unlink", lambda p: unlinked.append(p))
+    monkeypatch.setattr(engine_adapter.socket, "socket", MagicMock(return_value=mock_probe))
+    monkeypatch.setattr(engine_adapter.subprocess, "Popen", mock_popen)
+    monkeypatch.setattr(engine_adapter, "_wait_until", lambda *a, **kw: True)
+
+    result = engine_adapter._ensure_mpv()
+
+    assert result is not None
+    assert len(unlinked) == 1           # stale socket was removed
+    assert mock_popen.called            # mpv was relaunched
+
+
+# ── New: color params passed through (problems 1 & 2) ────────────────────────
+
+def test_effects_set_with_color(client, auth_headers):
+    r = client.post(
+        "/api/v1/effects/set",
+        json={
+            "target_id": "all",
+            "effect_type": "static",
+            "params": {"color": {"r": 255, "g": 128, "b": 0}},
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["effect_type"] == "static"
+    assert data["params"]["color"] == {"r": 255, "g": 128, "b": 0}
+
+
+def test_lights_set_with_color(client, auth_headers):
+    r = client.post(
+        "/api/v1/lights/set",
+        json={
+            "target_id": "all",
+            "brightness": 0.8,
+            "color": {"r": 100, "g": 200, "b": 50},
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["brightness"] == pytest.approx(0.8)
+    assert data["color"] == {"r": 100, "g": 200, "b": 50}
+
+
+def test_playback_play_no_media(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(engine_adapter, "_shows", [{
+        "show_id": "no-media-show",
+        "name": "No Media Show",
+        "duration_ms": 30000,
+        "description": None,
+        "media_path": None,
+    }])
+    r = client.post(
+        "/api/v1/playback/play",
+        json={"show_id": "no-media-show"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["data"]["playback_state"] == "playing"
+
+
+# ── Round-3 fixes ─────────────────────────────────────────────────────────────
+
+def test_global_exception_handler_returns_structured_error(monkeypatch):
+    """Problem 2: unhandled exceptions must return ok=false JSON (not bare 500)."""
+    def _boom(*_a, **_kw):
+        raise RuntimeError("simulated crash")
+    monkeypatch.setattr(engine_adapter, "get_state", _boom)
+
+    # raise_server_exceptions=False lets the FastAPI exception handler respond
+    # instead of propagating the exception to the test process.
+    with TestClient(app, raise_server_exceptions=False) as c:
+        # Acquire a token via pairing so we have valid auth headers.
+        pair = c.post("/api/v1/auth/pair", json=_PAIR_BODY)
+        token = pair.json()["data"]["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        r = c.get("/api/v1/state", headers=headers)
+
+    assert r.status_code == 500
+    body = r.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "INTERNAL_ERROR"
+    assert "RuntimeError" in body["error"]["message"]
+    assert "request_id" in body
+
+
+def test_playback_play_mpv_unavailable_returns_503(client, auth_headers, monkeypatch):
+    """Problem 3: MpvUnavailableError must surface as 503 MPV_UNAVAILABLE."""
+    from host_services.engine_adapter import MpvUnavailableError
+
+    def _raise(*_a, **_kw):
+        raise MpvUnavailableError("mpv not found")
+    monkeypatch.setattr(engine_adapter, "_ensure_mpv", _raise)
+
+    r = client.post(
+        "/api/v1/playback/play",
+        json={"show_id": "test-show"},
+        headers=auth_headers,
+    )
+
+    assert r.status_code == 503
+    body = r.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "MPV_UNAVAILABLE"
+
+
+# ── Fix 1: Pydantic 422 → project envelope 400 ───────────────────────────────
+
+def test_validation_error_missing_field_returns_envelope(client):
+    """Missing required field must return ok=false INVALID_ARGUMENT at 400, not 422."""
+    r = client.post("/api/v1/auth/pair", json={"pairing_code": "123456"})
+    assert r.status_code == 400
+    body = r.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "INVALID_ARGUMENT"
+    assert "validation_errors" in body["error"].get("details", {})
+
+
+def test_validation_error_wrong_type_returns_envelope(client, auth_headers):
+    """Wrong field type (brightness='abc') must return INVALID_ARGUMENT envelope at 400."""
+    r = client.post(
+        "/api/v1/lights/set",
+        json={"target_id": "all", "brightness": "abc"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 400
+    body = r.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "INVALID_ARGUMENT"
+
+
+def test_validation_error_no_content_type_returns_envelope(client, auth_headers):
+    """POST with body but no Content-Type must return INVALID_ARGUMENT envelope at 400."""
+    r = client.post(
+        "/api/v1/lights/set",
+        content=b'{"target_id": "all", "brightness": 0.5}',
+        headers={**auth_headers, "Content-Type": "text/plain"},
+    )
+    assert r.status_code == 400
+    body = r.json()
+    assert body["ok"] is False
+    assert body["error"]["code"] == "INVALID_ARGUMENT"
+
+
+# ── Fix 3: ws_url uses request Host header ────────────────────────────────────
+
+def test_ws_ticket_url_uses_request_host(client, auth_headers):
+    """ws_url must use the Host header from the request, not hardcoded 0.0.0.0."""
+    r = client.post(
+        "/api/v1/session/ws-ticket",
+        json={"subscribe": ["heartbeat"]},
+        headers={**auth_headers, "host": "cabin.local:8443"},
+    )
+    assert r.status_code == 200
+    ws_url = r.json()["data"]["ws_url"]
+    assert "cabin.local" in ws_url
+    assert "0.0.0.0" not in ws_url
+
+
+# ── Fix 4: devices last_output_ms is 0 on start, updated after lights/set ────
+
+def test_devices_last_output_ms_zero_on_start(client, auth_headers, monkeypatch):
+    """Before any command, last_output_ms and last_seen_ms must be 0."""
+    fake_device = {
+        "device_id": "node_1", "device_type": "wled_board",
+        "status": "online",
+        "last_output_ms": 0, "last_seen_ms": 0,
+        "connection_confirmed": True, "error_code": None,
+    }
+    monkeypatch.setattr(engine_adapter, "_devices", [fake_device])
+
+    r = client.get("/api/v1/state", headers=auth_headers)
+    assert r.status_code == 200
+    devices = r.json()["data"]["devices"]
+    assert len(devices) == 1
+    assert devices[0]["last_output_ms"] == 0
+    assert devices[0]["last_seen_ms"] == 0
+
+
+def test_devices_last_output_ms_updated_after_lights_set(client, auth_headers, monkeypatch):
+    """After lights/set, last_output_ms must be non-zero."""
+    fake_device = {
+        "device_id": "node_1", "device_type": "wled_board",
+        "status": "online",
+        "last_output_ms": 0, "last_seen_ms": 0,
+        "connection_confirmed": True, "error_code": None,
+    }
+    monkeypatch.setattr(engine_adapter, "_devices", [fake_device])
+
+    client.post(
+        "/api/v1/lights/set",
+        json={"target_id": "all", "brightness": 0.5},
+        headers=auth_headers,
+    )
+
+    r = client.get("/api/v1/state", headers=auth_headers)
+    devices = r.json()["data"]["devices"]
+    assert devices[0]["last_output_ms"] > 0
+
+
+# ── Fix 5: CORS middleware ────────────────────────────────────────────────────
+
+def test_cors_header_present(client):
+    """Requests with Origin header must get Access-Control-Allow-Origin in response."""
+    r = client.get("/api/v1/status", headers={"Origin": "http://cabin.local"})
+    assert r.status_code == 200
+    assert "access-control-allow-origin" in {k.lower() for k in r.headers}
