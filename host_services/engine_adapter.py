@@ -442,7 +442,7 @@ def playback_pause() -> tuple[dict | None, str | None]:
 
 
 def playback_resume() -> tuple[dict | None, str | None]:
-    if _state["playback_state"] != "paused":
+    if _state["playback_state"] not in ("playing", "paused"):
         return None, "PLAYBACK_NOT_READY"
     _ensure_mpv().resume()
     _state["playback_state"] = "playing"
