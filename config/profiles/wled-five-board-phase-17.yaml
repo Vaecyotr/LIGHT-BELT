@@ -116,7 +116,7 @@ layout:
     max_udp_payload: 1400
     protocol_version: 3
   - node_id: 5
-    host: 192.168.31.213
+    host: 192.168.31.214
     port: 4048
     pixel_count: 50
     max_udp_payload: 1400
