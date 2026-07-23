@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "path_ids": [
+    "screen_to_top",
+    "screen_to_bottom_and_left",
+    "screen_to_right_wall"
+  ],
+  "covered_targets": [
+    "strip_11", "strip_12", "strip_21", "strip_22", "strip_31",
+    "zone_32", "strip_41", "strip_42", "strip_43", "strip_44",
+    "strip_45", "strip_91", "strip_92", "strip_93"
+  ],
+  "branch_after": "strip_41",
+  "same_frame_release": [
+    "strip_42", "strip_43", "strip_44", "strip_45", "strip_93"
+  ]
+}

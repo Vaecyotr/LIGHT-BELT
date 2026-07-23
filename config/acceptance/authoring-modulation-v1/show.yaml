@@ -1,0 +1,74 @@
+schema_version: 1
+
+show:
+  id: phase-22-authoring-modulation-acceptance
+  duration: 9.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: replace
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+  cues:
+    - id: virtual-color-timeline
+      start: 0.0
+      end: 5.0
+      priority: 10
+      target: {type: virtual_path, id: screen_to_wall}
+      effect:
+        mode: fixed
+        name: static
+        parameters:
+          color_timeline:
+            interpolation: rgb_linear
+            keyframes:
+              - {time: 0.0, color: [1.0, 0.0, 0.0]}
+              - {time: 2.0, color: [0.0, 1.0, 0.0]}
+              - {time: 4.0, color: [0.0, 0.0, 1.0]}
+    - id: overlap-base
+      start: 5.0
+      end: 9.0
+      priority: 10
+      target: {type: digital_strip, id: front}
+      effect:
+        mode: fixed
+        name: static
+        parameters: {color: [0.2, 0.1, 0.05]}
+      transition: {fade_in: 1.0, fade_out: 1.0, blend: replace}
+    - id: fixed-modulated-static
+      start: 5.0
+      end: 8.0
+      priority: 20
+      target: {type: digital_strip, id: front}
+      effect:
+        mode: fixed
+        name: static
+        parameters: {color: [0.4, 0.2, 0.1]}
+      transition: {fade_in: 1.0, fade_out: 1.0, blend: replace}
+      audio_modulation:
+        brightness: {source: music.energy, amount: 0.5, min_multiplier: 0.5, max_multiplier: 1.5, smoothing_seconds: 0.0}
+        speed: {source: music.beat_strength, amount: 0.5, min_multiplier: 0.5, max_multiplier: 1.5, smoothing_seconds: 0.0}
+        intensity: {source: music.bass_pulse, amount: 0.5, min_multiplier: 0.5, max_multiplier: 1.5, smoothing_seconds: 0.0}
+    - id: adaptive-modulated-wall
+      start: 5.0
+      end: 8.0
+      priority: 10
+      target: {type: digital_strip, id: wall_right}
+      effect:
+        mode: adaptive
+        allowed: {silence: calm, energetic: chase}
+        fallback: calm
+      audio_control:
+        tempo_sync: auto
+        tempo_confidence_min: 0.75
+        beat_regularity_min: 0.70
+        beats_per_cycle: 4.0
+        beat_subdivision: 1.0
+        speed_smoothing_seconds: 0.0
+        state_confirmation_seconds: 0.0
+        min_effect_hold: 0.0
+        switch_cooldown: 0.0
+      audio_modulation:
+        brightness: {source: music.energy, amount: 0.5, min_multiplier: 0.5, max_multiplier: 1.5, smoothing_seconds: 0.0}
+        speed: {source: music.beat_strength, amount: 0.5, min_multiplier: 0.5, max_multiplier: 1.5, smoothing_seconds: 0.0}
+        intensity: {source: music.bass_pulse, amount: 0.5, min_multiplier: 0.5, max_multiplier: 1.5, smoothing_seconds: 0.0}

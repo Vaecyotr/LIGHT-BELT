@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -18,7 +18,12 @@ class CampaignError(RuntimeError):
 class CampaignStep:
     phase_id: str
     task: Path
+    model: str | None = None
+    reasoning_effort: str | None = None
     max_repairs: int = 2
+
+
+REASONING_EFFORTS = frozenset({"medium", "high", "xhigh"})
 
 
 def run(
@@ -65,6 +70,26 @@ def repo_root(start: Path) -> Path:
     if result.returncode != 0:
         raise CampaignError("Current directory is not inside a Git repository.")
     return Path(result.stdout.strip()).resolve()
+
+
+def project_python_candidates(root: Path) -> tuple[Path, ...]:
+    if os.name == "nt":
+        return (
+            root / ".python" / "Scripts" / "python.exe",
+            root / ".python" / "python.exe",
+        )
+    return (
+        root / ".python" / "bin" / "python",
+        root / ".python" / "python",
+    )
+
+
+def find_project_python(root: Path) -> Path:
+    for candidate in project_python_candidates(root):
+        if candidate.is_file():
+            return candidate
+    expected = "\n".join(f"- {item}" for item in project_python_candidates(root))
+    raise CampaignError("Project Python missing. Expected one of:\n" + expected)
 
 
 def current_branch(root: Path) -> str:
@@ -120,10 +145,35 @@ def load_manifest(root: Path, manifest_path: Path) -> tuple[str, str, list[Campa
 
     steps: list[CampaignStep] = []
     for item in data["steps"]:
+        model_value = item.get("model")
+        if model_value is not None and not isinstance(model_value, str):
+            raise CampaignError("Campaign step model must be a non-empty string.")
+        model = None if model_value is None else model_value.strip()
+        if model_value is not None and not model:
+            raise CampaignError("Campaign step model must be a non-empty string.")
+
+        effort_value = item.get("reasoning_effort")
+        if effort_value is not None and not isinstance(effort_value, str):
+            raise CampaignError(
+                "Campaign step reasoning_effort must be a string."
+            )
+        reasoning_effort = (
+            None if effort_value is None else effort_value.strip()
+        )
+        if (
+            reasoning_effort is not None
+            and reasoning_effort not in REASONING_EFFORTS
+        ):
+            allowed = ", ".join(sorted(REASONING_EFFORTS))
+            raise CampaignError(
+                f"Campaign step reasoning_effort must be one of: {allowed}."
+            )
         steps.append(
             CampaignStep(
                 phase_id=str(item["phase_id"]),
                 task=Path(str(item["task"])),
+                model=model,
+                reasoning_effort=reasoning_effort,
                 max_repairs=int(item.get("max_repairs", 2)),
             )
         )
@@ -158,6 +208,38 @@ def phase_already_applied(root: Path, agent_branch: str) -> bool:
     return result.returncode == 0
 
 
+def archive_failed_report(root: Path, phase_id: str) -> Path | None:
+    report_dir = root / ".agent" / "reports" / phase_id
+    if not report_dir.exists():
+        return None
+
+    final_result = report_dir / "final-result.json"
+    if not final_result.is_file():
+        raise CampaignError(
+            f"Report directory exists without final-result.json: {report_dir}"
+        )
+    try:
+        result = json.loads(final_result.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CampaignError(
+            f"Failed to read existing final result: {final_result}"
+        ) from exc
+    if result.get("status") != "FAIL":
+        raise CampaignError(
+            f"Report directory already exists and is not a failed run: {report_dir}"
+        )
+
+    archive_root = root / ".agent" / "reports" / ".failed" / phase_id
+    archive_root.mkdir(parents=True, exist_ok=True)
+    attempt = 1
+    while (archive_root / f"attempt-{attempt:03d}").exists():
+        attempt += 1
+    destination = archive_root / f"attempt-{attempt:03d}"
+    report_dir.replace(destination)
+    print(f"[RETRY] archived failed report: {destination}")
+    return destination
+
+
 def run_step(
     root: Path,
     campaign_branch: str,
@@ -174,15 +256,12 @@ def run_step(
             f"Agent branch already exists but is not merged: {agent_branch}"
         )
 
-    report_dir = root / ".agent" / "reports" / step.phase_id
-    if report_dir.exists():
-        raise CampaignError(
-            f"Report directory already exists: {report_dir}"
-        )
+    archive_failed_report(root, step.phase_id)
 
     print(f"\n=== START {step.phase_id} ===")
+    python_executable = find_project_python(root)
     command = [
-        str(root / ".python" / "python.exe"),
+        str(python_executable),
         "scripts/agent_pipeline.py",
         "--run",
         "--phase-id",
@@ -194,6 +273,10 @@ def run_step(
         "--max-repairs",
         str(step.max_repairs),
     ]
+    if step.model is not None:
+        command.extend(["--model", step.model])
+    if step.reasoning_effort is not None:
+        command.extend(["--reasoning-effort", step.reasoning_effort])
     result = run(command, cwd=root)
     if result.returncode != 0:
         raise CampaignError(f"Phase failed: {step.phase_id}")
@@ -215,7 +298,8 @@ def main() -> int:
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=Path(".agent/campaigns/closed-loop-v2.json"),
+        required=True,
+        help="Path to an explicitly selected active or archived campaign manifest.",
     )
     args = parser.parse_args()
 
@@ -223,10 +307,8 @@ def main() -> int:
         root = repo_root(Path.cwd())
         require_clean(root)
 
-        python_executable = root / ".python" / "python.exe"
+        python_executable = find_project_python(root)
         pipeline = root / "scripts" / "agent_pipeline.py"
-        if not python_executable.is_file():
-            raise CampaignError(f"Project Python missing: {python_executable}")
         if not pipeline.is_file():
             raise CampaignError(f"Pipeline missing: {pipeline}")
 

@@ -6,11 +6,31 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple
 
-import cv2
 import numpy as np
-import soundfile as sf
+
+from light_engine.media.mpv_adapter import MpvIPCAdapter, MpvIPCError, MpvState
 
 logger = logging.getLogger(__name__)
+
+
+def _cv2():
+    import cv2
+
+    return cv2
+
+
+def _soundfile():
+    import soundfile as sf
+
+    return sf
+
+__all__ = [
+    "AudioReader",
+    "MpvIPCAdapter",
+    "MpvIPCError",
+    "MpvState",
+    "VideoReader",
+]
 
 
 class VideoReader:
@@ -20,7 +40,7 @@ class VideoReader:
         if not Path(path).exists():
             raise FileNotFoundError(f"Video file not found: {path}")
         self._path = path
-        self._cap: Optional[cv2.VideoCapture] = None
+        self._cap: Optional[object] = None
         self._fps: float = 30.0
         self._total_frames: int = 0
         self._width: int = 0
@@ -28,6 +48,7 @@ class VideoReader:
         self._current_frame: int = 0
 
     def open(self) -> VideoReader:
+        cv2 = _cv2()
         self._cap = cv2.VideoCapture(self._path)
         if not self._cap.isOpened():
             raise RuntimeError(f"Cannot open video: {self._path}")
@@ -65,10 +86,12 @@ class VideoReader:
         if self._cap is None:
             return None
         if timestamp is not None:
+            cv2 = _cv2()
             self._cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000.0)
         ret, frame = self._cap.read()
         if not ret:
             return None
+        cv2 = _cv2()
         self._current_frame = int(self._cap.get(cv2.CAP_PROP_POS_FRAMES))
         return frame
 
@@ -76,6 +99,7 @@ class VideoReader:
         """Seek to a specific timestamp in seconds."""
         if self._cap is None:
             return False
+        cv2 = _cv2()
         return self._cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000.0)
 
     def close(self) -> None:
@@ -116,6 +140,7 @@ class AudioReader:
 
     def open(self) -> AudioReader:
         try:
+            sf = _soundfile()
             self._data, self._sample_rate = sf.read(self._path, dtype="float32")
         except Exception as e:
             raise RuntimeError(f"Cannot open audio: {self._path}") from e

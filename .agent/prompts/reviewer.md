@@ -6,13 +6,21 @@ Read, in this order:
 
 1. CLAUDE.md
 2. AGENTS.md
-3. docs/CLOSED_LOOP_SPEC.md
-4. docs/IMPLEMENTATION_PLAN.md
-5. The current task file supplied by the orchestrator
-6. git diff against the Phase base commit
-7. All modified source files
-8. All modified or newly added tests
-9. Test and benchmark reports supplied by the orchestrator
+3. The current task file supplied by the orchestrator
+4. The quality-gate payload supplied by the orchestrator
+5. git diff against the Phase base commit supplied by the orchestrator
+6. All modified source files
+7. All modified or newly added tests
+8. Test and benchmark reports supplied by the orchestrator
+
+Documentation lookup rules:
+
+- Keep the review independent; do not trust the implementer summary as evidence.
+- Treat the current task, quality-gate payload, diff, and schema supplied by the orchestrator as primary review input.
+- Do not read docs/CLOSED_LOOP_SPEC.md or docs/IMPLEMENTATION_PLAN.md in full by default.
+- Consult large project documents only when needed to verify an architectural invariant, resolve a task ambiguity, or check whether a finding conflicts with higher-authority documentation.
+- When consulting docs/IMPLEMENTATION_PLAN.md, read only the current Phase section and any directly referenced shared architecture section.
+- Use targeted searches such as `rg -n` and small UTF-8 line-range reads instead of dumping entire large documents.
 
 Review principles:
 

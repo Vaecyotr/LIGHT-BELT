@@ -1,0 +1,1785 @@
+openapi: 3.0.3
+info:
+  title: LIGHT-BELT Host API
+  version: "1.0"
+  description: |
+    LIGHT-BELT APP 接入接口。APP 通过 HTTPS REST JSON 与 WSS WebSocket JSON 接入 RK3588 Host Service。
+
+    RK3588 IP 已确定为 192.168.31.236。当前 LIGHT-BELT Host Service 尚未部署到 RK3588，本 OpenAPI 用于 APP 开发、Mock 和接口冻结。
+
+    HTTPS Base URL: https://192.168.31.236:8443/api/v1
+
+    WebSocket URL: wss://192.168.31.236:8443/ws
+
+    HTTPS Base URL 和 WebSocket URL 是部署后的固定对接地址。
+
+    Certificate Fingerprint: 预生成证书指纹 0A:14:3C:FA:A3:FD:4F:CA:54:94:F4:7E:FE:EE:68:33:F9:BC:5E:29:91:76:DF:66:7C:95:A5:F8:E7:44:9D:4D
+
+    Certificate SAN: DNS: light-belt-rk3588.local, IP: 192.168.31.236
+
+    实际联调以部署到 RK3588 的 Host Service 使用的证书为准。
+servers:
+  - url: https://192.168.31.236:8443/api/v1
+    description: RK3588 Host Service 部署后固定对接地址
+x-websocket-url: wss://192.168.31.236:8443/ws
+tags:
+  - name: Status
+    description: 服务在线检测
+  - name: Auth
+    description: 认证与 token
+  - name: Session
+    description: WebSocket 会话
+  - name: State
+    description: 状态查询
+  - name: Shows
+    description: 节目列表
+  - name: Capabilities
+    description: 能力发现
+  - name: Playback
+    description: 播放控制
+  - name: Lights
+    description: 灯光控制
+  - name: Effects
+    description: 灯效控制
+  - name: Audio
+    description: 音量与静音控制
+  - name: Scenes
+    description: 场景管理
+security:
+  - bearerAuth: []
+paths:
+  /status:
+    get:
+      tags: [Status]
+      summary: 配对前检测 Host Service 是否在线
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      responses:
+        "200":
+          description: 服务在线
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+              example:
+                ok: true
+                request_id: req-status-001
+                data:
+                  service: light-belt-host
+                  host_id: rk3588-main
+                  api_version: "1.0"
+                  version: 1.0.0
+                  time_ms: 1720000000000
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/pair:
+    post:
+      tags: [Auth]
+      summary: 使用配对码换取访问令牌
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairRequest"
+            example:
+              pairing_code: "123456"
+              client_id: tablet-main-room-001
+              client_name: Main Room Tablet
+              client_type: tablet
+              app_version: 1.0.0
+      responses:
+        "200":
+          description: 配对成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+              example:
+                ok: true
+                request_id: req-pair-001
+                data:
+                  access_token: eyJhbGciOiJIUzI1NiIs...
+                  refresh_token: rt_7d4f3b8f...
+                  token_type: Bearer
+                  expires_in: 3600
+                  scope:
+                    - state:read
+                    - playback:write
+                    - lights:write
+                    - effects:write
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: 刷新访问令牌
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+            example:
+              refresh_token: rt_7d4f3b8f...
+      responses:
+        "200":
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+              example:
+                ok: true
+                request_id: req-refresh-001
+                data:
+                  access_token: eyJhbGciOiJIUzI1NiIs...
+                  refresh_token: rt_90a2c1d5...
+                  token_type: Bearer
+                  expires_in: 3600
+                  scope:
+                    - state:read
+                    - playback:write
+                    - lights:write
+                    - effects:write
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /session/ws-ticket:
+    post:
+      tags: [Session]
+      summary: 申请 WebSocket 连接票据
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WsTicketRequest"
+            example:
+              subscribe:
+                - runtime.state
+                - playback.progress
+                - device.status
+                - error.event
+                - heartbeat
+      responses:
+        "200":
+          description: ticket 已生成
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WsTicketResponse"
+              example:
+                ok: true
+                request_id: req-ticket-001
+                data:
+                  ws_ticket: wst_3f610c1a...
+                  session_id: sess_20260709_0001
+                  expires_in: 60
+                  ws_url: wss://192.168.31.236:8443/ws?ticket=wst_3f610c1a...
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /state:
+    get:
+      tags: [State]
+      summary: 获取当前系统、播放、灯光和设备状态
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      responses:
+        "200":
+          description: 当前状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StateResponse"
+              example:
+                ok: true
+                request_id: req-state-001
+                data:
+                  system_state: running
+                  playback_state: playing
+                  show_id: teacher-demo-v1
+                  position_ms: 126000
+                  duration_ms: 300000
+                  brightness: 0.8
+                  color_temperature: 4200
+                  audio_available: true
+                  video_available: true
+                  audio_link_enabled: true
+                  video_link_enabled: true
+                  devices:
+                    - device_id: analog.ceiling_left
+                      device_type: light_zone
+                      status: online
+                      last_output_ms: 1720000000123
+                      last_seen_ms: 1720000000120
+                      connection_confirmed: true
+                      error_code: null
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /shows:
+    get:
+      tags: [Shows]
+      summary: 获取可播放节目列表
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      responses:
+        "200":
+          description: 节目列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowsResponse"
+              example:
+                ok: true
+                request_id: req-shows-001
+                data:
+                  shows:
+                    - show_id: teacher-demo-v1
+                      name: Teacher Demo
+                      duration_ms: 300000
+                      description: Main demonstration show
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /capabilities:
+    get:
+      tags: [Capabilities]
+      summary: 获取 APP 可见能力
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      responses:
+        "200":
+          description: 能力列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapabilitiesResponse"
+              example:
+                ok: true
+                request_id: req-capabilities-001
+                data:
+                  targets:
+                    - target_id: all
+                      name: All
+                    - target_id: screen_surround
+                      name: Screen Surround
+                  effects:
+                    - effect_type: static
+                      name: Static
+                      params:
+                        - color
+                        - intensity
+                      effect_params: []
+                    - effect_type: chase
+                      name: Chase
+                      params:
+                        - speed
+                        - intensity
+                      effect_params:
+                        - width
+                        - gap
+                        - direction
+                  websocket:
+                    message_types:
+                      - session.connected
+                      - runtime.state
+                      - playback.progress
+                      - device.status
+                      - error.event
+                      - heartbeat
+                  supports:
+                    playback: true
+                    resume: true
+                    seek: true
+                    lights: true
+                    effects: true
+                    color_temperature: true
+                    transitions: true
+                    websocket: true
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /playback/play:
+    post:
+      tags: [Playback]
+      summary: 播放指定节目
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaybackPlayRequest"
+            example:
+              show_id: teacher-demo-v1
+              start_position_ms: 0
+      responses:
+        "200":
+          description: 播放已开始
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackResponse"
+              example:
+                ok: true
+                request_id: req-play-001
+                data:
+                  playback_state: playing
+                  show_id: teacher-demo-v1
+                  position_ms: 0
+                  duration_ms: 300000
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /playback/pause:
+    post:
+      tags: [Playback]
+      summary: 暂停当前播放
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyObject"
+            example: {}
+      responses:
+        "200":
+          description: 已暂停
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackResponse"
+              example:
+                ok: true
+                request_id: req-pause-001
+                data:
+                  playback_state: paused
+                  show_id: teacher-demo-v1
+                  position_ms: 126000
+                  duration_ms: 300000
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /playback/resume:
+    post:
+      tags: [Playback]
+      summary: 继续播放当前已暂停的节目
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyObject"
+            example: {}
+      responses:
+        "200":
+          description: 已继续播放
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackResponse"
+              example:
+                ok: true
+                request_id: req-resume-001
+                data:
+                  playback_state: playing
+                  show_id: teacher-demo-v1
+                  position_ms: 126000
+                  duration_ms: 300000
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /playback/stop:
+    post:
+      tags: [Playback]
+      summary: 停止当前播放
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyObject"
+            example: {}
+      responses:
+        "200":
+          description: 已停止
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackResponse"
+              example:
+                ok: true
+                request_id: req-stop-001
+                data:
+                  playback_state: stopped
+                  show_id: null
+                  position_ms: 0
+                  duration_ms: 0
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /playback/seek:
+    post:
+      tags: [Playback]
+      summary: 跳转到指定播放位置
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaybackSeekRequest"
+            example:
+              position_ms: 90000
+      responses:
+        "200":
+          description: 已跳转
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackResponse"
+              example:
+                ok: true
+                request_id: req-seek-001
+                data:
+                  playback_state: playing
+                  show_id: teacher-demo-v1
+                  position_ms: 90000
+                  duration_ms: 300000
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /lights/set:
+    post:
+      tags: [Lights]
+      summary: 设置目标灯光
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LightsSetRequest"
+            example:
+              target_id: screen_surround
+              brightness: 0.72
+              color_temperature: 4200
+              transition_ms: 800
+      responses:
+        "200":
+          description: 命令已接受
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LightsSetResponse"
+              example:
+                ok: true
+                request_id: req-lights-001
+                data:
+                  target_id: screen_surround
+                  brightness: 0.72
+                  color_temperature: 4200
+                  transition_ms: 800
+                  accepted: true
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /effects/set:
+    post:
+      tags: [Effects]
+      summary: 设置目标灯效
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EffectsSetRequest"
+            examples:
+              chase:
+                summary: 为连续路径设置追逐灯效
+                value:
+                  target_id: virtual_path.screen_to_wall
+                  effect_type: chase
+                  params:
+                    speed: 0.65
+                    intensity: 0.8
+                  effect_params:
+                    width: 6
+                    gap: 12
+                    direction: forward
+                  transition_ms: 500
+              static:
+                summary: 为屏幕环绕区域设置静态颜色
+                value:
+                  target_id: screen_surround
+                  effect_type: static
+                  params:
+                    color:
+                      r: 255
+                      g: 180
+                      b: 80
+                    intensity: 0.8
+                  transition_ms: 500
+      responses:
+        "200":
+          description: 命令已接受
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EffectsSetResponse"
+              example:
+                ok: true
+                request_id: req-effects-001
+                data:
+                  target_id: virtual_path.screen_to_wall
+                  effect_type: chase
+                  transition_ms: 500
+                  accepted: true
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /audio:
+    get:
+      tags: [Audio]
+      summary: 获取当前音量和静音状态
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 音频状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudioResponse"
+              example:
+                ok: true
+                request_id: req-audio-001
+                data:
+                  volume: 0.8
+                  muted: false
+                  audio_output_available: true
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /audio/set:
+    post:
+      tags: [Audio]
+      summary: 设置音量或静音状态
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AudioSetRequest"
+            example:
+              volume: 0.6
+              muted: false
+              transition_ms: 0
+      responses:
+        "200":
+          description: 命令已接受
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudioSetResponse"
+              example:
+                ok: true
+                request_id: req-audio-set-001
+                data:
+                  volume: 0.6
+                  muted: false
+                  transition_ms: 0
+                  accepted: true
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /scenes:
+    get:
+      tags: [Scenes]
+      summary: 获取已保存场景列表
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 场景列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenesResponse"
+              example:
+                ok: true
+                request_id: req-scenes-001
+                data:
+                  scenes:
+                    - scene_id: reading-mode
+                      name: 阅读模式
+                      created_ms: 1720000000000
+                      updated_ms: 1720000001000
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /scenes/save:
+    post:
+      tags: [Scenes]
+      summary: 保存或更新场景
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SceneSaveRequest"
+            example:
+              scene_id: reading-mode
+              name: 阅读模式
+              audio:
+                volume: 0.6
+                muted: false
+              entries:
+                - target_id: strip_11
+                  brightness: 0.8
+                  color_temperature: 4200
+                  transition_ms: 500
+      responses:
+        "200":
+          description: 场景已保存
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SceneSaveResponse"
+              example:
+                ok: true
+                request_id: req-scenes-save-001
+                data:
+                  scene_id: reading-mode
+                  saved: true
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /scenes/apply:
+    post:
+      tags: [Scenes]
+      summary: 应用已保存场景（自动停止当前节目）
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SceneApplyRequest"
+            example:
+              scene_id: reading-mode
+              transition_ms: 500
+      responses:
+        "200":
+          description: 场景已应用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SceneApplyResponse"
+              example:
+                ok: true
+                request_id: req-scenes-apply-001
+                data:
+                  scene_id: reading-mode
+                  accepted: true
+                  partial: false
+                  failed_targets: []
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /scenes/delete:
+    post:
+      tags: [Scenes]
+      summary: 删除已保存场景
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SceneDeleteRequest"
+            example:
+              scene_id: reading-mode
+      responses:
+        "200":
+          description: 场景已删除
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SceneDeleteResponse"
+              example:
+                ok: true
+                request_id: req-scenes-delete-001
+                data:
+                  scene_id: reading-mode
+                  deleted: true
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: access_token
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: APP 生成的请求 ID。
+  responses:
+    ErrorResponse:
+      description: 错误响应
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            ok: false
+            request_id: req-20260709-0001
+            error:
+              code: INVALID_ARGUMENT
+              message: target_id is required
+              details:
+                field: target_id
+  schemas:
+    EmptyObject:
+      type: object
+      additionalProperties: false
+    SuccessEnvelope:
+      type: object
+      required: [ok, request_id, data]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        request_id:
+          type: string
+        data:
+          type: object
+    ErrorEnvelope:
+      type: object
+      required: [ok, request_id, error]
+      properties:
+        ok:
+          type: boolean
+          enum: [false]
+        request_id:
+          type: string
+        error:
+          $ref: "#/components/schemas/ErrorObject"
+    ErrorObject:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+    ErrorCode:
+      type: string
+      enum:
+        - INVALID_ARGUMENT
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - CONFLICT
+        - TOKEN_EXPIRED
+        - PAIRING_CODE_INVALID
+        - WS_TICKET_INVALID
+        - DEVICE_OFFLINE
+        - SHOW_NOT_LOADED
+        - PLAYBACK_NOT_READY
+        - MPV_UNAVAILABLE
+        - SCENE_LIMIT_EXCEEDED
+        - INTERNAL_ERROR
+    ClientType:
+      type: string
+      enum: [tablet, phone, debug]
+    SystemState:
+      type: string
+      enum: [idle, ready, running, error]
+    PlaybackState:
+      type: string
+      enum: [idle, playing, paused, stopped, error]
+    TargetId:
+      type: string
+      description: >
+        Host Service 暴露给 APP 的逻辑目标 ID。实际可用值由引擎布局在启动时
+        动态生成，通过 GET /capabilities 的 targets 数组获取。固定项包括
+        "all"（全部灯带广播）和 "starry_sky"（星空灯），其余形如
+        "strip_<label>"（单条 WS2811 灯带）。以下枚举为当前部署参考值，
+        不限制未来可扩展的动态值。
+      enum:
+        - all
+        - strip_11
+        - strip_12
+        - strip_21
+        - strip_22
+        - strip_31
+        - strip_32
+        - strip_41
+        - strip_43
+        - strip_44
+        - starry_sky
+    EffectType:
+      type: string
+      enum:
+        - static
+        - breath
+        - color_wave
+        - chase
+        - comet
+        - audio_pulse
+        - bass_pulse
+        - spectrum
+        - video_ambient
+        - video_audio_fusion
+        - calm
+        - demo
+        - twinkle
+    DeviceType:
+      type: string
+      enum: [wled_board]
+    DeviceStatus:
+      type: string
+      enum: [online, offline, error]
+    WsMessageType:
+      type: string
+      enum:
+        - session.connected
+        - runtime.state
+        - playback.progress
+        - device.status
+        - error.event
+        - heartbeat
+    StatusData:
+      type: object
+      required: [service, host_id, api_version, version, time_ms]
+      properties:
+        service:
+          type: string
+        host_id:
+          type: string
+        api_version:
+          type: string
+        version:
+          type: string
+        time_ms:
+          type: number
+          minimum: 0
+    StatusResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/StatusData"
+    PairRequest:
+      type: object
+      required: [pairing_code, client_id, client_name, client_type, app_version]
+      properties:
+        pairing_code:
+          type: string
+          minLength: 1
+        client_id:
+          type: string
+          minLength: 1
+        client_name:
+          type: string
+          minLength: 1
+        client_type:
+          $ref: "#/components/schemas/ClientType"
+        app_version:
+          type: string
+          minLength: 1
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+    TokenData:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in, scope]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: number
+          minimum: 0
+        scope:
+          type: array
+          items:
+            type: string
+    AuthTokenResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TokenData"
+    WsTicketRequest:
+      type: object
+      required: [subscribe]
+      properties:
+        subscribe:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/WsMessageType"
+    WsTicketData:
+      type: object
+      required: [ws_ticket, session_id, expires_in, ws_url]
+      properties:
+        ws_ticket:
+          type: string
+        session_id:
+          type: string
+        expires_in:
+          type: number
+          minimum: 0
+        ws_url:
+          type: string
+          format: uri
+    WsTicketResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/WsTicketData"
+    Device:
+      type: object
+      required:
+        - device_id
+        - device_type
+        - status
+        - last_output_ms
+        - connection_confirmed
+        - error_code
+      properties:
+        device_id:
+          type: string
+          example: analog.ceiling_left
+        device_type:
+          $ref: "#/components/schemas/DeviceType"
+        status:
+          $ref: "#/components/schemas/DeviceStatus"
+        last_output_ms:
+          type: number
+          minimum: 0
+        last_seen_ms:
+          type: number
+          minimum: 0
+        connection_confirmed:
+          type: boolean
+        error_code:
+          nullable: true
+          type: string
+        debug:
+          type: object
+          additionalProperties: true
+          properties:
+            node_id:
+              type: number
+            node_type:
+              type: string
+    StateData:
+      type: object
+      required:
+        - system_state
+        - playback_state
+        - show_id
+        - position_ms
+        - duration_ms
+        - brightness
+        - color_temperature
+        - volume
+        - muted
+        - scene_id
+        - audio_available
+        - video_available
+        - audio_link_enabled
+        - video_link_enabled
+        - devices
+      properties:
+        system_state:
+          $ref: "#/components/schemas/SystemState"
+        playback_state:
+          $ref: "#/components/schemas/PlaybackState"
+        show_id:
+          nullable: true
+          type: string
+        position_ms:
+          type: number
+          minimum: 0
+        duration_ms:
+          type: number
+          minimum: 0
+        brightness:
+          type: number
+          minimum: 0
+          maximum: 1
+        color_temperature:
+          type: number
+          minimum: 2700
+          maximum: 6500
+        volume:
+          type: number
+          minimum: 0
+          maximum: 1
+        muted:
+          type: boolean
+        scene_id:
+          nullable: true
+          type: string
+        audio_available:
+          type: boolean
+        video_available:
+          type: boolean
+        audio_link_enabled:
+          type: boolean
+        video_link_enabled:
+          type: boolean
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Device"
+    StateResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/StateData"
+    ShowItem:
+      type: object
+      required: [show_id, name, duration_ms]
+      properties:
+        show_id:
+          type: string
+        name:
+          type: string
+        duration_ms:
+          type: number
+          minimum: 0
+        description:
+          type: string
+    ShowsData:
+      type: object
+      required: [shows]
+      properties:
+        shows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShowItem"
+    ShowsResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/ShowsData"
+    CapabilityTarget:
+      type: object
+      required: [target_id, name]
+      properties:
+        target_id:
+          $ref: "#/components/schemas/TargetId"
+        name:
+          type: string
+        supported_effects:
+          type: array
+          items:
+            $ref: "#/components/schemas/EffectType"
+          description: 该目标支持的灯效类型列表（仅特殊设备如 starry_sky 携带此字段）。
+    CapabilityEffect:
+      type: object
+      required: [effect_type, name, params, effect_params]
+      properties:
+        effect_type:
+          $ref: "#/components/schemas/EffectType"
+        name:
+          type: string
+        params:
+          type: array
+          items:
+            type: string
+        effect_params:
+          type: array
+          items:
+            type: string
+    CapabilityWebSocket:
+      type: object
+      required: [message_types]
+      properties:
+        message_types:
+          type: array
+          items:
+            $ref: "#/components/schemas/WsMessageType"
+    CapabilitySupports:
+      type: object
+      required:
+        - playback
+        - resume
+        - seek
+        - lights
+        - effects
+        - color_temperature
+        - transitions
+        - websocket
+      properties:
+        playback:
+          type: boolean
+        resume:
+          type: boolean
+        seek:
+          type: boolean
+        lights:
+          type: boolean
+        effects:
+          type: boolean
+        color_temperature:
+          type: boolean
+        transitions:
+          type: boolean
+        websocket:
+          type: boolean
+    CapabilitiesData:
+      type: object
+      required: [targets, effects, websocket, supports]
+      properties:
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/CapabilityTarget"
+        effects:
+          type: array
+          items:
+            $ref: "#/components/schemas/CapabilityEffect"
+        websocket:
+          $ref: "#/components/schemas/CapabilityWebSocket"
+        supports:
+          $ref: "#/components/schemas/CapabilitySupports"
+    CapabilitiesResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/CapabilitiesData"
+    PlaybackPlayRequest:
+      type: object
+      required: [show_id]
+      properties:
+        show_id:
+          type: string
+          minLength: 1
+        start_position_ms:
+          type: number
+          minimum: 0
+    PlaybackSeekRequest:
+      type: object
+      required: [position_ms]
+      properties:
+        position_ms:
+          type: number
+          minimum: 0
+    PlaybackData:
+      type: object
+      required: [playback_state, show_id, position_ms, duration_ms]
+      properties:
+        playback_state:
+          $ref: "#/components/schemas/PlaybackState"
+        show_id:
+          nullable: true
+          type: string
+        position_ms:
+          type: number
+          minimum: 0
+        duration_ms:
+          type: number
+          minimum: 0
+    PlaybackResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PlaybackData"
+    LightsSetRequest:
+      type: object
+      required: [target_id]
+      anyOf:
+        - required: [brightness]
+        - required: [color_temperature]
+      properties:
+        target_id:
+          $ref: "#/components/schemas/TargetId"
+        brightness:
+          type: number
+          minimum: 0
+          maximum: 1
+        color_temperature:
+          type: number
+          minimum: 2700
+          maximum: 6500
+        transition_ms:
+          type: number
+          minimum: 0
+          default: 0
+    LightsSetData:
+      type: object
+      required: [target_id, transition_ms, accepted]
+      properties:
+        target_id:
+          $ref: "#/components/schemas/TargetId"
+        brightness:
+          type: number
+          minimum: 0
+          maximum: 1
+        color_temperature:
+          type: number
+          minimum: 2700
+          maximum: 6500
+        transition_ms:
+          type: number
+          minimum: 0
+        accepted:
+          type: boolean
+    LightsSetResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/LightsSetData"
+    RGB255:
+      type: object
+      properties:
+        r:
+          type: number
+          minimum: 0
+          maximum: 255
+        g:
+          type: number
+          minimum: 0
+          maximum: 255
+        b:
+          type: number
+          minimum: 0
+          maximum: 255
+    EffectCommonParams:
+      type: object
+      properties:
+        color:
+          $ref: "#/components/schemas/RGB255"
+        speed:
+          type: number
+          minimum: 0
+          maximum: 1
+        intensity:
+          type: number
+          minimum: 0
+          maximum: 1
+    EffectsSetRequest:
+      type: object
+      required: [target_id, effect_type]
+      properties:
+        target_id:
+          $ref: "#/components/schemas/TargetId"
+        effect_type:
+          $ref: "#/components/schemas/EffectType"
+        params:
+          $ref: "#/components/schemas/EffectCommonParams"
+        effect_params:
+          type: object
+          additionalProperties: true
+        transition_ms:
+          type: number
+          minimum: 0
+          default: 0
+    EffectsSetData:
+      type: object
+      required: [target_id, effect_type, transition_ms, accepted]
+      properties:
+        target_id:
+          $ref: "#/components/schemas/TargetId"
+        effect_type:
+          $ref: "#/components/schemas/EffectType"
+        transition_ms:
+          type: number
+          minimum: 0
+        accepted:
+          type: boolean
+    EffectsSetResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/EffectsSetData"
+    WsEnvelope:
+      type: object
+      required: [type, timestamp, sequence, data]
+      properties:
+        type:
+          $ref: "#/components/schemas/WsMessageType"
+        timestamp:
+          type: number
+          minimum: 0
+        sequence:
+          type: number
+          minimum: 0
+        data:
+          type: object
+    WsSessionConnected:
+      allOf:
+        - $ref: "#/components/schemas/WsEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [session.connected]
+            data:
+              type: object
+              required: [session_id, subscribe]
+              properties:
+                session_id:
+                  type: string
+                subscribe:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WsMessageType"
+    WsRuntimeState:
+      allOf:
+        - $ref: "#/components/schemas/WsEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [runtime.state]
+            data:
+              type: object
+              required:
+                - system_state
+                - playback_state
+                - show_id
+                - brightness
+                - color_temperature
+                - audio_available
+                - video_available
+                - audio_link_enabled
+                - video_link_enabled
+              properties:
+                system_state:
+                  $ref: "#/components/schemas/SystemState"
+                playback_state:
+                  $ref: "#/components/schemas/PlaybackState"
+                show_id:
+                  nullable: true
+                  type: string
+                brightness:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                color_temperature:
+                  type: number
+                  minimum: 2700
+                  maximum: 6500
+                audio_available:
+                  type: boolean
+                video_available:
+                  type: boolean
+                audio_link_enabled:
+                  type: boolean
+                video_link_enabled:
+                  type: boolean
+    WsPlaybackProgress:
+      allOf:
+        - $ref: "#/components/schemas/WsEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [playback.progress]
+            data:
+              $ref: "#/components/schemas/PlaybackData"
+    WsDeviceStatus:
+      allOf:
+        - $ref: "#/components/schemas/WsEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [device.status]
+            data:
+              type: object
+              required: [devices]
+              properties:
+                devices:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Device"
+    WsErrorEvent:
+      allOf:
+        - $ref: "#/components/schemas/WsEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [error.event]
+            data:
+              type: object
+              required: [error_code, message]
+              properties:
+                error_code:
+                  $ref: "#/components/schemas/ErrorCode"
+                message:
+                  type: string
+                details:
+                  type: object
+                  additionalProperties: true
+    WsHeartbeat:
+      allOf:
+        - $ref: "#/components/schemas/WsEnvelope"
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: [heartbeat]
+            data:
+              type: object
+              required: [session_id]
+              properties:
+                session_id:
+                  type: string
+    AudioData:
+      type: object
+      required: [volume, muted, audio_output_available]
+      properties:
+        volume:
+          type: number
+          minimum: 0
+          maximum: 1
+        muted:
+          type: boolean
+        audio_output_available:
+          type: boolean
+    AudioResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AudioData"
+    AudioSetRequest:
+      type: object
+      properties:
+        volume:
+          type: number
+          minimum: 0
+          maximum: 1
+        muted:
+          type: boolean
+        transition_ms:
+          type: number
+          minimum: 0
+          default: 0
+    AudioSetData:
+      type: object
+      required: [volume, muted, transition_ms, accepted]
+      properties:
+        volume:
+          type: number
+          minimum: 0
+          maximum: 1
+        muted:
+          type: boolean
+        transition_ms:
+          type: number
+          minimum: 0
+        accepted:
+          type: boolean
+    AudioSetResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AudioSetData"
+    SceneItem:
+      type: object
+      required: [scene_id, name, created_ms, updated_ms]
+      properties:
+        scene_id:
+          type: string
+        name:
+          type: string
+        created_ms:
+          type: number
+          minimum: 0
+        updated_ms:
+          type: number
+          minimum: 0
+    ScenesData:
+      type: object
+      required: [scenes]
+      properties:
+        scenes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SceneItem"
+    ScenesResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/ScenesData"
+    SceneAudio:
+      type: object
+      properties:
+        volume:
+          type: number
+          minimum: 0
+          maximum: 1
+        muted:
+          type: boolean
+    SceneEntry:
+      type: object
+      required: [target_id]
+      properties:
+        target_id:
+          $ref: "#/components/schemas/TargetId"
+        brightness:
+          type: number
+          minimum: 0
+          maximum: 1
+        color_temperature:
+          type: number
+          minimum: 2700
+          maximum: 6500
+        effect_type:
+          $ref: "#/components/schemas/EffectType"
+        transition_ms:
+          type: number
+          minimum: 0
+          default: 0
+    SceneSaveRequest:
+      type: object
+      required: [name]
+      properties:
+        scene_id:
+          type: string
+          pattern: "^[a-z0-9-]{1,64}$"
+        name:
+          type: string
+          minLength: 1
+        audio:
+          $ref: "#/components/schemas/SceneAudio"
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SceneEntry"
+          minItems: 1
+    SceneSaveData:
+      type: object
+      required: [scene_id, saved]
+      properties:
+        scene_id:
+          type: string
+        saved:
+          type: boolean
+    SceneSaveResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SceneSaveData"
+    SceneApplyRequest:
+      type: object
+      required: [scene_id]
+      properties:
+        scene_id:
+          type: string
+          minLength: 1
+        transition_ms:
+          type: number
+          minimum: 0
+    SceneApplyData:
+      type: object
+      required: [scene_id, accepted, partial, failed_targets]
+      properties:
+        scene_id:
+          type: string
+        accepted:
+          type: boolean
+        partial:
+          type: boolean
+        failed_targets:
+          type: array
+          items:
+            type: string
+    SceneApplyResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SceneApplyData"
+    SceneDeleteRequest:
+      type: object
+      required: [scene_id]
+      properties:
+        scene_id:
+          type: string
+          minLength: 1
+    SceneDeleteData:
+      type: object
+      required: [scene_id, deleted]
+      properties:
+        scene_id:
+          type: string
+        deleted:
+          type: boolean
+    SceneDeleteResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SceneDeleteData"

@@ -1,0 +1,71 @@
+schema_version: 2
+
+show:
+  id: "cabin-11-to-top-fork-example"
+  duration: 6.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: "replace"
+
+  # A fork is authored as parallel paths with the same logical prefix. The
+  # three cues below must keep identical chase timing, color, and origin.
+  virtual_paths:
+    - id: "strip_11_to_12"
+      origin: "start"
+      targets:
+        - {type: "digital_strip", id: "strip_11"}
+        - {type: "digital_strip", id: "strip_12"}
+    - id: "strip_11_to_91"
+      origin: "start"
+      targets:
+        - {type: "digital_strip", id: "strip_11"}
+        - {type: "digital_strip", id: "strip_91"}
+    - id: "strip_11_to_92"
+      origin: "start"
+      targets:
+        - {type: "digital_strip", id: "strip_11"}
+        - {type: "digital_strip", id: "strip_92"}
+
+  cues:
+    - id: "fork-11-to-12"
+      start: 0.0
+      end: 6.0
+      priority: 10
+      target: {type: "virtual_path", id: "strip_11_to_12"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "chase"
+        params: &fork_chase
+          speed: 10.0
+          width: 1
+          gap: 100
+          direction: "forward"
+          trail: 0.0
+          color_source: "static"
+      color: &fork_color
+        mode: "solid"
+        color: [0.1, 0.4, 1.0]
+    - id: "fork-11-to-91"
+      start: 0.0
+      end: 6.0
+      priority: 10
+      target: {type: "virtual_path", id: "strip_11_to_91"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "chase"
+        params: *fork_chase
+      color: *fork_color
+    - id: "fork-11-to-92"
+      start: 0.0
+      end: 6.0
+      priority: 10
+      target: {type: "virtual_path", id: "strip_11_to_92"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "chase"
+        params: *fork_chase
+      color: *fork_color

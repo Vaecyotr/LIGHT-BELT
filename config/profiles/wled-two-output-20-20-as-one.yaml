@@ -1,0 +1,54 @@
+# WLED two-output demo profile: one controller, two physical LED outputs,
+# each 20 pixels, treated as one continuous 40-pixel logical path.
+# WLED LED Preferences must already be:
+#   Output 1: Start 0,  Length 20
+#   Output 2: Start 20, Length 20
+
+outputs:
+  mode: "production"
+  enabled: ["ddp"]
+  exit_safe_state: true
+  ddp:
+    enabled: true
+    port: 4048
+  udp_v3:
+    enabled: false
+    protocol_version: 3
+    presentation:
+      mode: "immediate"
+  rs485_v2:
+    enabled: false
+
+system:
+  platform: "windows"
+  output_fps: 30.0
+  clock:
+    mode: "internal"
+  smoothing:
+    max_brightness: 0.35
+    gamma: 1.30
+
+layout:
+  topology_version: 3
+  digital_output_policy: "multi_output_diagnostic"
+  total_strips: 2
+  zones:
+    - {id: "zone_32", type: rgbcct, label: "disabled_analog_placeholder", video_zone: left, direction: forward}
+  analog_nodes:
+    - {node_id: 17, zone_id: "zone_32", video_zone: left, channel_order: "RGBWC", fade_ms: 0}
+  strips:
+    - {id: "strip_left",  type: digital, pixel_count: 20, video_zone: right, direction: forward}
+    - {id: "strip_right", type: digital, pixel_count: 20, video_zone: right, direction: forward}
+  digital_nodes:
+    - {node_id: 2, host: "192.168.31.58", port: 4048, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
+  digital_segments: []
+  digital_outputs:
+    - {node_id: 2, output_id: 1, gpio: 16, strip_id: "strip_left",  pixel_count: 20, direction: forward}
+    - {node_id: 2, output_id: 2, gpio: 2,  strip_id: "strip_right", pixel_count: 20, direction: forward}
+  virtual_paths: []
+  video_zone_map:
+    left: ["zone_32"]
+    right: ["strip_left", "strip_right"]
+    top: []
+    bottom: []
+    center: []

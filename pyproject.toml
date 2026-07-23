@@ -13,18 +13,38 @@ dependencies = [
     "opencv-python>=4.8",
     "soundfile>=0.12",
     "pyyaml>=6.0",
+    "pyserial>=3.5",
     "typing-extensions>=4.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "httpx>=0.27",
+]
+host = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "websockets>=12",
+    "pyjwt>=2.9",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["light_engine*"]
+include = ["light_engine*", "host_services*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = "--basetemp=.tmp/pytest"
+cache_dir = ".tmp/pytest-cache"
+
+[dependency-groups]
+dev = [
+    "fastapi>=0.139.2",
+    "httpx>=0.28.1",
+    "pyjwt>=2.13.0",
+    "pytest>=9.1.1",
+    "uvicorn>=0.51.0",
+    "websockets>=16.1.1",
+]

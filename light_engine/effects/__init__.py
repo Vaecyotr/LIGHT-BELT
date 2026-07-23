@@ -7,10 +7,13 @@ P0 minimum: STATIC, VIDEO_AMBIENT, AUDIO_PULSE, COLOR_WAVE, CHASE, BREATH,
 
 from light_engine.effects.base import (
     BaseEffect,
+    EffectRegistration,
     _EFFECT_REGISTRY,
     create_effect,
+    get_effect_registration,
     list_effects,
     register_effect,
+    validate_effect_params,
 )
 
 
@@ -27,7 +30,15 @@ def _register_all() -> None:
     from light_engine.effects.video_ambient import VideoAmbientEffect
     from light_engine.effects.video_audio_fusion import VideoAudioFusionEffect
     from light_engine.effects.calm import CalmEffect
+    from light_engine.effects.color_wipe import (
+        ColorWipeEffect,
+        validate_color_wipe_params,
+    )
+    from light_engine.effects.twinkle import TwinkleEffect, validate_twinkle_params
     from light_engine.effects.demo import DemoEffect
+    from light_engine.effects.single_dot import SingleDotEffect
+    from light_engine.effects.step_pulse import StepPulseEffect
+    from light_engine.effects.theater_phase import TheaterPhaseEffect
 
     register_effect("static", StaticEffect)
     register_effect("breath", BreathEffect)
@@ -40,7 +51,12 @@ def _register_all() -> None:
     register_effect("video_ambient", VideoAmbientEffect)
     register_effect("video_audio_fusion", VideoAudioFusionEffect)
     register_effect("calm", CalmEffect)
+    register_effect("color_wipe", ColorWipeEffect, validate_color_wipe_params)
+    register_effect("twinkle", TwinkleEffect, validate_twinkle_params)
     register_effect("demo", DemoEffect)
+    register_effect("step_pulse", StepPulseEffect)
+    register_effect("single_dot", SingleDotEffect)
+    register_effect("theater_phase", TheaterPhaseEffect)
 
 
 # Auto-register on first import

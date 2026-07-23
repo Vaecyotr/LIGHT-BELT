@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from typing import Any
 
 DEFAULT_TIMEOUT_SECONDS = 3600
 DEFAULT_MAX_REPAIRS = 3
+REASONING_EFFORTS = frozenset({"medium", "high", "xhigh"})
 
 REQUIRED_FILES = (
     "AGENTS.md",
@@ -58,6 +60,8 @@ class PipelineContext:
     report_dir: Path
     project_python: Path
     task: TaskSpec
+    model: str | None = None
+    reasoning_effort: str | None = None
 
 
 def now_utc() -> str:
@@ -69,6 +73,41 @@ def resolve_command(name: str) -> str:
     if resolved is None:
         raise PipelineError(f"Required command not found on PATH: {name}")
     return resolved
+
+
+def project_python_candidates(repo_root: Path) -> tuple[Path, ...]:
+    """Return supported project-local Python interpreter paths in priority order."""
+    if os.name == "nt":
+        return (
+            repo_root / ".python" / "Scripts" / "python.exe",
+            repo_root / ".python" / "python.exe",
+        )
+    return (
+        repo_root / ".python" / "bin" / "python",
+        repo_root / ".python" / "python",
+    )
+
+
+def find_project_python(repo_root: Path) -> Path:
+    for candidate in project_python_candidates(repo_root):
+        if candidate.is_file():
+            return candidate
+    expected = "\n".join(f"- {item}" for item in project_python_candidates(repo_root))
+    raise PipelineError("Project Python not found. Expected one of:\n" + expected)
+
+
+def is_windows_reparse_point(path: Path) -> bool:
+    """Return True when *path itself* is a Windows reparse point.
+
+    ``Path.stat()`` follows junctions and reports the target directory, so it
+    can hide the reparse-point flag. ``Path.lstat()`` inspects the directory
+    entry itself and is therefore required for safe junction detection.
+    """
+    try:
+        attributes = path.lstat().st_file_attributes
+    except (AttributeError, OSError):
+        return False
+    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
 def run_process(
@@ -294,11 +333,7 @@ def parse_task(
 
 
 def verify_project_python(repo_root: Path) -> Path:
-    python_executable = repo_root / ".python" / "python.exe"
-    if not python_executable.is_file():
-        raise PipelineError(
-            f"Bundled project Python not found: {python_executable}"
-        )
+    python_executable = find_project_python(repo_root)
 
     result = run_process(
         [
@@ -306,13 +341,20 @@ def verify_project_python(repo_root: Path) -> Path:
             "-c",
             (
                 "import pathlib,sys,light_engine;"
-                "exe=pathlib.Path(sys.executable).resolve();"
                 "cwd=pathlib.Path.cwd().resolve();"
+                "exe=pathlib.Path(sys.executable).resolve();"
                 "pkg=pathlib.Path(light_engine.__file__).resolve();"
+                "candidates=["
+                "cwd/'.python'/'Scripts'/'python.exe',"
+                "cwd/'.python'/'python.exe'"
+                "];"
+                "existing=[c for c in candidates if c.is_file()];"
+                "assert existing,'No project Python found';"
+                "assert any(c.resolve()==exe for c in existing),"
+                "'Executable does not match project Python';"
                 "assert exe.name.lower()=='python.exe';"
-                "assert exe.parent.name=='.python';"
-                "assert exe.parent.parent==cwd;"
-                "assert str(pkg).startswith(str(cwd));"
+                "assert pkg.is_relative_to(cwd),"
+                "'light_engine was not imported from current workspace';"
                 "print('PROJECT_PYTHON_OK')"
             ),
         ],
@@ -366,11 +408,11 @@ def ensure_worktree_python(repo_root: Path, worktree_path: Path) -> Path:
     destination = worktree_path / ".python"
 
     if destination.exists():
-        python_executable = destination / (
-            "python.exe" if os.name == "nt" else "bin/python"
-        )
-        if python_executable.exists():
+        try:
+            python_executable = find_project_python(worktree_path)
             return python_executable
+        except PipelineError:
+            pass
         raise PipelineError(
             f"Existing worktree Python path is incomplete: {destination}"
         )
@@ -397,14 +439,13 @@ def ensure_worktree_python(repo_root: Path, worktree_path: Path) -> Path:
     else:
         destination.symlink_to(source, target_is_directory=True)
 
-    python_executable = destination / (
-        "python.exe" if os.name == "nt" else "bin/python"
-    )
-    if not python_executable.exists():
+    try:
+        python_executable = find_project_python(worktree_path)
+    except PipelineError as exc:
         raise PipelineError(
             f"Worktree Python link is missing its interpreter: "
-            f"{python_executable}"
-        )
+            f"{destination}"
+        ) from exc
 
     verification = run_process(
         [
@@ -431,6 +472,11 @@ def write_json(path: Path, payload: Any) -> None:
         json.dumps(payload, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+
+
+def write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
 
 
 def save_process(
@@ -476,6 +522,8 @@ def build_context(
     task: TaskSpec,
     project_python: Path,
     timeout: int,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> PipelineContext:
     report_dir = (repo_root / ".agent" / "reports" / task.phase_id).resolve()
     if report_dir.exists():
@@ -502,6 +550,8 @@ def build_context(
         report_dir=report_dir,
         project_python=project_python,
         task=task,
+        model=model,
+        reasoning_effort=reasoning_effort,
     )
 
 
@@ -532,8 +582,24 @@ def build_implement_prompt(ctx: PipelineContext, iteration: int) -> str:
         f"- Iteration: {iteration}\n"
         f"- Required report path: `{report_relative}`\n\n"
         "Do not commit, stage, switch branches, or modify files outside this "
-        "worktree. Finish by writing the required report file."
+        "worktree. Treat the task file as the primary specification. Do not read "
+        "docs/CLOSED_LOOP_SPEC.md or docs/IMPLEMENTATION_PLAN.md in full. Use "
+        "targeted searches and read only the current Phase section when additional "
+        "context is genuinely required. Finish by writing the required report file."
     )
+
+
+def write_repair_diff_artifact(ctx: PipelineContext, iteration: int) -> str:
+    relative = (
+        Path(".agent")
+        / "reports"
+        / ctx.task.phase_id
+        / f"current-diff-for-repair-{iteration}.patch"
+    )
+    diff = git_diff_text(ctx)
+    write_text(ctx.report_dir / relative.name, diff)
+    write_text(ctx.worktree_path / relative, diff)
+    return relative.as_posix()
 
 
 def build_repair_prompt(ctx: PipelineContext, iteration: int, review: dict[str, Any]) -> str:
@@ -545,15 +611,33 @@ def build_repair_prompt(ctx: PipelineContext, iteration: int, review: dict[str, 
         / ctx.task.phase_id
         / f"codex-repair-{iteration}.md"
     ).as_posix()
+    quality_iteration = iteration - 1
+    quality_relative = (
+        Path(".agent")
+        / "reports"
+        / ctx.task.phase_id
+        / f"quality-gate-{quality_iteration}.json"
+    ).as_posix()
+    diff_relative = write_repair_diff_artifact(ctx, iteration)
 
     return (
         f"{base}\n\n"
-        f"Task file: `{ctx.task.task_relative.as_posix()}`\n"
-        f"Repair iteration: {iteration}\n"
-        f"Required repair report path: `{report_relative}`\n\n"
+        "Orchestrator inputs:\n"
+        f"- Task file: `{ctx.task.task_relative.as_posix()}`\n"
+        f"- Repair iteration: {iteration}\n"
+        f"- Latest quality-gate report: `{quality_relative}`\n"
+        f"- Current diff artifact: `{diff_relative}`\n"
+        f"- Required repair report path: `{report_relative}`\n\n"
         "Independent review JSON:\n"
         + json.dumps(review, indent=2, ensure_ascii=False)
-        + "\n\nDo not commit, stage, or switch branches."
+        + (
+            "\n\nDo not commit, stage, or switch branches. "
+            "Use the supplied review JSON, latest quality-gate report, current "
+            "diff, and task file as the primary context. Do not reread "
+            "docs/CLOSED_LOOP_SPEC.md or docs/IMPLEMENTATION_PLAN.md in full. "
+            "Consult only the exact relevant section when the required action "
+            "cannot be understood from the task and review."
+        )
     )
 
 
@@ -570,26 +654,38 @@ def run_codex(
     )
     worktree_report.parent.mkdir(parents=True, exist_ok=True)
 
-    result = run_process(
+    command = [
+        "codex",
+        "exec",
+        "--ephemeral",
+        "--sandbox",
+        "workspace-write",
+    ]
+    if ctx.model is not None:
+        command.extend(["--model", ctx.model])
+    if ctx.reasoning_effort is not None:
+        command.extend(
+            ["--config", f'model_reasoning_effort="{ctx.reasoning_effort}"']
+        )
+    command.extend(
         [
-            "codex",
-            "exec",
-            "--ephemeral",
-            "--sandbox",
-            "workspace-write",
             "--cd",
             str(ctx.worktree_path),
             "--output-last-message",
             str(worktree_report),
             "-",
-        ],
+        ]
+    )
+
+    result = run_process(
+        command,
         cwd=ctx.worktree_path,
         timeout=timeout,
         input_text=prompt,
     )
     save_process(
         ctx.report_dir / process_name,
-        "codex exec --ephemeral --sandbox workspace-write ...",
+        command,
         result,
     )
 
@@ -718,6 +814,14 @@ def run_quality_gate(
     }
     write_json(
         ctx.report_dir / f"quality-gate-{iteration}.json",
+        payload,
+    )
+    write_json(
+        ctx.worktree_path
+        / ".agent"
+        / "reports"
+        / ctx.task.phase_id
+        / f"quality-gate-{iteration}.json",
         payload,
     )
     return payload
@@ -900,6 +1004,11 @@ def remove_success_worktree(ctx: PipelineContext) -> None:
 
     if python_path.exists():
         if os.name == "nt":
+            if not is_windows_reparse_point(python_path):
+                raise PipelineError(
+                    "Commit succeeded, but worktree .python is not a junction "
+                    "or symlink. Refusing to delete a Python environment path."
+                )
             unlink_result = run_process(
                 ["cmd", "/c", "rmdir", str(python_path)],
                 cwd=ctx.worktree_path,
@@ -908,14 +1017,18 @@ def remove_success_worktree(ctx: PipelineContext) -> None:
             if unlink_result.returncode != 0 and python_path.exists():
                 raise PipelineError(
                     "Commit succeeded, but the worktree .python junction "
-                    "could not be removed.\n"
+                    "could not be removed. Refusing to recursively delete a "
+                    "Python environment path.\n"
                     f"stdout:\n{unlink_result.stdout}\n"
                     f"stderr:\n{unlink_result.stderr}"
                 )
         elif python_path.is_symlink():
             python_path.unlink()
-        elif python_path.is_dir():
-            shutil.rmtree(python_path)
+        else:
+            raise PipelineError(
+                "Commit succeeded, but worktree .python is not a symlink. "
+                "Refusing to recursively delete a Python environment path."
+            )
 
     result = run_git(
         ["worktree", "remove", str(ctx.worktree_path), "--force"],
@@ -978,6 +1091,8 @@ def run_pipeline(
     timeout: int,
     max_repairs: int,
     keep_failed_worktree: bool,
+    model: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> int:
     repo_root = find_repo_root(Path.cwd())
     require_files_and_commands(repo_root)
@@ -1003,6 +1118,8 @@ def run_pipeline(
             task,
             project_python,
             timeout,
+            model,
+            reasoning_effort,
         )
 
         write_json(
@@ -1015,6 +1132,8 @@ def run_pipeline(
                 "task": task_relative.as_posix(),
                 "started_at_utc": now_utc(),
                 "max_repairs": max_repairs,
+                "model": model,
+                "reasoning_effort": reasoning_effort,
             },
         )
 
@@ -1071,6 +1190,8 @@ def run_pipeline(
                         "branch": ctx.agent_branch,
                         "commit": commit_hash,
                         "repairs_used": repairs_used,
+                        "model": model,
+                        "reasoning_effort": reasoning_effort,
                         "finished_at_utc": now_utc(),
                     },
                 )
@@ -1103,6 +1224,8 @@ def run_pipeline(
                 {
                     "status": "FAIL",
                     "phase_id": phase_id,
+                    "model": model,
+                    "reasoning_effort": reasoning_effort,
                     "error": str(exc),
                     "finished_at_utc": now_utc(),
                 },
@@ -1142,6 +1265,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--phase-id")
     parser.add_argument("--task", type=Path)
     parser.add_argument("--base-branch", default="main")
+    parser.add_argument("--model")
+    parser.add_argument("--reasoning-effort")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument(
         "--max-repairs",
@@ -1168,6 +1293,17 @@ def main() -> int:
             raise PipelineError("--timeout must be greater than zero.")
         if args.max_repairs < 0 or args.max_repairs > 10:
             raise PipelineError("--max-repairs must be between 0 and 10.")
+        model = None if args.model is None else args.model.strip()
+        if args.model is not None and not model:
+            raise PipelineError("--model must be a non-empty string.")
+        if (
+            args.reasoning_effort is not None
+            and args.reasoning_effort not in REASONING_EFFORTS
+        ):
+            allowed = ", ".join(sorted(REASONING_EFFORTS))
+            raise PipelineError(
+                f"--reasoning-effort must be one of: {allowed}."
+            )
 
         return run_pipeline(
             task_path_arg=args.task,
@@ -1176,6 +1312,8 @@ def main() -> int:
             timeout=args.timeout,
             max_repairs=args.max_repairs,
             keep_failed_worktree=args.keep_failed_worktree,
+            model=model,
+            reasoning_effort=args.reasoning_effort,
         )
 
     except PipelineError as exc:

@@ -1,6 +1,20 @@
 # Light Engine Outputs Configuration
 
 outputs:
+  # Explicit output transport mode:
+  # - memory: non-hardware in-memory transport, NOT HARDWARE VERIFIED
+  # - fake: benchmark-only success path, NOT HARDWARE VERIFIED
+  # - production: real transports; open/send failures are explicit
+  mode: "memory"
+  exit_safe_state: true
+
+  # Final output calibration and analog-zone power protection.
+  # Global brightness and gamma remain under system.smoothing.
+  transform:
+    power_limit: 5.0
+    per_zone_warm_bias: {}
+    per_zone_cool_bias: {}
+
   # Enabled output backends
   enabled:
     - "simulator"
@@ -23,19 +37,32 @@ outputs:
   null:
     enabled: false
 
-  # UDP output (for ESP32-S3 digital strips)
-  udp:
+  # DDP is the WLED-compatible realtime RGB24 transport.
+  ddp:
     enabled: false
-    host: "192.168.1.100"
-    port: 9001
-    protocol_version: 1
-    max_packet_size: 1400
-    fragment_timeout: 0.1     # Fragment reassembly timeout
+    port: 4048
 
-  # Serial output (legacy v1 transport for STM32 analog zones)
+  # UDP v2/v3 are retained for custom ESP32 firmware regression/codec work.
+  # WLED receivers should use DDP instead.
+  udp_v2:
+    enabled: false
+    protocol_version: 2
+
+  udp_v3:
+    enabled: false
+    protocol_version: 3
+    # Diagnostics and in-memory tests remain immediate unless a production
+    # one-ESP32-per-strip profile explicitly requires scheduled presentation.
+    presentation:
+      mode: "immediate"
+
+  # RS-485 v2 output (for STM32 analog RGB+CCT nodes)
+  rs485_v2:
+    enabled: false
+
+  # Serial port settings used by rs485_v2 in production mode
   serial:
     enabled: false
     port: "COM3"
     baudrate: 115200
-    protocol_version: 1
-    node_address: 1
+    protocol_version: 2

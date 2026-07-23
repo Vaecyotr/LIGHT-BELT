@@ -1,0 +1,49 @@
+{
+  "phase": "phase-29-v3-e2e-acceptance",
+  "topology": {
+    "digital_strips": 13,
+    "digital_pixel_groups": 260,
+    "analog_rgbcct_zones": ["zone_32"],
+    "provisional_esp32_nodes": 5
+  },
+  "software_assertions": {
+    "acceptance_pytest": "5 passed",
+    "full_pytest_excluding_prior_acceptance_generators": "544 passed",
+    "deterministic_replay_sha256": "fe47009b7e6060b9840b3eb29f486dcde4070a73eb110f07d23485bb2e32052f",
+    "udp_v3_json_sha256": "1eecdd68b7aa30cd344f20098dccac1cf584862c322babc2db22dfa581701d42",
+    "native_firmware": "5 succeeded",
+    "benchmark": {
+      "return_code": 0,
+      "frames": 1800,
+      "elapsed_seconds": 60.64,
+      "fps": 258.3,
+      "p95_ms": 5.10,
+      "p99_ms": 6.22,
+      "dropped_frames": 0,
+      "machine_scope": "current Windows host only; not a hardware timing verification"
+    }
+  },
+  "hardware_verification": "NOT HARDWARE VERIFIED",
+  "firmware_build_state": {
+    "esp32_s3": {
+      "status": "successful build captured by the parent workflow",
+      "return_code": 0,
+      "elapsed_seconds": 20.43,
+      "ram_percent": 8.0,
+      "flash_percent": 11.2,
+      "firmware_bin_bytes": 374432,
+      "firmware_elf_bytes": 14807560,
+      "artifact_timestamp_local": "2026-07-12T13:29:07"
+    },
+    "stm32": {
+      "status": "successful build captured by the parent workflow",
+      "return_code": 0,
+      "elapsed_seconds": 27.94,
+      "ram_percent": 5.9,
+      "flash_percent": 25.8,
+      "firmware_bin_bytes": 17228,
+      "firmware_elf_bytes": 46592,
+      "artifact_timestamp_local": "2026-07-12T09:46:38"
+    }
+  }
+}

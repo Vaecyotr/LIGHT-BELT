@@ -1,0 +1,105 @@
+# Current Show v2 commissioning scene derived from show_acceptance_0_17.yaml.
+# The filename identifies its purpose and Show schema version; cabin topology
+# is selected independently by the runtime profile.
+schema_version: 2
+
+show:
+  id: "V2_TO_V3"
+  duration: 17.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: "replace"
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+
+  cues:
+    - id: "S01_bottom_0_17"
+      start: 0.0
+      end: 17.0
+      priority: 10
+      target: {type: "digital_strip", id: "strip_22"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "static"
+        params: {}
+      color:
+        mode: "solid"
+        color: [1.0, 0.5, 0.0]
+      transition:
+        fade_in: 2.0
+        fade_out: 0.0
+        blend: "replace"
+
+    - id: "S01_rear_bottom_4_17"
+      start: 4.0
+      end: 17.0
+      priority: 10
+      target: {type: "digital_strip", id: "strip_21"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "static"
+        params: {}
+      color:
+        mode: "solid"
+        color: [1.0, 0.5, 0.0]
+      transition:
+        fade_in: 3.3
+        fade_out: 0.0
+        blend: "add"
+
+    - id: "S01_rear_left_5_17"
+      start: 5.0
+      end: 17.0
+      priority: 10
+      target: {type: "digital_strip", id: "strip_31"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "static"
+        params: {}
+      color:
+        mode: "solid"
+        color: [1.0, 0.5, 0.0]
+      transition:
+        fade_in: 5.0
+        fade_out: 0.0
+        blend: "replace"
+
+    - id: "S01_rear_right_5_17"
+      start: 5.0
+      end: 17.0
+      priority: 10
+      target: {type: "digital_strip", id: "strip_41"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "static"
+        params: {}
+      color:
+        mode: "solid"
+        color: [1.0, 0.5, 0.0]
+      transition:
+        fade_in: 5.0
+        fade_out: 0.0
+        blend: "replace"
+
+    - id: "S01_rear_top_10_17"
+      start: 10.0
+      end: 17.0
+      priority: 10
+      target: {type: "digital_strip", id: "strip_11"}
+      origin: "start"
+      effect:
+        mode: "fixed"
+        id: "static"
+        params: {}
+      color:
+        mode: "solid"
+        color: [1.0, 0.5, 0.0]
+      transition:
+        fade_in: 3.9
+        fade_out: 0.0
+        blend: "replace"

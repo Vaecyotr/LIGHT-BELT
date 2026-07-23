@@ -5,7 +5,7 @@ import math
 import random
 
 from light_engine.config import Config
-from light_engine.effects.base import BaseEffect
+from light_engine.effects.base import BaseEffect, runtime_float, runtime_rgb
 from light_engine.models import (
     DigitalStrip,
     EffectContext,
@@ -29,6 +29,14 @@ class CometEffect(BaseEffect):
         self._tails: dict[str, list[tuple[float, float, float, float]]] = {}
 
     def process(self, ctx: EffectContext) -> PixelFrame:
+        speed = runtime_float(ctx, "speed", self._speed)
+        tail_length = runtime_float(ctx, "tail_length", self._tail_len)
+        decay = runtime_float(ctx, "decay", self._decay)
+        authored_color = (
+            runtime_rgb(ctx, "color", (1.0, 1.0, 1.0))
+            if "color" in ctx.mode_parameters
+            else None
+        )
         strips = []
 
         for sd in ctx.mode_parameters.get("strip_defs", []):
@@ -39,31 +47,37 @@ class CometEffect(BaseEffect):
 
             if sid not in self._positions:
                 self._positions[sid] = 0.0
-                self._hues[sid] = random.uniform(0, 360)
+                self._hues[sid] = (
+                    0.0 if authored_color is not None else random.uniform(0, 360)
+                )
                 self._tails[sid] = []
 
-            self._positions[sid] += self._speed * ctx.speed * ctx.delta_time
+            self._positions[sid] += speed * ctx.speed * ctx.delta_time
             pos = self._positions[sid]
 
             # Wrap around
             if pos > n + 2:
                 pos -= n + 2
-                self._hues[sid] = (self._hues[sid] + 60) % 360
+                if authored_color is None:
+                    self._hues[sid] = (self._hues[sid] + 60) % 360
                 self._tails[sid] = []
             self._positions[sid] = pos
 
             # Add new head
-            hue = self._hues[sid]
-            head_r, head_g, head_b = colorsys.hsv_to_rgb(hue / 360, 1.0, 1.0)
+            if authored_color is None:
+                hue = self._hues[sid]
+                head_r, head_g, head_b = colorsys.hsv_to_rgb(
+                    hue / 360, 1.0, 1.0
+                )
+            else:
+                head_r, head_g, head_b = authored_color
             self._tails[sid].append((pos, head_r, head_g, head_b))
 
             # Decay and remove old tails
-            for t in self._tails[sid]:
-                r, g, b = t[1], t[2], t[3]
-                r *= self._decay
-                g *= self._decay
-                b *= self._decay
-                t = (t[0], r, g, b)
+            self._tails[sid] = [
+                (t[0], t[1] * decay, t[2] * decay, t[3] * decay)
+                for t in self._tails[sid]
+            ]
 
             # Cleanup
             self._tails[sid] = [
@@ -75,7 +89,7 @@ class CometEffect(BaseEffect):
             pixels = [(0.0, 0.0, 0.0)] * n
             for t_pos, tr, tg, tb in self._tails[sid]:
                 tail_px = int(t_pos) % n
-                tail_len = int(n * self._tail_len)
+                tail_len = int(n * tail_length)
                 for offset in range(tail_len):
                     px = (tail_px - offset) % n
                     factor = 1.0 - offset / max(1, tail_len)
