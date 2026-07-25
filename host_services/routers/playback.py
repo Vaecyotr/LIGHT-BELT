@@ -57,6 +57,12 @@ async def seek(body: SeekRequest, request: Request):
     return ok(request, data)
 
 
+@router.get("/state")
+async def playback_state(request: Request):
+    data = engine_adapter.get_playback_state()
+    return ok(request, data)
+
+
 @router.post("/reset")
 async def reset(request: Request):
     data, err = engine_adapter.playback_reset()

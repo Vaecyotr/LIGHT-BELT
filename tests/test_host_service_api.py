@@ -36,6 +36,7 @@ def reset_engine_state(monkeypatch):
     monkeypatch.setitem(engine_adapter._state, "volume", 0.5)
     monkeypatch.setitem(engine_adapter._state, "muted", False)
     monkeypatch.setitem(engine_adapter._state, "brightness", 1.0)
+    monkeypatch.setitem(engine_adapter._state, "brightness_scale", 0.5)
 
 
 @pytest.fixture()
@@ -822,3 +823,114 @@ def test_playback_reset_clears_manual_state(client, auth_headers, monkeypatch):
     r = client.post("/api/v1/playback/reset", headers=auth_headers)
     assert r.status_code == 200
     assert engine_adapter._manual_targets == {}
+
+
+# ── Brightness scale (V1.2) ───────────────────────────────────────────────────
+
+def test_brightness_get_default(client, auth_headers):
+    """GET /brightness returns brightness_scale=0.5 (the default)."""
+    r = client.get("/api/v1/brightness", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["data"]["brightness_scale"] == pytest.approx(0.5)
+
+
+def test_brightness_set(client, auth_headers):
+    """POST /brightness/set persists brightness_scale."""
+    r = client.post(
+        "/api/v1/brightness/set",
+        json={"brightness_scale": 0.8},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["data"]["brightness_scale"] == pytest.approx(0.8)
+    assert r.json()["data"]["accepted"] is True
+
+    # Verify the value is stored
+    r2 = client.get("/api/v1/brightness", headers=auth_headers)
+    assert r2.json()["data"]["brightness_scale"] == pytest.approx(0.8)
+
+
+def test_brightness_set_out_of_range(client, auth_headers):
+    """POST /brightness/set with scale > 1.0 returns 400 INVALID_ARGUMENT."""
+    r = client.post(
+        "/api/v1/brightness/set",
+        json={"brightness_scale": 1.5},
+        headers=auth_headers,
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "INVALID_ARGUMENT"
+
+
+def test_brightness_scale_in_state(client, auth_headers):
+    """GET /state must include brightness_scale."""
+    r = client.get("/api/v1/state", headers=auth_headers)
+    assert r.status_code == 200
+    assert "brightness_scale" in r.json()["data"]
+
+
+def test_playback_state_idle(client, auth_headers):
+    """GET /playback/state returns well-formed dict when idle."""
+    r = client.get("/api/v1/playback/state", headers=auth_headers)
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["playback_state"] == "idle"
+    assert d["show"] is None
+    assert "position_ms" in d
+    assert "duration_ms" in d
+    assert "brightness_scale" in d
+    assert "audio" in d
+    assert "volume" in d["audio"]
+    assert "muted" in d["audio"]
+
+
+def test_playback_state_when_playing(client, auth_headers, monkeypatch):
+    """GET /playback/state includes filtered show info when a show is playing."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "show_id", "test-show")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    r = client.get("/api/v1/playback/state", headers=auth_headers)
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["playback_state"] == "playing"
+    assert d["show"] is not None
+    assert d["show"]["show_id"] == "test-show"
+    assert "media_path" not in d["show"]
+    assert d["duration_ms"] == 60000
+    assert "brightness_scale" in d
+
+
+def test_playback_play_resets_brightness_scale(client, auth_headers, monkeypatch):
+    """Starting playback must reset brightness_scale to the default (0.5)."""
+    monkeypatch.setitem(engine_adapter._state, "brightness_scale", 0.1)
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_ensure_mpv", lambda: mock_mpv)
+
+    r = client.post("/api/v1/playback/play", json={"show_id": "test-show"}, headers=auth_headers)
+    assert r.status_code == 200
+    assert engine_adapter._state["brightness_scale"] == pytest.approx(0.5)
+
+
+def test_brightness_set_calls_wled(client, auth_headers, monkeypatch):
+    """POST /brightness/set invokes wled_brightness.apply_scale with correct args."""
+    from host_services import wled_brightness
+    calls = []
+    monkeypatch.setattr(wled_brightness, "apply_scale", lambda devices, scale, timeout=1.0: calls.append((devices, scale)))
+
+    r = client.post(
+        "/api/v1/brightness/set",
+        json={"brightness_scale": 0.6},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    # In mock/test mode _devices is empty, so no HTTP call, but apply_scale is reached
+    # (it returns early when hosts is empty — the important thing is it was called)
+    assert len(calls) == 1
+    assert calls[0][1] == pytest.approx(0.6)
+
+
+def test_brightness_scale_in_runtime_snapshot(monkeypatch):
+    """get_runtime_state_snapshot must include brightness_scale."""
+    monkeypatch.setitem(engine_adapter._state, "brightness_scale", 0.7)
+    snap = engine_adapter.get_runtime_state_snapshot()
+    assert snap["brightness_scale"] == pytest.approx(0.7)

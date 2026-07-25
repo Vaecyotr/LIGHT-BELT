@@ -43,6 +43,17 @@ Host API V1.0 基于 Candidate validation / mapping 审计结果整理，Candida
 - `brightness`、`color_temperature`、`transition_ms` 为 Host Service 接收 APP 控制命令的语义。
 - `device.status` 消息和设备字段为 Host Service 面向 APP 的设备状态语义。
 
+## V1.2 新增（brightness_scale + /playback/state）
+
+- 新增 `GET /api/v1/brightness`，返回当前亮度乘数 `brightness_scale`（默认 `0.5`）。
+- 新增 `POST /api/v1/brightness/set`，接受 `brightness_scale`（`0.0~1.0`）并立即推送到所有 WLED 节点。
+- 新增 `GET /api/v1/playback/state`，返回实时播放位置（来自 mpv）、当前节目（过滤内部字段）、`brightness_scale` 和音频状态。
+- `POST /api/v1/playback/reset`：清除手动覆盖并重启节目 YAML 灯光引擎；若当前为暂停状态则自动恢复播放；结束后推送 `brightness_scale`。
+- `POST /api/v1/playback/play` 自动将 `brightness_scale` 重置为默认值 `0.5` 并推送到 WLED 节点。
+- `GET /api/v1/state` 响应增加 `brightness_scale` 字段。
+- `runtime.state` WebSocket 消息增加 `brightness_scale` 字段。
+- `GET /api/v1/capabilities` 的 `supports` 对象增加 `brightness_scale: true`。
+
 ## 对外文档与 OpenAPI 一致性
 
 - `docs/reference/host-api-v1.md` 是 APP 方阅读文档。

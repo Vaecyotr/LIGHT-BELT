@@ -19,6 +19,7 @@ from typing import Any
 from .config import (
     SCENE_MAX_COUNT, SCENE_FILE_PATH, SHOWS_MANIFEST_PATH,
     ENGINE_PROFILE_PATH, ENGINE_ADAPTER, VIDEO_DETECT_ENABLED,
+    BRIGHTNESS_SCALE_DEFAULT, WLED_HTTP_TIMEOUT_S,
 )
 from .schemas import VALID_EFFECT_TYPES
 
@@ -121,6 +122,11 @@ class MpvClient:
         """Add an external audio file as the selected audio track."""
         self._send(["audio-add", path, "select"])
 
+    def get_idle_active(self) -> bool:
+        """Return True when mpv is idle (no file loaded / playback finished)."""
+        r = self._send(["get_property", "idle-active"])
+        return bool(r.get("data", False))
+
 
 # ══════════════════════════════════════════════
 # 内存状态 —— Postman 测试时状态会随操作变化
@@ -142,6 +148,8 @@ _state = {
     "volume": 0.5,
     "muted": False,
     "scene_id": None,
+    # V1.2
+    "brightness_scale": BRIGHTNESS_SCALE_DEFAULT,
 }
 
 # Internal fields hidden from the /shows API response.
@@ -157,11 +165,37 @@ def _load_shows() -> list[dict]:
     from . import shows_loader
     return shows_loader.load_shows()
 
+def _filter_show_fields(show: dict) -> dict:
+    return {k: v for k, v in show.items() if k not in _SHOW_INTERNAL_FIELDS}
+
+
 _scenes: dict[str, dict] = {}  # 启动时由下方 _scenes.update(_load_scenes()) 从 SCENE_FILE_PATH 恢复
 
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def _live_position_ms() -> int:
+    """Return live mpv position in ms; falls back to stored position if mpv unavailable or idle."""
+    if _mpv is None:
+        return _state["position_ms"]
+    try:
+        if _mpv.get_idle_active():
+            return _state["position_ms"]
+        return int(_mpv.get_position() * 1000)
+    except Exception:
+        return _state["position_ms"]
+
+
+def _push_brightness_scale() -> None:
+    """Send current brightness_scale to all WLED nodes (fire-and-forget)."""
+    from . import wled_brightness
+    scale = _state["brightness_scale"]
+    hosts_devices = [d for d in _devices if d.get("host")]
+    if hosts_devices:
+        wled_brightness.apply_scale(hosts_devices, scale, WLED_HTTP_TIMEOUT_S)
+
 
 import urllib.request
 
@@ -291,14 +325,29 @@ def get_state() -> dict:
 
 
 # ══════════════════════════════════════════════
+# Brightness scale (V1.2)
+# ══════════════════════════════════════════════
+
+def get_brightness_scale() -> dict:
+    return {"brightness_scale": _state["brightness_scale"]}
+
+
+def brightness_scale_set(brightness_scale: float, transition_ms: float) -> tuple[dict, None]:
+    _state["brightness_scale"] = brightness_scale
+    _push_brightness_scale()
+    return {
+        "brightness_scale": _state["brightness_scale"],
+        "transition_ms": transition_ms,
+        "accepted": True,
+    }, None
+
+
+# ══════════════════════════════════════════════
 # Shows
 # ══════════════════════════════════════════════
 
 def get_shows() -> list[dict]:
-    return [
-        {k: v for k, v in s.items() if k not in _SHOW_INTERNAL_FIELDS}
-        for s in _load_shows()
-    ]
+    return [_filter_show_fields(s) for s in _load_shows()]
 
 # ══════════════════════════════════════════════
 # Capabilities
@@ -340,7 +389,7 @@ def get_capabilities() -> dict:
         "playback": True, "resume": True, "seek": True,
         "lights": True, "effects": True, "color_temperature": True,
         "transitions": True, "websocket": True,
-        "audio": True, "scenes": True,
+        "audio": True, "scenes": True, "brightness_scale": True,
     }
     return {
         "targets": _capability_targets,
@@ -481,10 +530,12 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     _state["position_ms"] = start_ms or 0
     _state["duration_ms"] = show["duration_ms"]
     _state["scene_id"] = None
+    _state["brightness_scale"] = BRIGHTNESS_SCALE_DEFAULT
     _manual_targets.clear()
     if _real_adapter is not None:
         _real_adapter.on_playback_start(show, start_ms)
         _mark_devices_output()
+    _push_brightness_scale()
     return _playback_data(), None
 
 
@@ -543,6 +594,7 @@ def playback_reset() -> tuple[dict | None, str | None]:
         if _mpv is not None:
             _mpv.resume()
         _state["playback_state"] = "playing"
+    _push_brightness_scale()
     return _playback_data(), None
 
 
@@ -806,6 +858,27 @@ def scene_delete(scene_id: str) -> tuple[dict | None, str | None]:
 # WebSocket 状态快照（供 ws.py 推送）
 # ══════════════════════════════════════════════
 
+def get_playback_state() -> dict:
+    """Live /playback/state response: live position, current show fields, brightness_scale, audio."""
+    show_id = _state["show_id"]
+    show = None
+    if show_id:
+        s = _find_show(show_id)
+        if s:
+            show = _filter_show_fields(s)
+    return {
+        "playback_state": _state["playback_state"],
+        "show": show,
+        "position_ms": _live_position_ms(),
+        "duration_ms": _state["duration_ms"],
+        "brightness_scale": _state["brightness_scale"],
+        "audio": {
+            "volume": _state["volume"],
+            "muted": _state["muted"],
+        },
+    }
+
+
 def get_runtime_state_snapshot() -> dict:
     return {
         "system_state": _state["system_state"],
@@ -820,6 +893,7 @@ def get_runtime_state_snapshot() -> dict:
         "volume": _state["volume"],
         "muted": _state["muted"],
         "scene_id": _state["scene_id"],
+        "brightness_scale": _state["brightness_scale"],
     }
 
 
