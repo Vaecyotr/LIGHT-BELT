@@ -50,6 +50,10 @@ MPV_DISPLAY = os.environ.get("MPV_DISPLAY", ":0")
 # 是否启用 xrandr 视频输出检测（mock 模式默认关闭以免测试环境报错）
 VIDEO_DETECT_ENABLED: bool = ENGINE_ADAPTER == "real"
 
+# ── 亮度乘数 ──
+BRIGHTNESS_SCALE_DEFAULT: float = 0.5
+WLED_HTTP_TIMEOUT_S: float = 1.0
+
 # ── 版本信息 ──
 SERVICE_NAME = "light-belt-host"
 HOST_ID = "rk3588-main"

@@ -71,7 +71,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
 
 # ── 注册路由，相当于 @ComponentScan ──
 from .routers import status, auth, state, shows, capabilities
-from .routers import playback, lights, effects, audio, scenes
+from .routers import playback, lights, effects, audio, scenes, brightness
 from . import ws
 
 app.include_router(status.router)
@@ -84,6 +84,7 @@ app.include_router(lights.router)
 app.include_router(effects.router)
 app.include_router(audio.router)
 app.include_router(scenes.router)
+app.include_router(brightness.router)
 app.include_router(ws.router)
 
 
