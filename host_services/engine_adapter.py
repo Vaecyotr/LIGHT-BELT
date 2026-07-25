@@ -511,6 +511,12 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
         return None, "NOT_FOUND"
     if start_ms is not None and start_ms > show["duration_ms"]:
         return None, "INVALID_ARGUMENT"
+    # Tear down current playback before starting new show (same as stop).
+    if _mpv:
+        _mpv.stop()
+    _manual_targets.clear()
+    if _real_adapter is not None:
+        _real_adapter.on_playback_stop()
     if show.get("media_path"):
         try:
             mpv = _ensure_mpv()
