@@ -44,7 +44,7 @@ layout:
   strips:
   - id: strip_32
     type: digital
-    pixel_count: 20
+    pixel_count: 40
     video_zone: left
     direction: forward
   - id: strip_31
@@ -91,7 +91,7 @@ layout:
   - node_id: 1
     host: 192.168.31.58
     port: 4048
-    pixel_count: 20
+    pixel_count: 40
     max_udp_payload: 1400
     protocol_version: 3
   - node_id: 2
@@ -124,7 +124,7 @@ layout:
     output_id: 1
     gpio: 16
     strip_id: strip_32
-    pixel_count: 20
+    pixel_count: 40
     direction: forward
   - node_id: 2
     output_id: 1
