@@ -240,9 +240,42 @@ def rewrite_profile(base: str, out: str, found: dict[str, str]) -> int:
         fh.write("# 由 scripts/resolve_nodes.py 自动生成，请勿手工编辑。\n")
         fh.write(f"# base: {base}\n")
         yaml.safe_dump(profile, fh, allow_unicode=True, sort_keys=False)
+
+    # 用引擎自己的加载器验一遍再替换。校验不过就保留原来那份好的，
+    # 绝不用一个引擎读不了的 profile 覆盖掉能用的。
+    err = validate_with_engine(tmp)
+    if err:
+        log(f"!! 生成的 profile 引擎读不了：{err}")
+        log(f"!! 已丢弃，保留原有 {out}")
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return len(NODE_MACS)
+
     os.replace(tmp, out)
-    log(f"已写出 {out}")
+    log(f"已写出 {out}（引擎校验通过）")
     return missing
+
+
+def validate_with_engine(path: str) -> str | None:
+    """用 light_engine 自己的 Config 加载一遍；OK 返回 None，否则返回错误描述。"""
+    try:
+        import sys as _sys
+        from pathlib import Path as _P
+        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if _root not in _sys.path:
+            _sys.path.insert(0, _root)
+        from light_engine.config import Config
+        from light_engine.mapping import Layout
+        Config.reset()
+        cfg = Config(_P(path))
+        layout = Layout.from_config(cfg)
+        if not layout.digital_nodes:
+            return "layout.digital_nodes 为空"
+        return None
+    except Exception as exc:                            # noqa: BLE001
+        return f"{type(exc).__name__}: {exc}"
 
 
 def load_cache(path: str) -> dict[str, str]:
@@ -271,8 +304,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--profile", default=os.path.join(
         root, "config", "profiles", "rk3588-host-service.yaml"))
+    # 必须放在 config/<子目录>/ 下：light_engine 的 Config 会用
+    # profile_path.parent.parent 当 config_dir 去找 system/layout/effects/outputs.yaml。
+    # 放到 data/ 会推导出仓库根目录，基底文件全找不到，校验直接失败。
     ap.add_argument("--out", default=os.path.join(
-        root, "data", "site-profile.yaml"))
+        root, "config", "profiles", "site-profile.yaml"))
     ap.add_argument("--cache", default=os.path.join(
         root, "data", "node-ip-cache.json"))
     ap.add_argument("--check", action="store_true", help="只报告，不写 profile")
