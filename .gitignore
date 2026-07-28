@@ -71,7 +71,6 @@ LIGHT-BELT-codex-one-esp-per-strip/
 
 # Kiosk frontend build outputs
 kiosk/node_modules/
-kiosk/dist/
 
 # Large local media fixtures (tracked in assets/ subdirs, not committed)
 *.mp4
