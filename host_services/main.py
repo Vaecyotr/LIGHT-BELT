@@ -88,6 +88,14 @@ app.include_router(brightness.router)
 app.include_router(ws.router)
 
 
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+_kiosk_dist = Path(__file__).resolve().parent.parent / "kiosk" / "dist"
+if _kiosk_dist.is_dir():
+    app.mount("/", StaticFiles(directory=str(_kiosk_dist), html=True), name="kiosk")
+
+
 def run():
     scheme = "https" if ENABLE_TLS else "http"
     print(f"Host Service starting on {scheme}://{HOST}:{PORT}")
