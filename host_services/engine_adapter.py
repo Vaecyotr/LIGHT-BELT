@@ -15,6 +15,7 @@ import os
 import uuid
 import socket
 import subprocess
+import threading
 from typing import Any
 from .config import (
     SCENE_MAX_COUNT, SCENE_FILE_PATH, SHOWS_MANIFEST_PATH,
@@ -197,6 +198,18 @@ def _push_brightness_scale() -> None:
         wled_brightness.apply_scale(hosts_devices, scale, WLED_HTTP_TIMEOUT_S)
 
 
+def _push_wled_off() -> None:
+    """停止播放时把节点本地状态关掉。
+
+    DDP 停流后 WLED 退出 realtime 会回落到本地状态（出厂默认 = 开 + 琥珀色），
+    表现为节目结束后灯带全黄。显式发 {"on": false} 消掉这个回落。
+    """
+    from . import wled_brightness
+    hosts_devices = [d for d in _devices if d.get("host")]
+    if hosts_devices:
+        wled_brightness.apply_off(hosts_devices, WLED_HTTP_TIMEOUT_S)
+
+
 import urllib.request
 
 def _probe_devices() -> None:
@@ -291,6 +304,8 @@ def _accumulate_hw_entry(tid: str, effect_type: str, hw_color: list) -> None:
 def _apply_manual_targets() -> None:
     """Send the complete accumulated _manual_targets list to the real adapter."""
     if _real_adapter is not None and _manual_targets:
+        # 节点可能被 playback_stop / 自然结束看门狗关过，先重新点亮再下发。
+        _push_brightness_scale()
         _real_adapter.on_manual_command(list(_manual_targets.values()))
     if _manual_targets:
         _mark_devices_output()
@@ -571,6 +586,7 @@ def playback_stop() -> tuple[dict, None]:
     _manual_targets.clear()
     if _real_adapter is not None:
         _real_adapter.on_playback_stop()
+        _push_wled_off()
     return _playback_data(), None
 
 
@@ -905,3 +921,70 @@ def get_runtime_state_snapshot() -> dict:
 
 def get_playback_progress_snapshot() -> dict:
     return _playback_data()
+
+
+# ══════════════════════════════════════════════
+# 自然结束看门狗
+# ══════════════════════════════════════════════
+#
+# 节目自己播到结尾时没有人调 /playback/stop：mpv 变 idle、light_engine 停止
+# 推 DDP，节点在 if.live.timeout 之后回落到本地状态（默认琥珀色）→ 灯全黄。
+# 这个线程负责补上那次收尾。仅在 real 模式启动，mock 模式（测试）不受影响。
+
+_WATCHDOG_INTERVAL_S = 1.0
+_WATCHDOG_IDLE_STREAK = 3      # 连续 3 次读到 idle 才认定结束，躲开加载中的空窗
+_watchdog_thread: threading.Thread | None = None
+
+
+def _finalize_natural_end() -> None:
+    """等价于一次 playback_stop，但不碰 mpv（它已经 idle 了）。"""
+    _state["playback_state"] = "stopped"
+    _state["show_id"] = None
+    _state["position_ms"] = 0
+    _state["duration_ms"] = 0
+    _manual_targets.clear()
+    if _real_adapter is not None:
+        _real_adapter.on_playback_stop()
+        _push_wled_off()
+
+
+def _natural_end_watchdog() -> None:
+    streak = 0
+    while True:
+        time.sleep(_WATCHDOG_INTERVAL_S)
+        try:
+            # 只管「我们以为在播、且确实有媒体」的情况。
+            # duration_ms == 0 的占位节目本来就没有 mpv 参与，跳过。
+            if _state["playback_state"] != "playing" or not _state["duration_ms"]:
+                streak = 0
+                continue
+            if _mpv is None:
+                streak = 0
+                continue
+            if not _mpv.get_idle_active():
+                streak = 0
+                continue
+            streak += 1
+            if streak < _WATCHDOG_IDLE_STREAK:
+                continue
+            streak = 0
+            _log.info("watchdog: mpv idle while playing; finalizing natural show end")
+            _finalize_natural_end()
+        except Exception as exc:                        # noqa: BLE001
+            _log.debug("watchdog: %s: %s", type(exc).__name__, exc)
+            streak = 0
+
+
+def _start_natural_end_watchdog() -> None:
+    global _watchdog_thread
+    if _real_adapter is None:
+        return
+    if _watchdog_thread is not None and _watchdog_thread.is_alive():
+        return
+    _watchdog_thread = threading.Thread(
+        target=_natural_end_watchdog, name="natural-end-watchdog", daemon=True)
+    _watchdog_thread.start()
+    _log.info("engine_adapter: natural-end watchdog started")
+
+
+_start_natural_end_watchdog()
