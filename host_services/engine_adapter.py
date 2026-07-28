@@ -498,9 +498,12 @@ def _ensure_mpv() -> MpvClient:
         env = os.environ.copy()
         env.setdefault("DISPLAY", MPV_DISPLAY)
         try:
+            from pathlib import Path as _Path
+            _kiosk_input_conf = str(_Path(__file__).resolve().parent.parent / "config" / "mpv-kiosk-input.conf")
             _mpv_proc = subprocess.Popen(
                 ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
-                 "--keep-open=no", "--no-terminal"],
+                 "--keep-open=no", "--no-terminal", "--fs",
+                 f"--input-conf={_kiosk_input_conf}"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 env=env,
             )
