@@ -500,7 +500,7 @@ def _ensure_mpv() -> MpvClient:
         try:
             _mpv_proc = subprocess.Popen(
                 ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
-                 "--no-terminal"],
+                 "--keep-open=no", "--no-terminal"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 env=env,
             )
