@@ -210,7 +210,9 @@ def discover(macs: dict[int, str], cache: dict[str, str],
 # 生成 profile
 # ════════════════════════════════════════════════════════════════
 
-def rewrite_profile(base: str, out: str, found: dict[str, str]) -> int:
+def rewrite_profile(base: str, out: str, found: dict[str, str],
+                    cache: dict[str, str] | None = None) -> int:
+    cache = cache or {}
     with open(base, "r", encoding="utf-8") as fh:
         profile = yaml.safe_load(fh)
 
@@ -230,10 +232,13 @@ def rewrite_profile(base: str, out: str, found: dict[str, str]) -> int:
         if ip:
             node["host"] = ip
             log(f"  node {nid}: {'不变' if ip == old else f'{old} -> {ip}'}")
+        elif cache.get(mac):
+            missing += 1
+            node["host"] = cache[mac]
+            log(f"  node {nid}: !! 未找到（{mac}），回落到缓存 {cache[mac]}（base 是 {old}）")
         else:
             missing += 1
-            log(f"  node {nid}: !! 未找到（{mac}），保留旧值 {old}")
-
+            log(f"  node {nid}: !! 未找到（{mac}），且无缓存，保留 base 的 {old}")
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     tmp = out + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -290,9 +295,11 @@ def save_cache(path: str, found: dict[str, str]) -> None:
     if not found:
         return
     try:
+        merged = load_cache(path)
+        merged.update(found)
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
-            json.dump(found, fh, indent=2)
+            json.dump(merged, fh, indent=2)
     except Exception as exc:                            # noqa: BLE001
         log(f"缓存写入失败（忽略）: {exc}")
 
@@ -341,7 +348,7 @@ def main() -> int:
             print(f"  node_{nid}  {mac}  ->  {found.get(mac, '未找到')}")
         return 0
 
-    rewrite_profile(args.profile, args.out, found)
+    rewrite_profile(args.profile, args.out, found, cache)
     return 0        # 永远成功，不阻塞 host service 启动
 
 
