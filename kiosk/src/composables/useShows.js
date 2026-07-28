@@ -14,7 +14,9 @@ export function useShows() {
     loading.value = false
   }
 
+  const DEMO_SHOW = { show_id: 'demo', name: 'Demo', description: '（暂无节目）', duration_ms: 0 }
+
   onMounted(load)
 
-  return { shows, loading, reload: load }
+  return { shows, loading, reload: load, DEMO_SHOW }
 }

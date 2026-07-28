@@ -15,13 +15,13 @@
       <section class="panel panel--shows">
         <h2 class="panel-title">Shows</h2>
         <div v-if="showsLoading" class="empty">Loading…</div>
-        <div v-else-if="!shows.length" class="empty">No shows found in assets/</div>
         <div v-else class="scroll-list">
           <ShowCard
-            v-for="show in shows"
+            v-for="show in (shows.length ? shows : [DEMO_SHOW])"
             :key="show.show_id"
             :show="show"
-            @play="startPlay"
+            :disabled="!show.duration_ms"
+            @play="show.duration_ms ? startPlay(show.show_id) : null"
           />
         </div>
       </section>
@@ -95,7 +95,7 @@ import { useVolume } from './composables/useVolume.js'
 import { useKeyboard } from './composables/useKeyboard.js'
 
 const { state, show, positionMs, durationMs, brightnessScale, progress, isPlaying, isPaused, isActive, play, pause, stop, setBrightness } = usePlayback()
-const { shows, loading: showsLoading } = useShows()
+const { shows, loading: showsLoading, DEMO_SHOW } = useShows()
 const { volume, muted, setVolume, toggleMute } = useVolume()
 
 // HUD auto-hide

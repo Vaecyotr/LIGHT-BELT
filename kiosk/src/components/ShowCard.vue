@@ -1,5 +1,5 @@
 <template>
-  <button class="show-card" @click="$emit('play', show.show_id)">
+  <button class="show-card" :class="{ 'show-card--disabled': disabled }" @click="$emit('play', show.show_id)" :disabled="disabled">
     <div class="show-color" :style="{ background: cardColor }"></div>
     <div class="show-body">
       <div class="show-name">{{ show.name || show.show_id }}</div>
@@ -13,7 +13,7 @@
 <script setup>
 import { computed } from 'vue'
 
-const props = defineProps({ show: Object })
+const props = defineProps({ show: Object, disabled: Boolean })
 defineEmits(['play'])
 
 const PALETTE = [
@@ -51,11 +51,12 @@ function formatDuration(ms) {
   width: 100%;
   min-height: 80px;
 }
-.show-card:hover {
+.show-card:hover:not(:disabled) {
   border-color: #5b7fff;
   transform: translateY(-1px);
 }
-.show-card:active { transform: scale(0.98); }
+.show-card:active:not(:disabled) { transform: scale(0.98); }
+.show-card--disabled { opacity: 0.4; cursor: default; }
 .show-color {
   width: 8px;
   align-self: stretch;
