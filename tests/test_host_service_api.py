@@ -5,6 +5,8 @@ All tests use FastAPI TestClient and in-memory state only.
 No mpv, no hardware, no filesystem (shows manifest is monkeypatched).
 """
 
+import os
+
 import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
@@ -934,3 +936,210 @@ def test_brightness_scale_in_runtime_snapshot(monkeypatch):
     monkeypatch.setitem(engine_adapter._state, "brightness_scale", 0.7)
     snap = engine_adapter.get_runtime_state_snapshot()
     assert snap["brightness_scale"] == pytest.approx(0.7)
+
+
+# ── mpv hang/deadlock hardening ───────────────────────────────────────────────
+
+def test_mpv_client_send_timeout_returns_error_and_closes_socket(monkeypatch):
+    """A recv() that blocks past the IPC timeout must not hang the caller; it must
+    return an error dict and always close the socket, even on failure."""
+    closed = []
+
+    class FakeSocket:
+        def settimeout(self, _t):
+            pass
+
+        def connect(self, _path):
+            pass
+
+        def sendall(self, _data):
+            pass
+
+        def recv(self, _n):
+            raise engine_adapter.socket.timeout()
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(engine_adapter.socket, "socket", lambda *a, **kw: FakeSocket())
+
+    mpv = engine_adapter.MpvClient("/tmp/fake.sock")
+    result = mpv._send(["get_property", "time-pos"])
+
+    assert result == {"error": "timeout"}
+    assert closed == [True]
+
+
+def test_mpv_client_send_generic_exception_still_closes_socket(monkeypatch):
+    """Any other _send failure (e.g. connection refused) must still close the socket."""
+    closed = []
+
+    class FakeSocket:
+        def settimeout(self, _t):
+            pass
+
+        def connect(self, _path):
+            raise ConnectionRefusedError("boom")
+
+        def sendall(self, _data):
+            pass
+
+        def recv(self, _n):
+            return b""
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(engine_adapter.socket, "socket", lambda *a, **kw: FakeSocket())
+
+    mpv = engine_adapter.MpvClient("/tmp/fake.sock")
+    result = mpv._send(["stop"])
+
+    assert result == {"error": "boom"}
+    assert closed == [True]
+
+
+def test_live_position_ms_falls_back_on_non_positive_position(monkeypatch):
+    """A timed-out get_position() reads back as 0.0; this must not be reported as
+    the live position (which would look like 'just started'), it must fall back
+    to the last known stored position."""
+    monkeypatch.setitem(engine_adapter._state, "position_ms", 12345)
+    mock_mpv = MagicMock()
+    mock_mpv.get_idle_active.return_value = False
+    mock_mpv.get_position.return_value = 0.0
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    assert engine_adapter._live_position_ms() == 12345
+
+
+def test_live_position_ms_returns_live_value_when_positive(monkeypatch):
+    monkeypatch.setitem(engine_adapter._state, "position_ms", 0)
+    mock_mpv = MagicMock()
+    mock_mpv.get_idle_active.return_value = False
+    mock_mpv.get_position.return_value = 5.5
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    assert engine_adapter._live_position_ms() == 5500
+
+
+def test_finalize_natural_end_clears_dead_mpv_refs(monkeypatch, tmp_path):
+    """If mpv's process already exited, finalize must clear _mpv/_mpv_proc (and the
+    stale socket file) so the next play request rebuilds them via _ensure_mpv."""
+    sock_path = str(tmp_path / "mpv.sock")
+    open(sock_path, "w").close()
+
+    dead_proc = MagicMock()
+    dead_proc.poll.return_value = 1
+    dead_proc.returncode = 1
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", dead_proc)
+    monkeypatch.setattr(engine_adapter, "_mpv", engine_adapter.MpvClient(sock_path))
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "show_id", "test-show")
+
+    engine_adapter._finalize_natural_end()
+
+    assert engine_adapter._mpv is None
+    assert engine_adapter._mpv_proc is None
+    assert not os.path.exists(sock_path)
+    assert engine_adapter._state["playback_state"] == "stopped"
+
+
+def test_finalize_natural_end_keeps_mpv_refs_when_process_alive(monkeypatch):
+    """Normal natural-end finalize (mpv idle but alive) must not tear down _mpv/_mpv_proc."""
+    alive_proc = MagicMock()
+    alive_proc.poll.return_value = None
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", alive_proc)
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+
+    engine_adapter._finalize_natural_end()
+
+    assert engine_adapter._mpv is mock_mpv
+    assert engine_adapter._mpv_proc is alive_proc
+    assert engine_adapter._state["playback_state"] == "stopped"
+
+
+class _StopWatchdogLoop(Exception):
+    """Sentinel used to break out of the watchdog's `while True` after N ticks."""
+
+
+def _run_watchdog_ticks(monkeypatch, ticks):
+    """Run `_natural_end_watchdog` for exactly `ticks` iterations by making
+    time.sleep raise after the desired number of calls (sleep is the first thing
+    each loop iteration does, so this cleanly stops the loop between ticks)."""
+    calls = {"n": 0}
+
+    def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] > ticks:
+            raise _StopWatchdogLoop()
+
+    monkeypatch.setattr(engine_adapter.time, "sleep", fake_sleep)
+    with pytest.raises(_StopWatchdogLoop):
+        engine_adapter._natural_end_watchdog()
+
+
+def test_natural_end_watchdog_finalizes_on_dead_process(monkeypatch):
+    """A dead mpv process must be detected without waiting on IPC at all, and
+    finalize only after _WATCHDOG_CRASH_STREAK consecutive dead ticks."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    dead_proc = MagicMock()
+    dead_proc.poll.return_value = 1
+    dead_proc.returncode = 1
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", dead_proc)
+    monkeypatch.setattr(engine_adapter, "_mpv", MagicMock())
+
+    finalize_calls = []
+    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+
+    _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_CRASH_STREAK)
+
+    assert len(finalize_calls) == 1
+
+
+def test_natural_end_watchdog_finalizes_on_ipc_unreachable(monkeypatch):
+    """A live process whose IPC never succeeds (timeout/refused) must also be
+    treated as a crash after _WATCHDOG_CRASH_STREAK consecutive failures."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    alive_proc = MagicMock()
+    alive_proc.poll.return_value = None
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", alive_proc)
+
+    mock_mpv = MagicMock()
+    mock_mpv._send.return_value = {"error": "timeout"}
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    finalize_calls = []
+    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+
+    _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_CRASH_STREAK)
+
+    assert len(finalize_calls) == 1
+    mock_mpv._send.assert_called_with(["get_property", "idle-active"])
+
+
+def test_natural_end_watchdog_still_finalizes_on_idle_streak(monkeypatch):
+    """Regression guard: normal natural-end detection (mpv alive, IPC healthy,
+    idle-active=True for _WATCHDOG_IDLE_STREAK ticks) must keep working."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    alive_proc = MagicMock()
+    alive_proc.poll.return_value = None
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", alive_proc)
+
+    mock_mpv = MagicMock()
+    mock_mpv._send.return_value = {"data": True, "error": "success"}
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    finalize_calls = []
+    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+
+    _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_IDLE_STREAK)
+
+    assert len(finalize_calls) == 1

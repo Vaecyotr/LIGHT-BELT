@@ -46,6 +46,11 @@ TLS_KEYFILE = "/etc/light-belt/key.pem"
 MPV_SOCKET_PATH = os.environ.get("MPV_SOCKET_PATH", "/run/light-belt/mpv.sock")
 # mpv 视频输出的 DISPLAY；仅当进程环境未设置 DISPLAY 时生效
 MPV_DISPLAY = os.environ.get("MPV_DISPLAY", ":0")
+# X11 认证文件路径；仅当进程环境未设置 XAUTHORITY 时生效
+MPV_XAUTHORITY = os.environ.get("MPV_XAUTHORITY", "/home/topeet/.Xauthority")
+# mpv 窗口几何（配合 --no-border 铺满屏幕，而不用 --fullscreen；
+# --fullscreen 曾在现场导致 LED 灯光同步异常，改用显式几何尺寸绕开 WM 全屏路径）
+MPV_GEOMETRY = os.environ.get("MPV_GEOMETRY", "1920x1080+0+0")
 
 # 是否启用 xrandr 视频输出检测（mock 模式默认关闭以免测试环境报错）
 VIDEO_DETECT_ENABLED: bool = ENGINE_ADAPTER == "real"
