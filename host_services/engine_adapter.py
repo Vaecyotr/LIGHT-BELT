@@ -12,6 +12,7 @@ import time
 import json
 import logging
 import os
+import sys
 import uuid
 import socket
 import subprocess
@@ -57,9 +58,32 @@ def _load_layout_vocab():
         return frozenset({"all"}), [{"target_id": "all", "name": "all"}], []
 
 
+def _run_resolve_nodes() -> None:
+    """在进程内跑 resolve_nodes.py，确保 profile 里的 IP 是最新的。"""
+    if ENGINE_ADAPTER != "real":
+        return
+    from pathlib import Path as _P
+    script = _P(__file__).resolve().parent.parent / "scripts" / "resolve_nodes.py"
+    if not script.exists():
+        _log.warning("resolve_nodes.py not found at %s; skipping", script)
+        return
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script), "--out", ENGINE_PROFILE_PATH],
+            timeout=30,
+            capture_output=True,
+            text=True,
+        )
+        for line in (result.stderr or "").splitlines():
+            _log.info("[resolve_nodes] %s", line)
+    except Exception as exc:
+        _log.warning("resolve_nodes.py failed: %s", exc)
+
+
 _valid_target_ids: frozenset[str]
 _capability_targets: list[dict]
 _devices: list[dict]
+_run_resolve_nodes()
 _valid_target_ids, _capability_targets, _devices = _load_layout_vocab()
 
 
@@ -1077,3 +1101,43 @@ def _ensure_mpv_at_startup() -> None:
 
 
 _ensure_mpv_at_startup()
+
+
+# ══════════════════════════════════════════════
+# 延迟重新 resolve —— 补开机时节点还没 ready 的时序缝隙
+# ══════════════════════════════════════════════
+
+def _deferred_re_resolve() -> None:
+    """开机 30 秒后再 resolve 一次；如果 IP 变了就热更新 _devices。
+
+    解决开机时节点还没连上 WiFi、avahi 还没 ready 的时序问题。
+    """
+    global _valid_target_ids, _capability_targets, _devices
+    if ENGINE_ADAPTER != "real":
+        return
+    time.sleep(30)
+    try:
+        old_hosts = {d["device_id"]: d.get("host") for d in _devices}
+        _run_resolve_nodes()
+        from light_engine.config import Config as _Cfg
+        _Cfg.reset()  # 清掉 singleton 缓存，强制重新读文件
+        new_ids, new_caps, new_devs = _load_layout_vocab()
+        new_hosts = {d["device_id"]: d.get("host") for d in new_devs}
+        changed = {k for k in old_hosts if old_hosts[k] != new_hosts.get(k)}
+        if changed:
+            _valid_target_ids = new_ids
+            _capability_targets = new_caps
+            _devices = new_devs
+            _log.info(
+                "deferred re-resolve: updated %d device IPs: %s",
+                len(changed),
+                ", ".join(f"{k}: {old_hosts[k]} -> {new_hosts.get(k)}" for k in changed),
+            )
+        else:
+            _log.info("deferred re-resolve: all IPs unchanged")
+    except Exception as exc:
+        _log.warning("deferred re-resolve failed: %s", exc)
+
+
+if ENGINE_ADAPTER == "real":
+    threading.Thread(target=_deferred_re_resolve, name="deferred-re-resolve", daemon=True).start()
