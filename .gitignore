@@ -81,10 +81,4 @@ kiosk/node_modules/
 *.wav
 *.mp3
 # Ignore media inside assets/ subdirs but keep yaml, README, and other text files
-assets/**/*.mp4
-assets/**/*.mkv
-assets/**/*.avi
-assets/**/*.mov
-assets/**/*.flac
-assets/**/*.wav
-assets/**/*.mp3
+assets/**/*

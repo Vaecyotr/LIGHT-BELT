@@ -71,9 +71,13 @@ class MpvClient:
     def __init__(self, sock_path: str):
         self._sock_path = sock_path
 
+    _SEND_TIMEOUT_S = 2.0
+
     def _send(self, cmd: list) -> dict:
+        s = None
         try:
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(self._SEND_TIMEOUT_S)
             s.connect(self._sock_path)
             msg = json.dumps({"command": cmd}) + "\n"
             s.sendall(msg.encode())
@@ -85,10 +89,18 @@ class MpvClient:
                 resp += chunk
                 if b"\n" in resp:
                     break
-            s.close()
             return json.loads(resp.split(b"\n")[0])
+        except socket.timeout:
+            _log.warning("mpv IPC timeout (%.1fs) for command: %s", self._SEND_TIMEOUT_S, cmd)
+            return {"error": "timeout"}
         except Exception as e:
             return {"error": str(e)}
+        finally:
+            if s is not None:
+                try:
+                    s.close()
+                except Exception:
+                    pass
 
     def play_file(self, path: str):
         self._send(["loadfile", path, "replace"])
@@ -184,7 +196,10 @@ def _live_position_ms() -> int:
     try:
         if _mpv.get_idle_active():
             return _state["position_ms"]
-        return int(_mpv.get_position() * 1000)
+        pos = _mpv.get_position()
+        if pos <= 0:
+            return _state["position_ms"]
+        return int(pos * 1000)
     except Exception:
         return _state["position_ms"]
 
@@ -458,7 +473,7 @@ def _drain_stderr(proc: subprocess.Popen, name: str) -> None:
 
 def _ensure_mpv() -> MpvClient:
     global _mpv, _mpv_proc
-    from .config import MPV_SOCKET_PATH, MPV_DISPLAY
+    from .config import MPV_SOCKET_PATH, MPV_DISPLAY, MPV_XAUTHORITY, MPV_GEOMETRY
     sock = MPV_SOCKET_PATH
 
     if os.path.exists(sock):
@@ -497,10 +512,17 @@ def _ensure_mpv() -> MpvClient:
             raise MpvUnavailableError(f"Cannot create mpv socket directory: {exc}") from exc
         env = os.environ.copy()
         env.setdefault("DISPLAY", MPV_DISPLAY)
+        env.setdefault("XAUTHORITY", MPV_XAUTHORITY)
+        from pathlib import Path as _Path
+        _input_conf = str(
+            _Path(__file__).resolve().parent.parent / "config" / "mpv-kiosk-input.conf"
+        )
         try:
             _mpv_proc = subprocess.Popen(
                 ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
-                 "--keep-open=no", "--no-terminal"],
+                 "--keep-open=no", "--no-terminal",
+                 f"--geometry={MPV_GEOMETRY}", "--no-border", "--force-window=yes",
+                 f"--input-conf={_input_conf}"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 env=env,
             )
@@ -933,16 +955,33 @@ def get_playback_progress_snapshot() -> dict:
 
 _WATCHDOG_INTERVAL_S = 1.0
 _WATCHDOG_IDLE_STREAK = 3      # 连续 3 次读到 idle 才认定结束，躲开加载中的空窗
+_WATCHDOG_CRASH_STREAK = 5     # 连续 5 次进程已死/IPC 不可达才判定 mpv 崩溃
 _watchdog_thread: threading.Thread | None = None
 
 
 def _finalize_natural_end() -> None:
-    """等价于一次 playback_stop，但不碰 mpv（它已经 idle 了）。"""
+    """等价于一次 playback_stop。如果 mpv 进程已死，顺带清理引用以便下次重建。"""
+    global _mpv, _mpv_proc
     _state["playback_state"] = "stopped"
     _state["show_id"] = None
     _state["position_ms"] = 0
     _state["duration_ms"] = 0
     _manual_targets.clear()
+    if _mpv_proc is not None and _mpv_proc.poll() is not None:
+        _log.warning(
+            "_finalize_natural_end: mpv process already dead (exit %s); clearing references",
+            _mpv_proc.returncode,
+        )
+        sock = _mpv._sock_path if _mpv is not None else None
+        if sock:
+            try:
+                os.unlink(sock)
+            except FileNotFoundError:
+                pass
+            except Exception:
+                pass
+        _mpv = None
+        _mpv_proc = None
     if _real_adapter is not None:
         _real_adapter.on_playback_stop()
         _push_wled_off()
@@ -950,6 +989,7 @@ def _finalize_natural_end() -> None:
 
 def _natural_end_watchdog() -> None:
     streak = 0
+    crash_streak = 0
     while True:
         time.sleep(_WATCHDOG_INTERVAL_S)
         try:
@@ -957,11 +997,45 @@ def _natural_end_watchdog() -> None:
             # duration_ms == 0 的占位节目本来就没有 mpv 参与，跳过。
             if _state["playback_state"] != "playing" or not _state["duration_ms"]:
                 streak = 0
+                crash_streak = 0
                 continue
+
+            # mpv 子进程已经退出（被 kill / 崩溃）——不用等 IPC 超时，直接判定。
+            if _mpv_proc is not None and _mpv_proc.poll() is not None:
+                crash_streak += 1
+                if crash_streak >= _WATCHDOG_CRASH_STREAK:
+                    _log.error(
+                        "watchdog: mpv process dead (exit %s) while state='playing'; "
+                        "finalizing as crash",
+                        _mpv_proc.returncode,
+                    )
+                    crash_streak = 0
+                    _finalize_natural_end()
+                continue
+            crash_streak = 0
+
             if _mpv is None:
                 streak = 0
                 continue
-            if not _mpv.get_idle_active():
+
+            # 直接调用 _send 而不是 get_idle_active()，因为后者把 IPC 失败
+            # 和「IPC 成功但 idle=False」都折叠成同一个 False，无法区分
+            # 「mpv 半死不活/超时」和「mpv 正常在播」。
+            r = _mpv._send(["get_property", "idle-active"])
+            if r.get("error") != "success":
+                crash_streak += 1
+                if crash_streak >= _WATCHDOG_CRASH_STREAK:
+                    _log.error(
+                        "watchdog: mpv IPC unreachable %d times (%s); finalizing as crash",
+                        crash_streak, r.get("error"),
+                    )
+                    crash_streak = 0
+                    _finalize_natural_end()
+                streak = 0
+                continue
+            crash_streak = 0
+
+            if not bool(r.get("data", False)):
                 streak = 0
                 continue
             streak += 1
@@ -973,6 +1047,7 @@ def _natural_end_watchdog() -> None:
         except Exception as exc:                        # noqa: BLE001
             _log.debug("watchdog: %s: %s", type(exc).__name__, exc)
             streak = 0
+            crash_streak = 0
 
 
 def _start_natural_end_watchdog() -> None:
@@ -988,3 +1063,17 @@ def _start_natural_end_watchdog() -> None:
 
 
 _start_natural_end_watchdog()
+
+
+def _ensure_mpv_at_startup() -> None:
+    """在 real 模式下，服务启动时立即拉起 mpv 全屏黑窗口（遮住桌面）。"""
+    if _real_adapter is None:
+        return
+    try:
+        _ensure_mpv()
+        _log.info("engine_adapter: mpv started at startup (fullscreen idle)")
+    except MpvUnavailableError as exc:
+        _log.warning("engine_adapter: mpv not available at startup: %s (will retry on first play)", exc)
+
+
+_ensure_mpv_at_startup()
