@@ -18,6 +18,7 @@ export const api = {
   resume: () => call('POST', '/playback/resume'),
   stop: () => call('POST', '/playback/stop'),
   seek: (position_ms) => call('POST', '/playback/seek', { position_ms }),
-  applyScene: (scene_id, transition_ms = 500) => call('POST', '/scenes/apply', { scene_id, transition_ms }),
   setBrightness: (brightness_scale) => call('POST', '/brightness/set', { brightness_scale }),
+  setVolume: (volume) => call('POST', '/audio/set', { volume }),
+  setMuted: (muted) => call('POST', '/audio/set', { muted }),
 }

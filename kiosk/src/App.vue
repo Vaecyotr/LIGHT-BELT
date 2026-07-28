@@ -26,28 +26,23 @@
         </div>
       </section>
 
-      <!-- Right column: Scenes + Brightness -->
+      <!-- Right column: Brightness + Volume -->
       <section class="panel panel--right">
-        <div class="panel panel--scenes">
-          <h2 class="panel-title">Scenes</h2>
-          <div v-if="scenesLoading" class="empty">Loading…</div>
-          <div v-else-if="!scenes.length" class="empty">No saved scenes</div>
-          <div v-else class="scroll-list">
-            <SceneCard
-              v-for="scene in scenes"
-              :key="scene.scene_id"
-              :scene="scene"
-              :busy="applying === scene.scene_id"
-              @apply="applyScene"
-            />
-          </div>
-        </div>
-
-        <div class="panel panel--brightness">
+        <div class="panel panel--control">
           <h2 class="panel-title">Brightness</h2>
           <BrightnessSlider
             v-model="brightnessScale"
             @commit="setBrightness"
+          />
+        </div>
+
+        <div class="panel panel--control panel--volume">
+          <h2 class="panel-title">Volume</h2>
+          <VolumeSlider
+            v-model="volume"
+            :muted="muted"
+            @commit="setVolume"
+            @toggleMute="toggleMute"
           />
         </div>
       </section>
@@ -67,9 +62,9 @@
       @stop="stop"
     />
 
-    <!-- Playback HUD overlay (shown during playback, auto-hides) -->
+    <!-- Playback HUD overlay (auto-hides after 3s) -->
     <Transition name="hud-fade">
-      <div v-if="isActive && hudVisible" class="hud" @mousemove="resetHudTimer">
+      <div v-if="isActive && hudVisible" class="hud">
         <div class="hud-inner">
           <div class="hud-show">{{ show?.name || show?.show_id }}</div>
           <div v-if="durationMs" class="hud-progress-row">
@@ -88,27 +83,23 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { watch } from 'vue'
 import StatusIndicator from './components/StatusIndicator.vue'
 import ShowCard from './components/ShowCard.vue'
-import SceneCard from './components/SceneCard.vue'
 import BrightnessSlider from './components/BrightnessSlider.vue'
+import VolumeSlider from './components/VolumeSlider.vue'
 import PlaybackBar from './components/PlaybackBar.vue'
 import { usePlayback } from './composables/usePlayback.js'
 import { useShows } from './composables/useShows.js'
-import { useScenes } from './composables/useScenes.js'
+import { useVolume } from './composables/useVolume.js'
 import { useKeyboard } from './composables/useKeyboard.js'
 
 const { state, show, positionMs, durationMs, brightnessScale, progress, isPlaying, isPaused, isActive, play, pause, stop, setBrightness } = usePlayback()
 const { shows, loading: showsLoading } = useShows()
-const { scenes, loading: scenesLoading, applying, applyScene } = useScenes()
+const { volume, muted, setVolume, toggleMute } = useVolume()
 
-async function startPlay(show_id) {
-  await play(show_id)
-  showHud()
-}
-
-// HUD auto-hide logic
+// HUD auto-hide
+import { ref } from 'vue'
 const hudVisible = ref(false)
 let hudTimer = null
 
@@ -125,9 +116,13 @@ function resetHudTimer() {
 
 watch(isActive, (v) => { if (v) showHud(); else hudVisible.value = false })
 
-// Show HUD on mouse move anywhere
 if (typeof window !== 'undefined') {
   window.addEventListener('mousemove', () => { if (isActive.value) resetHudTimer() })
+}
+
+async function startPlay(show_id) {
+  await play(show_id)
+  showHud()
 }
 
 function formatMs(ms) {
@@ -138,7 +133,7 @@ function formatMs(ms) {
   return `${m}:${String(s % 60).padStart(2,'0')}`
 }
 
-// Keyboard shortcuts (active when Chromium has focus / UI is visible)
+// Keyboard shortcuts (active when Chromium has focus)
 useKeyboard({
   onSpace: () => pause(),
   onEscape: () => stop(),
@@ -186,7 +181,6 @@ useKeyboard({
   display: flex;
   flex: 1;
   min-height: 0;
-  gap: 0;
 }
 
 .panel {
@@ -201,18 +195,16 @@ useKeyboard({
 }
 .panel--right {
   flex: 1;
-  gap: 0;
   padding: 0;
+  gap: 0;
 }
-.panel--scenes {
-  flex: 1;
-  min-height: 0;
+.panel--control {
+  padding: 24px 24px;
   border-bottom: 1px solid #1a1a2e;
-  padding: 20px 24px;
-}
-.panel--brightness {
   flex-shrink: 0;
-  padding: 20px 24px;
+}
+.panel--volume {
+  border-bottom: none;
 }
 
 .panel-title {
@@ -222,7 +214,6 @@ useKeyboard({
   text-transform: uppercase;
   color: #555;
   margin-bottom: 14px;
-  flex-shrink: 0;
 }
 
 .scroll-list {
@@ -237,11 +228,7 @@ useKeyboard({
 .scroll-list::-webkit-scrollbar { width: 4px; }
 .scroll-list::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
 
-.empty {
-  color: #444;
-  font-size: 0.9rem;
-  padding: 8px 0;
-}
+.empty { color: #444; font-size: 0.9rem; padding: 8px 0; }
 
 /* ── HUD overlay ── */
 .hud {
