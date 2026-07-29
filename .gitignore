@@ -26,6 +26,8 @@ logs/
 *.log
 artifacts/runs/
 data/
+/config/profiles/site-profile.yaml
+/mpv-shot*.jpg
 /tests/fixtures/audio/generated_show_orchestration/
 
 # Local hardware freezes and credential-bearing field images

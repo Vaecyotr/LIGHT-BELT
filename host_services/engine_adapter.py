@@ -545,7 +545,9 @@ def _ensure_mpv() -> MpvClient:
             _mpv_proc = subprocess.Popen(
                 ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
                  "--keep-open=no", "--no-terminal",
-                 f"--geometry={MPV_GEOMETRY}", "--no-border", "--force-window=yes",
+                 "--vo=xv",
+                 "--input-default-bindings=no",
+                 f"--geometry={MPV_GEOMETRY}", "--no-border", "--force-window=yes","--no-osc",
                  f"--input-conf={_input_conf}"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 env=env,
@@ -592,6 +594,7 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
             if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):
                 _log.warning("mpv did not report duration in time; seeking anyway")
             mpv.seek(start_ms / 1000)
+        mpv.resume()
     _state["playback_state"] = "playing"
     _state["show_id"] = show_id
     _state["position_ms"] = start_ms or 0

@@ -151,6 +151,7 @@ def test_playback_play_stop(client, auth_headers, monkeypatch):
     assert r.status_code == 200
     assert r.json()["data"]["playback_state"] == "playing"
     mock_mpv.play_file.assert_called_once_with("/dev/null")
+    mock_mpv.resume.assert_called_once_with()
 
     r = client.post("/api/v1/playback/stop", headers=auth_headers)
     assert r.status_code == 200
@@ -472,6 +473,9 @@ def test_ensure_mpv_stale_socket(monkeypatch):
     assert result is not None
     assert len(unlinked) == 1           # stale socket was removed
     assert mock_popen.called            # mpv was relaunched
+    command = mock_popen.call_args.args[0]
+    assert "--vo=xv" in command
+    assert "--input-default-bindings=no" in command
 
 
 # ── New: color params passed through (problems 1 & 2) ────────────────────────
