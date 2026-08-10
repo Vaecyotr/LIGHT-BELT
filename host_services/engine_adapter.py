@@ -1013,10 +1013,10 @@ def _finalize_natural_end() -> None:
         _real_adapter.on_playback_stop()
         _push_wled_off()
 
-
 def _natural_end_watchdog() -> None:
     streak = 0
-    crash_streak = 0
+    dead_streak = 0
+    ipc_streak = 0
     while True:
         time.sleep(_WATCHDOG_INTERVAL_S)
         try:
@@ -1024,22 +1024,24 @@ def _natural_end_watchdog() -> None:
             # duration_ms == 0 的占位节目本来就没有 mpv 参与，跳过。
             if _state["playback_state"] != "playing" or not _state["duration_ms"]:
                 streak = 0
-                crash_streak = 0
+                dead_streak = 0
+                ipc_streak = 0
                 continue
 
             # mpv 子进程已经退出（被 kill / 崩溃）——不用等 IPC 超时，直接判定。
             if _mpv_proc is not None and _mpv_proc.poll() is not None:
-                crash_streak += 1
-                if crash_streak >= _WATCHDOG_CRASH_STREAK:
+                dead_streak += 1
+                if dead_streak >= _WATCHDOG_CRASH_STREAK:
                     _log.error(
                         "watchdog: mpv process dead (exit %s) while state='playing'; "
                         "finalizing as crash",
                         _mpv_proc.returncode,
                     )
-                    crash_streak = 0
+                    dead_streak = 0
+                    ipc_streak = 0
                     _finalize_natural_end()
                 continue
-            crash_streak = 0
+            dead_streak = 0
 
             if _mpv is None:
                 streak = 0
@@ -1050,17 +1052,17 @@ def _natural_end_watchdog() -> None:
             # 「mpv 半死不活/超时」和「mpv 正常在播」。
             r = _mpv._send(["get_property", "idle-active"])
             if r.get("error") != "success":
-                crash_streak += 1
-                if crash_streak >= _WATCHDOG_CRASH_STREAK:
+                ipc_streak += 1
+                if ipc_streak >= _WATCHDOG_CRASH_STREAK:
                     _log.error(
                         "watchdog: mpv IPC unreachable %d times (%s); finalizing as crash",
-                        crash_streak, r.get("error"),
+                        ipc_streak, r.get("error"),
                     )
-                    crash_streak = 0
+                    ipc_streak = 0
                     _finalize_natural_end()
                 streak = 0
                 continue
-            crash_streak = 0
+            ipc_streak = 0
 
             if not bool(r.get("data", False)):
                 streak = 0
@@ -1074,8 +1076,8 @@ def _natural_end_watchdog() -> None:
         except Exception as exc:                        # noqa: BLE001
             _log.debug("watchdog: %s: %s", type(exc).__name__, exc)
             streak = 0
-            crash_streak = 0
-
+            dead_streak = 0
+            ipc_streak = 0
 
 def _start_natural_end_watchdog() -> None:
     global _watchdog_thread
