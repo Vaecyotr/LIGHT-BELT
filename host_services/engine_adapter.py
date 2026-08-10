@@ -15,10 +15,12 @@ import os
 import uuid
 import socket
 import subprocess
+import threading
 from typing import Any
 from .config import (
     SCENE_MAX_COUNT, SCENE_FILE_PATH, SHOWS_MANIFEST_PATH,
     ENGINE_PROFILE_PATH, ENGINE_ADAPTER, VIDEO_DETECT_ENABLED,
+    BRIGHTNESS_SCALE_DEFAULT, WLED_HTTP_TIMEOUT_S,
 )
 from .schemas import VALID_EFFECT_TYPES
 
@@ -69,9 +71,13 @@ class MpvClient:
     def __init__(self, sock_path: str):
         self._sock_path = sock_path
 
+    _SEND_TIMEOUT_S = 2.0
+
     def _send(self, cmd: list) -> dict:
+        s = None
         try:
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(self._SEND_TIMEOUT_S)
             s.connect(self._sock_path)
             msg = json.dumps({"command": cmd}) + "\n"
             s.sendall(msg.encode())
@@ -83,10 +89,18 @@ class MpvClient:
                 resp += chunk
                 if b"\n" in resp:
                     break
-            s.close()
             return json.loads(resp.split(b"\n")[0])
+        except socket.timeout:
+            _log.warning("mpv IPC timeout (%.1fs) for command: %s", self._SEND_TIMEOUT_S, cmd)
+            return {"error": "timeout"}
         except Exception as e:
             return {"error": str(e)}
+        finally:
+            if s is not None:
+                try:
+                    s.close()
+                except Exception:
+                    pass
 
     def play_file(self, path: str):
         self._send(["loadfile", path, "replace"])
@@ -117,6 +131,15 @@ class MpvClient:
     def set_mute(self, muted: bool):
         self._send(["set_property", "mute", muted])
 
+    def add_audio_track(self, path: str):
+        """Add an external audio file as the selected audio track."""
+        self._send(["audio-add", path, "select"])
+
+    def get_idle_active(self) -> bool:
+        """Return True when mpv is idle (no file loaded / playback finished)."""
+        r = self._send(["get_property", "idle-active"])
+        return bool(r.get("data", False))
+
 
 # ══════════════════════════════════════════════
 # 内存状态 —— Postman 测试时状态会随操作变化
@@ -138,21 +161,69 @@ _state = {
     "volume": 0.5,
     "muted": False,
     "scene_id": None,
+    # V1.2
+    "brightness_scale": BRIGHTNESS_SCALE_DEFAULT,
 }
 
 # Internal fields hidden from the /shows API response.
-_SHOW_INTERNAL_FIELDS = {"media_path", "show_yaml", "aux_triggers"}
+_SHOW_INTERNAL_FIELDS = {"media_path", "show_yaml", "aux_triggers", "audio_path"}
+
+# Overridable in tests via monkeypatch; None means use shows_loader discovery.
+_shows: list[dict] | None = None
 
 
 def _load_shows() -> list[dict]:
+    if _shows is not None:
+        return _shows
     from . import shows_loader
     return shows_loader.load_shows()
+
+def _filter_show_fields(show: dict) -> dict:
+    return {k: v for k, v in show.items() if k not in _SHOW_INTERNAL_FIELDS}
+
 
 _scenes: dict[str, dict] = {}  # 启动时由下方 _scenes.update(_load_scenes()) 从 SCENE_FILE_PATH 恢复
 
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def _live_position_ms() -> int:
+    """Return live mpv position in ms; falls back to stored position if mpv unavailable or idle."""
+    if _mpv is None:
+        return _state["position_ms"]
+    try:
+        if _mpv.get_idle_active():
+            return _state["position_ms"]
+        pos = _mpv.get_position()
+        if pos <= 0:
+            return _state["position_ms"]
+        return int(pos * 1000)
+    except Exception:
+        return _state["position_ms"]
+
+
+def _push_brightness_scale() -> None:
+    """Send current brightness_scale to all WLED nodes (fire-and-forget)."""
+    from . import wled_brightness
+    scale = _state["brightness_scale"]
+    hosts_devices = [d for d in _devices if d.get("host")]
+    if hosts_devices:
+        wled_brightness.apply_scale(hosts_devices, scale, WLED_HTTP_TIMEOUT_S)
+
+
+def _push_wled_off() -> None:
+    """停止播放时把节点本地状态关掉。
+
+    DDP 停流后 WLED 退出 realtime 会回落到本地状态（出厂默认 = 开 + 琥珀色），
+    表现为节目结束后灯带全黄。显式发 {"on": false} 消掉这个回落。
+    """
+    from . import wled_brightness
+    hosts_devices = [d for d in _devices if d.get("host")]
+    if hosts_devices:
+        wled_brightness.apply_off(hosts_devices, WLED_HTTP_TIMEOUT_S)
+
 
 import urllib.request
 
@@ -248,6 +319,8 @@ def _accumulate_hw_entry(tid: str, effect_type: str, hw_color: list) -> None:
 def _apply_manual_targets() -> None:
     """Send the complete accumulated _manual_targets list to the real adapter."""
     if _real_adapter is not None and _manual_targets:
+        # 节点可能被 playback_stop / 自然结束看门狗关过，先重新点亮再下发。
+        _push_brightness_scale()
         _real_adapter.on_manual_command(list(_manual_targets.values()))
     if _manual_targets:
         _mark_devices_output()
@@ -282,14 +355,29 @@ def get_state() -> dict:
 
 
 # ══════════════════════════════════════════════
+# Brightness scale (V1.2)
+# ══════════════════════════════════════════════
+
+def get_brightness_scale() -> dict:
+    return {"brightness_scale": _state["brightness_scale"]}
+
+
+def brightness_scale_set(brightness_scale: float, transition_ms: float) -> tuple[dict, None]:
+    _state["brightness_scale"] = brightness_scale
+    _push_brightness_scale()
+    return {
+        "brightness_scale": _state["brightness_scale"],
+        "transition_ms": transition_ms,
+        "accepted": True,
+    }, None
+
+
+# ══════════════════════════════════════════════
 # Shows
 # ══════════════════════════════════════════════
 
 def get_shows() -> list[dict]:
-    return [
-        {k: v for k, v in s.items() if k not in _SHOW_INTERNAL_FIELDS}
-        for s in _load_shows()
-    ]
+    return [_filter_show_fields(s) for s in _load_shows()]
 
 # ══════════════════════════════════════════════
 # Capabilities
@@ -331,7 +419,7 @@ def get_capabilities() -> dict:
         "playback": True, "resume": True, "seek": True,
         "lights": True, "effects": True, "color_temperature": True,
         "transitions": True, "websocket": True,
-        "audio": True, "scenes": True,
+        "audio": True, "scenes": True, "brightness_scale": True,
     }
     return {
         "targets": _capability_targets,
@@ -385,7 +473,7 @@ def _drain_stderr(proc: subprocess.Popen, name: str) -> None:
 
 def _ensure_mpv() -> MpvClient:
     global _mpv, _mpv_proc
-    from .config import MPV_SOCKET_PATH, MPV_DISPLAY
+    from .config import MPV_SOCKET_PATH, MPV_DISPLAY, MPV_XAUTHORITY, MPV_GEOMETRY
     sock = MPV_SOCKET_PATH
 
     if os.path.exists(sock):
@@ -424,10 +512,17 @@ def _ensure_mpv() -> MpvClient:
             raise MpvUnavailableError(f"Cannot create mpv socket directory: {exc}") from exc
         env = os.environ.copy()
         env.setdefault("DISPLAY", MPV_DISPLAY)
+        env.setdefault("XAUTHORITY", MPV_XAUTHORITY)
+        from pathlib import Path as _Path
+        _input_conf = str(
+            _Path(__file__).resolve().parent.parent / "config" / "mpv-kiosk-input.conf"
+        )
         try:
             _mpv_proc = subprocess.Popen(
                 ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
-                 "--no-terminal"],
+                 "--keep-open=no", "--no-terminal",
+                 f"--geometry={MPV_GEOMETRY}", "--no-border", "--force-window=yes",
+                 f"--input-conf={_input_conf}"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 env=env,
             )
@@ -453,12 +548,22 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
         return None, "NOT_FOUND"
     if start_ms is not None and start_ms > show["duration_ms"]:
         return None, "INVALID_ARGUMENT"
+    # Tear down current playback before starting new show (same as stop).
+    if _mpv:
+        _mpv.stop()
+    _manual_targets.clear()
+    if _real_adapter is not None:
+        _real_adapter.on_playback_stop()
     if show.get("media_path"):
         try:
             mpv = _ensure_mpv()
         except MpvUnavailableError:
             return None, "MPV_UNAVAILABLE"
         mpv.play_file(show["media_path"])
+        if show.get("audio_path"):
+            if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):
+                _log.warning("mpv did not report duration in time; adding audio track anyway")
+            mpv.add_audio_track(show["audio_path"])
         if start_ms and start_ms > 0:
             if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):
                 _log.warning("mpv did not report duration in time; seeking anyway")
@@ -468,10 +573,12 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     _state["position_ms"] = start_ms or 0
     _state["duration_ms"] = show["duration_ms"]
     _state["scene_id"] = None
+    _state["brightness_scale"] = BRIGHTNESS_SCALE_DEFAULT
     _manual_targets.clear()
     if _real_adapter is not None:
         _real_adapter.on_playback_start(show, start_ms)
         _mark_devices_output()
+    _push_brightness_scale()
     return _playback_data(), None
 
 
@@ -501,6 +608,7 @@ def playback_stop() -> tuple[dict, None]:
     _manual_targets.clear()
     if _real_adapter is not None:
         _real_adapter.on_playback_stop()
+        _push_wled_off()
     return _playback_data(), None
 
 
@@ -509,6 +617,28 @@ def playback_seek(position_ms: float) -> tuple[dict | None, str | None]:
         return None, "SHOW_NOT_LOADED"
     _ensure_mpv().seek(position_ms / 1000)
     _state["position_ms"] = position_ms
+    return _playback_data(), None
+
+
+def playback_reset() -> tuple[dict | None, str | None]:
+    """Resume the show's YAML lighting after a manual override.
+
+    Clears accumulated manual targets and restarts the show's light_engine
+    subprocess.  mpv is NOT restarted; the engine re-syncs via --clock mpv.
+    In mock mode (_real_adapter is None) only clears manual targets.
+    """
+    if _state["playback_state"] not in ("playing", "paused"):
+        return None, "PLAYBACK_NOT_READY"
+    _manual_targets.clear()
+    if _real_adapter is not None:
+        ok = _real_adapter.on_playback_resume_yaml()
+        if not ok:
+            return None, "NO_ACTIVE_SHOW"
+    if _state["playback_state"] == "paused":
+        if _mpv is not None:
+            _mpv.resume()
+        _state["playback_state"] = "playing"
+    _push_brightness_scale()
     return _playback_data(), None
 
 
@@ -754,6 +884,7 @@ def scene_apply(scene_id: str,
         "accepted": True,
         "partial": False,
         "failed_targets": [],
+        "applied_entries": scene.get("entries", []),
     }, None
 
 
@@ -771,6 +902,27 @@ def scene_delete(scene_id: str) -> tuple[dict | None, str | None]:
 # WebSocket 状态快照（供 ws.py 推送）
 # ══════════════════════════════════════════════
 
+def get_playback_state() -> dict:
+    """Live /playback/state response: live position, current show fields, brightness_scale, audio."""
+    show_id = _state["show_id"]
+    show = None
+    if show_id:
+        s = _find_show(show_id)
+        if s:
+            show = _filter_show_fields(s)
+    return {
+        "playback_state": _state["playback_state"],
+        "show": show,
+        "position_ms": _live_position_ms(),
+        "duration_ms": _state["duration_ms"],
+        "brightness_scale": _state["brightness_scale"],
+        "audio": {
+            "volume": _state["volume"],
+            "muted": _state["muted"],
+        },
+    }
+
+
 def get_runtime_state_snapshot() -> dict:
     return {
         "system_state": _state["system_state"],
@@ -785,8 +937,143 @@ def get_runtime_state_snapshot() -> dict:
         "volume": _state["volume"],
         "muted": _state["muted"],
         "scene_id": _state["scene_id"],
+        "brightness_scale": _state["brightness_scale"],
     }
 
 
 def get_playback_progress_snapshot() -> dict:
     return _playback_data()
+
+
+# ══════════════════════════════════════════════
+# 自然结束看门狗
+# ══════════════════════════════════════════════
+#
+# 节目自己播到结尾时没有人调 /playback/stop：mpv 变 idle、light_engine 停止
+# 推 DDP，节点在 if.live.timeout 之后回落到本地状态（默认琥珀色）→ 灯全黄。
+# 这个线程负责补上那次收尾。仅在 real 模式启动，mock 模式（测试）不受影响。
+
+_WATCHDOG_INTERVAL_S = 1.0
+_WATCHDOG_IDLE_STREAK = 3      # 连续 3 次读到 idle 才认定结束，躲开加载中的空窗
+_WATCHDOG_CRASH_STREAK = 5     # 连续 5 次进程已死/IPC 不可达才判定 mpv 崩溃
+_watchdog_thread: threading.Thread | None = None
+
+
+def _finalize_natural_end() -> None:
+    """等价于一次 playback_stop。如果 mpv 进程已死，顺带清理引用以便下次重建。"""
+    global _mpv, _mpv_proc
+    _state["playback_state"] = "stopped"
+    _state["show_id"] = None
+    _state["position_ms"] = 0
+    _state["duration_ms"] = 0
+    _manual_targets.clear()
+    if _mpv_proc is not None and _mpv_proc.poll() is not None:
+        _log.warning(
+            "_finalize_natural_end: mpv process already dead (exit %s); clearing references",
+            _mpv_proc.returncode,
+        )
+        sock = _mpv._sock_path if _mpv is not None else None
+        if sock:
+            try:
+                os.unlink(sock)
+            except FileNotFoundError:
+                pass
+            except Exception:
+                pass
+        _mpv = None
+        _mpv_proc = None
+    if _real_adapter is not None:
+        _real_adapter.on_playback_stop()
+        _push_wled_off()
+
+
+def _natural_end_watchdog() -> None:
+    streak = 0
+    crash_streak = 0
+    while True:
+        time.sleep(_WATCHDOG_INTERVAL_S)
+        try:
+            # 只管「我们以为在播、且确实有媒体」的情况。
+            # duration_ms == 0 的占位节目本来就没有 mpv 参与，跳过。
+            if _state["playback_state"] != "playing" or not _state["duration_ms"]:
+                streak = 0
+                crash_streak = 0
+                continue
+
+            # mpv 子进程已经退出（被 kill / 崩溃）——不用等 IPC 超时，直接判定。
+            if _mpv_proc is not None and _mpv_proc.poll() is not None:
+                crash_streak += 1
+                if crash_streak >= _WATCHDOG_CRASH_STREAK:
+                    _log.error(
+                        "watchdog: mpv process dead (exit %s) while state='playing'; "
+                        "finalizing as crash",
+                        _mpv_proc.returncode,
+                    )
+                    crash_streak = 0
+                    _finalize_natural_end()
+                continue
+            crash_streak = 0
+
+            if _mpv is None:
+                streak = 0
+                continue
+
+            # 直接调用 _send 而不是 get_idle_active()，因为后者把 IPC 失败
+            # 和「IPC 成功但 idle=False」都折叠成同一个 False，无法区分
+            # 「mpv 半死不活/超时」和「mpv 正常在播」。
+            r = _mpv._send(["get_property", "idle-active"])
+            if r.get("error") != "success":
+                crash_streak += 1
+                if crash_streak >= _WATCHDOG_CRASH_STREAK:
+                    _log.error(
+                        "watchdog: mpv IPC unreachable %d times (%s); finalizing as crash",
+                        crash_streak, r.get("error"),
+                    )
+                    crash_streak = 0
+                    _finalize_natural_end()
+                streak = 0
+                continue
+            crash_streak = 0
+
+            if not bool(r.get("data", False)):
+                streak = 0
+                continue
+            streak += 1
+            if streak < _WATCHDOG_IDLE_STREAK:
+                continue
+            streak = 0
+            _log.info("watchdog: mpv idle while playing; finalizing natural show end")
+            _finalize_natural_end()
+        except Exception as exc:                        # noqa: BLE001
+            _log.debug("watchdog: %s: %s", type(exc).__name__, exc)
+            streak = 0
+            crash_streak = 0
+
+
+def _start_natural_end_watchdog() -> None:
+    global _watchdog_thread
+    if _real_adapter is None:
+        return
+    if _watchdog_thread is not None and _watchdog_thread.is_alive():
+        return
+    _watchdog_thread = threading.Thread(
+        target=_natural_end_watchdog, name="natural-end-watchdog", daemon=True)
+    _watchdog_thread.start()
+    _log.info("engine_adapter: natural-end watchdog started")
+
+
+_start_natural_end_watchdog()
+
+
+def _ensure_mpv_at_startup() -> None:
+    """在 real 模式下，服务启动时立即拉起 mpv 全屏黑窗口（遮住桌面）。"""
+    if _real_adapter is None:
+        return
+    try:
+        _ensure_mpv()
+        _log.info("engine_adapter: mpv started at startup (fullscreen idle)")
+    except MpvUnavailableError as exc:
+        _log.warning("engine_adapter: mpv not available at startup: %s (will retry on first play)", exc)
+
+
+_ensure_mpv_at_startup()

@@ -69,6 +69,9 @@ desktop.ini
 # Snapshot subdirectories from other workstations
 LIGHT-BELT-codex-one-esp-per-strip/
 
+# Kiosk frontend build outputs
+kiosk/node_modules/
+
 # Large local media fixtures (tracked in assets/ subdirs, not committed)
 *.mp4
 *.mkv
@@ -78,10 +81,4 @@ LIGHT-BELT-codex-one-esp-per-strip/
 *.wav
 *.mp3
 # Ignore media inside assets/ subdirs but keep yaml, README, and other text files
-assets/**/*.mp4
-assets/**/*.mkv
-assets/**/*.avi
-assets/**/*.mov
-assets/**/*.flac
-assets/**/*.wav
-assets/**/*.mp3
+assets/**/*

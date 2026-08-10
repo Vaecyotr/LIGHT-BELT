@@ -1,0 +1,15 @@
+[Unit]
+Description=LIGHT-BELT Kiosk UI
+After=light-belt-host.service
+Requires=light-belt-host.service
+
+[Service]
+Type=simple
+User=topeet
+Environment=DISPLAY=:0
+ExecStart=/path/to/scripts/kiosk-boot.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target

@@ -12,13 +12,14 @@ LIGHT-BELT Host Service 入口。
 """
 
 import logging
+import os
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from .config import HOST, PORT, ENABLE_TLS, TLS_CERTFILE, TLS_KEYFILE
+from .config import HOST, PORT, ENABLE_TLS, TLS_CERTFILE, TLS_KEYFILE, MPV_DISPLAY, MPV_XAUTHORITY
 
 _log = logging.getLogger(__name__)
 
@@ -30,6 +31,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _disable_dpms():
+    """禁用 X11 屏保 / DPMS，防止 HDMI 无信号导致黑屏后无法唤醒。"""
+    import subprocess as _sp
+    env = {"DISPLAY": MPV_DISPLAY, "XAUTHORITY": MPV_XAUTHORITY, "PATH": os.environ.get("PATH", "/usr/bin")}
+    for cmd in [
+        ["xset", "s", "off"],       # 禁用屏保
+        ["xset", "-dpms"],          # 禁用 DPMS（防 HDMI 信号关闭）
+        ["xset", "s", "noblank"],   # 禁止空白屏保
+    ]:
+        try:
+            _sp.run(cmd, env=env, timeout=5, capture_output=True)
+        except Exception:
+            pass
 
 
 @app.exception_handler(RequestValidationError)
@@ -71,7 +88,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
 
 # ── 注册路由，相当于 @ComponentScan ──
 from .routers import status, auth, state, shows, capabilities
-from .routers import playback, lights, effects, audio, scenes
+from .routers import playback, lights, effects, audio, scenes, brightness
 from . import ws
 
 app.include_router(status.router)
@@ -84,7 +101,16 @@ app.include_router(lights.router)
 app.include_router(effects.router)
 app.include_router(audio.router)
 app.include_router(scenes.router)
+app.include_router(brightness.router)
 app.include_router(ws.router)
+
+
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+_kiosk_dist = Path(__file__).resolve().parent.parent / "kiosk" / "dist"
+if _kiosk_dist.is_dir():
+    app.mount("/", StaticFiles(directory=str(_kiosk_dist), html=True), name="kiosk")
 
 
 def run():

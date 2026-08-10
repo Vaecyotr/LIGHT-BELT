@@ -898,6 +898,101 @@ Response 字段解释：
 - `PLAYBACK_NOT_READY`
 - `INTERNAL_ERROR`
 
+### GET /api/v1/playback/state
+
+用途：获取实时播放状态，包含当前节目、实时播放位置、亮度乘数和音频状态。
+
+| 项目 | 值 |
+|---|---|
+| URL | `https://192.168.31.236:8443/api/v1/playback/state` |
+| Method | `GET` |
+| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+
+Response JSON 示例：
+
+```json
+{
+  "ok": true,
+  "request_id": "req-pstate-001",
+  "data": {
+    "playback_state": "playing",
+    "show": {
+      "show_id": "teacher-demo-v1",
+      "name": "教学演示 V1",
+      "duration_ms": 300000,
+      "description": "演示节目"
+    },
+    "position_ms": 126000,
+    "duration_ms": 300000,
+    "brightness_scale": 0.5,
+    "audio": {
+      "volume": 0.5,
+      "muted": false
+    }
+  }
+}
+```
+
+Response 字段解释：
+
+| 字段 | 必填 | 类型 | 说明 |
+|---|---:|---|---|
+| `playback_state` | 是 | string | 当前播放状态。 |
+| `show` | 是 | object 或 null | 当前节目信息（已过滤内部字段）；空闲时为 `null`。 |
+| `position_ms` | 是 | number | 实时播放位置（来自 mpv），单位毫秒。 |
+| `duration_ms` | 是 | number | 当前节目时长，单位毫秒。 |
+| `brightness_scale` | 是 | number | 当前亮度乘数，范围 `0.0~1.0`。 |
+| `audio.volume` | 是 | number | 当前音量，范围 `0.0~1.0`。 |
+| `audio.muted` | 是 | boolean | 当前是否静音。 |
+
+可能的 `error.code`：
+
+- `UNAUTHORIZED`
+- `TOKEN_EXPIRED`
+- `INTERNAL_ERROR`
+
+### POST /api/v1/playback/reset
+
+用途：清除手动灯控覆盖，重新启动当前节目的 YAML 灯光引擎（通过 `--clock mpv` 与当前 mpv 位置自动同步）。若当前处于暂停状态，也会自动恢复播放。
+
+| 项目 | 值 |
+|---|---|
+| URL | `https://192.168.31.236:8443/api/v1/playback/reset` |
+| Method | `POST` |
+| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+
+Response JSON 示例：
+
+```json
+{
+  "ok": true,
+  "request_id": "req-reset-001",
+  "data": {
+    "playback_state": "playing",
+    "show_id": "teacher-demo-v1",
+    "position_ms": 126000,
+    "duration_ms": 300000
+  }
+}
+```
+
+Response 字段解释：
+
+| 字段 | 必填 | 类型 | 说明 |
+|---|---:|---|---|
+| `playback_state` | 是 | string | 当前播放状态。 |
+| `show_id` | 是 | string 或 null | 当前节目 ID。 |
+| `position_ms` | 是 | number | 当前播放位置，单位毫秒。 |
+| `duration_ms` | 是 | number | 当前节目时长，单位毫秒。 |
+
+可能的 `error.code`：
+
+- `PLAYBACK_NOT_READY`（当前没有正在播放或暂停的节目）
+- `NO_ACTIVE_SHOW`（实时模式下无法恢复节目引擎）
+- `UNAUTHORIZED`
+- `TOKEN_EXPIRED`
+- `INTERNAL_ERROR`
+
 ### POST /api/v1/lights/set
 
 用途：设置目标灯光的亮度、色温和过渡时间。
@@ -1401,6 +1496,95 @@ Response 字段解释：
 - `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
+### GET /api/v1/brightness
+
+用途：获取当前亮度乘数。
+
+| 项目 | 值 |
+|---|---|
+| URL | `https://192.168.31.236:8443/api/v1/brightness` |
+| Method | `GET` |
+| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+
+Response JSON 示例：
+
+```json
+{
+  "ok": true,
+  "request_id": "req-bri-001",
+  "data": {
+    "brightness_scale": 0.5
+  }
+}
+```
+
+Response 字段解释：
+
+| 字段 | 必填 | 类型 | 说明 |
+|---|---:|---|---|
+| `brightness_scale` | 是 | number | 当前亮度乘数，范围 `0.0~1.0`。 |
+
+可能的 `error.code`：
+
+- `UNAUTHORIZED`
+- `TOKEN_EXPIRED`
+- `INTERNAL_ERROR`
+
+### POST /api/v1/brightness/set
+
+用途：设置亮度乘数并立即推送到所有 WLED 节点。每次调用 `/playback/play` 时亮度乘数自动重置为默认值 `0.5`。
+
+| 项目 | 值 |
+|---|---|
+| URL | `https://192.168.31.236:8443/api/v1/brightness/set` |
+| Method | `POST` |
+| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+
+Request JSON 示例：
+
+```json
+{
+  "brightness_scale": 0.8,
+  "transition_ms": 0
+}
+```
+
+Request 字段解释：
+
+| 字段 | 必填 | 类型 | 枚举/范围 | 说明 |
+|---|---:|---|---|---|
+| `brightness_scale` | 是 | number | `0.0~1.0` | 目标亮度乘数。实际 WLED 主亮度 = `round(255 × brightness_scale)`。 |
+| `transition_ms` | 否 | number | `>= 0` | 过渡时间，单位毫秒；省略时为 `0`。 |
+
+Response JSON 示例：
+
+```json
+{
+  "ok": true,
+  "request_id": "req-bri-set-001",
+  "data": {
+    "brightness_scale": 0.8,
+    "transition_ms": 0,
+    "accepted": true
+  }
+}
+```
+
+Response 字段解释：
+
+| 字段 | 必填 | 类型 | 说明 |
+|---|---:|---|---|
+| `brightness_scale` | 是 | number | 已接受的亮度乘数。 |
+| `transition_ms` | 是 | number | 已接受的过渡时间，单位毫秒。 |
+| `accepted` | 是 | boolean | 命令是否已接受。 |
+
+可能的 `error.code`：
+
+- `INVALID_ARGUMENT`（`brightness_scale` 超出范围）
+- `UNAUTHORIZED`
+- `TOKEN_EXPIRED`
+- `INTERNAL_ERROR`
+
 ## 6. WebSocket 说明
 
 连接地址：
@@ -1656,6 +1840,7 @@ data 字段解释：
 | `position_ms` | number | state/playback response | 播放位置，单位毫秒。 |
 | `duration_ms` | number | state/playback response | 总时长，单位毫秒。 |
 | `brightness` | number | state/lights | 亮度，范围 `0.0~1.0`。 |
+| `brightness_scale` | number | state/brightness | 亮度乘数，范围 `0.0~1.0`；独立于 `brightness`，每次播放时自动重置为 `0.5`。 |
 | `color_temperature` | number | state/lights | 色温，范围 `2700~6500`。 |
 | `audio_available` | boolean | state/runtime response | 音频输入是否可用。 |
 | `video_available` | boolean | state/runtime response | 视频输入是否可用。 |
