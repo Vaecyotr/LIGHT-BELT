@@ -26,6 +26,8 @@ logs/
 *.log
 artifacts/runs/
 data/
+/config/profiles/site-profile.yaml
+/mpv-shot*.jpg
 /tests/fixtures/audio/generated_show_orchestration/
 
 # Local hardware freezes and credential-bearing field images
@@ -72,13 +74,18 @@ LIGHT-BELT-codex-one-esp-per-strip/
 # Kiosk frontend build outputs
 kiosk/node_modules/
 
-# Large local media fixtures (tracked in assets/ subdirs, not committed)
+# Large local media fixtures: ignore by extension so YAML/README under assets/ stay tracked
 *.mp4
 *.mkv
 *.avi
 *.mov
+*.m4v
+*.wmv
+*.webm
 *.flac
 *.wav
 *.mp3
-# Ignore media inside assets/ subdirs but keep yaml, README, and other text files
-assets/**/*
+*.m4a
+*.aac
+*.ogg
+*.opus

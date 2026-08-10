@@ -12,6 +12,7 @@ import time
 import json
 import logging
 import os
+import sys
 import uuid
 import socket
 import subprocess
@@ -57,9 +58,32 @@ def _load_layout_vocab():
         return frozenset({"all"}), [{"target_id": "all", "name": "all"}], []
 
 
+def _run_resolve_nodes() -> None:
+    """在进程内跑 resolve_nodes.py，确保 profile 里的 IP 是最新的。"""
+    if ENGINE_ADAPTER != "real":
+        return
+    from pathlib import Path as _P
+    script = _P(__file__).resolve().parent.parent / "scripts" / "resolve_nodes.py"
+    if not script.exists():
+        _log.warning("resolve_nodes.py not found at %s; skipping", script)
+        return
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script), "--out", ENGINE_PROFILE_PATH],
+            timeout=30,
+            capture_output=True,
+            text=True,
+        )
+        for line in (result.stderr or "").splitlines():
+            _log.info("[resolve_nodes] %s", line)
+    except Exception as exc:
+        _log.warning("resolve_nodes.py failed: %s", exc)
+
+
 _valid_target_ids: frozenset[str]
 _capability_targets: list[dict]
 _devices: list[dict]
+_run_resolve_nodes()
 _valid_target_ids, _capability_targets, _devices = _load_layout_vocab()
 
 
@@ -521,7 +545,9 @@ def _ensure_mpv() -> MpvClient:
             _mpv_proc = subprocess.Popen(
                 ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
                  "--keep-open=no", "--no-terminal",
-                 f"--geometry={MPV_GEOMETRY}", "--no-border", "--force-window=yes",
+                 "--vo=xv",
+                 "--input-default-bindings=no",
+                 f"--geometry={MPV_GEOMETRY}", "--no-border", "--force-window=yes","--no-osc",
                  f"--input-conf={_input_conf}"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 env=env,
@@ -568,6 +594,7 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
             if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):
                 _log.warning("mpv did not report duration in time; seeking anyway")
             mpv.seek(start_ms / 1000)
+        mpv.resume()
     _state["playback_state"] = "playing"
     _state["show_id"] = show_id
     _state["position_ms"] = start_ms or 0
@@ -986,10 +1013,10 @@ def _finalize_natural_end() -> None:
         _real_adapter.on_playback_stop()
         _push_wled_off()
 
-
 def _natural_end_watchdog() -> None:
     streak = 0
-    crash_streak = 0
+    dead_streak = 0
+    ipc_streak = 0
     while True:
         time.sleep(_WATCHDOG_INTERVAL_S)
         try:
@@ -997,22 +1024,24 @@ def _natural_end_watchdog() -> None:
             # duration_ms == 0 的占位节目本来就没有 mpv 参与，跳过。
             if _state["playback_state"] != "playing" or not _state["duration_ms"]:
                 streak = 0
-                crash_streak = 0
+                dead_streak = 0
+                ipc_streak = 0
                 continue
 
             # mpv 子进程已经退出（被 kill / 崩溃）——不用等 IPC 超时，直接判定。
             if _mpv_proc is not None and _mpv_proc.poll() is not None:
-                crash_streak += 1
-                if crash_streak >= _WATCHDOG_CRASH_STREAK:
+                dead_streak += 1
+                if dead_streak >= _WATCHDOG_CRASH_STREAK:
                     _log.error(
                         "watchdog: mpv process dead (exit %s) while state='playing'; "
                         "finalizing as crash",
                         _mpv_proc.returncode,
                     )
-                    crash_streak = 0
+                    dead_streak = 0
+                    ipc_streak = 0
                     _finalize_natural_end()
                 continue
-            crash_streak = 0
+            dead_streak = 0
 
             if _mpv is None:
                 streak = 0
@@ -1023,17 +1052,17 @@ def _natural_end_watchdog() -> None:
             # 「mpv 半死不活/超时」和「mpv 正常在播」。
             r = _mpv._send(["get_property", "idle-active"])
             if r.get("error") != "success":
-                crash_streak += 1
-                if crash_streak >= _WATCHDOG_CRASH_STREAK:
+                ipc_streak += 1
+                if ipc_streak >= _WATCHDOG_CRASH_STREAK:
                     _log.error(
                         "watchdog: mpv IPC unreachable %d times (%s); finalizing as crash",
-                        crash_streak, r.get("error"),
+                        ipc_streak, r.get("error"),
                     )
-                    crash_streak = 0
+                    ipc_streak = 0
                     _finalize_natural_end()
                 streak = 0
                 continue
-            crash_streak = 0
+            ipc_streak = 0
 
             if not bool(r.get("data", False)):
                 streak = 0
@@ -1047,8 +1076,8 @@ def _natural_end_watchdog() -> None:
         except Exception as exc:                        # noqa: BLE001
             _log.debug("watchdog: %s: %s", type(exc).__name__, exc)
             streak = 0
-            crash_streak = 0
-
+            dead_streak = 0
+            ipc_streak = 0
 
 def _start_natural_end_watchdog() -> None:
     global _watchdog_thread
@@ -1077,3 +1106,43 @@ def _ensure_mpv_at_startup() -> None:
 
 
 _ensure_mpv_at_startup()
+
+
+# ══════════════════════════════════════════════
+# 延迟重新 resolve —— 补开机时节点还没 ready 的时序缝隙
+# ══════════════════════════════════════════════
+
+def _deferred_re_resolve() -> None:
+    """开机 30 秒后再 resolve 一次；如果 IP 变了就热更新 _devices。
+
+    解决开机时节点还没连上 WiFi、avahi 还没 ready 的时序问题。
+    """
+    global _valid_target_ids, _capability_targets, _devices
+    if ENGINE_ADAPTER != "real":
+        return
+    time.sleep(30)
+    try:
+        old_hosts = {d["device_id"]: d.get("host") for d in _devices}
+        _run_resolve_nodes()
+        from light_engine.config import Config as _Cfg
+        _Cfg.reset()  # 清掉 singleton 缓存，强制重新读文件
+        new_ids, new_caps, new_devs = _load_layout_vocab()
+        new_hosts = {d["device_id"]: d.get("host") for d in new_devs}
+        changed = {k for k in old_hosts if old_hosts[k] != new_hosts.get(k)}
+        if changed:
+            _valid_target_ids = new_ids
+            _capability_targets = new_caps
+            _devices = new_devs
+            _log.info(
+                "deferred re-resolve: updated %d device IPs: %s",
+                len(changed),
+                ", ".join(f"{k}: {old_hosts[k]} -> {new_hosts.get(k)}" for k in changed),
+            )
+        else:
+            _log.info("deferred re-resolve: all IPs unchanged")
+    except Exception as exc:
+        _log.warning("deferred re-resolve failed: %s", exc)
+
+
+if ENGINE_ADAPTER == "real":
+    threading.Thread(target=_deferred_re_resolve, name="deferred-re-resolve", daemon=True).start()
