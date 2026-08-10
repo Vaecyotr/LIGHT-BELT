@@ -5,6 +5,8 @@ All tests use FastAPI TestClient and in-memory state only.
 No mpv, no hardware, no filesystem (shows manifest is monkeypatched).
 """
 
+import os
+
 import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
@@ -36,6 +38,7 @@ def reset_engine_state(monkeypatch):
     monkeypatch.setitem(engine_adapter._state, "volume", 0.5)
     monkeypatch.setitem(engine_adapter._state, "muted", False)
     monkeypatch.setitem(engine_adapter._state, "brightness", 1.0)
+    monkeypatch.setitem(engine_adapter._state, "brightness_scale", 0.5)
 
 
 @pytest.fixture()
@@ -148,6 +151,7 @@ def test_playback_play_stop(client, auth_headers, monkeypatch):
     assert r.status_code == 200
     assert r.json()["data"]["playback_state"] == "playing"
     mock_mpv.play_file.assert_called_once_with("/dev/null")
+    mock_mpv.resume.assert_called_once_with()
 
     r = client.post("/api/v1/playback/stop", headers=auth_headers)
     assert r.status_code == 200
@@ -469,6 +473,9 @@ def test_ensure_mpv_stale_socket(monkeypatch):
     assert result is not None
     assert len(unlinked) == 1           # stale socket was removed
     assert mock_popen.called            # mpv was relaunched
+    command = mock_popen.call_args.args[0]
+    assert "--vo=xv" in command
+    assert "--input-default-bindings=no" in command
 
 
 # ── New: color params passed through (problems 1 & 2) ────────────────────────
@@ -676,7 +683,7 @@ def test_state_devices_initial_status_offline(client, auth_headers, monkeypatch)
     """derive_device_list() must initialise status='offline' and connection_confirmed=False."""
     from host_services.layout_vocab import derive_device_list
     from types import SimpleNamespace
-    layout = SimpleNamespace(digital_nodes=[SimpleNamespace(node_id=1)])
+    layout = SimpleNamespace(digital_nodes=[SimpleNamespace(node_id=1, host=None)])
     devices = derive_device_list(layout)
     assert devices[0]["status"] == "offline"
     assert devices[0]["connection_confirmed"] is False
@@ -755,3 +762,388 @@ def test_playback_resume_from_idle_returns_not_ready(client, auth_headers, monke
     r = client.post("/api/v1/playback/resume", headers=auth_headers)
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "PLAYBACK_NOT_READY"
+
+
+# ── /playback/reset ───────────────────────────────────────────────────────────
+
+def test_playback_reset_returns_playback_data(client, auth_headers, monkeypatch):
+    """Calling reset while playing must return 200 with playback data."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "show_id", "test-show")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    r = client.post("/api/v1/playback/reset", headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["playback_state"] == "playing"
+    assert data["show_id"] == "test-show"
+
+
+def test_playback_reset_when_idle_returns_409(client, auth_headers):
+    """Calling reset while idle must return 409 PLAYBACK_NOT_READY."""
+    r = client.post("/api/v1/playback/reset", headers=auth_headers)
+    assert r.status_code == 409
+    assert r.json()["error"]["code"] == "PLAYBACK_NOT_READY"
+
+
+def test_playback_reset_when_stopped_returns_409(client, auth_headers, monkeypatch):
+    """Calling reset while stopped must return 409 PLAYBACK_NOT_READY."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "stopped")
+
+    r = client.post("/api/v1/playback/reset", headers=auth_headers)
+    assert r.status_code == 409
+    assert r.json()["error"]["code"] == "PLAYBACK_NOT_READY"
+
+
+def test_playback_reset_from_paused_resumes_playback(client, auth_headers, monkeypatch):
+    """reset while paused must transition playback_state to 'playing'."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "paused")
+    monkeypatch.setitem(engine_adapter._state, "show_id", "test-show")
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    r = client.post("/api/v1/playback/reset", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["data"]["playback_state"] == "playing"
+    mock_mpv.resume.assert_called_once()
+
+
+def test_playback_reset_from_playing_does_not_call_resume(client, auth_headers, monkeypatch):
+    """reset while already playing must NOT call mpv.resume."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    r = client.post("/api/v1/playback/reset", headers=auth_headers)
+    assert r.status_code == 200
+    mock_mpv.resume.assert_not_called()
+
+
+def test_playback_reset_clears_manual_state(client, auth_headers, monkeypatch):
+    """After reset, _manual_targets must be empty."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    engine_adapter._manual_targets["strip_11"] = {
+        "target_id": "strip_11", "effect_type": "static", "color": [1.0, 1.0, 1.0]
+    }
+
+    r = client.post("/api/v1/playback/reset", headers=auth_headers)
+    assert r.status_code == 200
+    assert engine_adapter._manual_targets == {}
+
+
+# ── Brightness scale (V1.2) ───────────────────────────────────────────────────
+
+def test_brightness_get_default(client, auth_headers):
+    """GET /brightness returns brightness_scale=0.5 (the default)."""
+    r = client.get("/api/v1/brightness", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["data"]["brightness_scale"] == pytest.approx(0.5)
+
+
+def test_brightness_set(client, auth_headers):
+    """POST /brightness/set persists brightness_scale."""
+    r = client.post(
+        "/api/v1/brightness/set",
+        json={"brightness_scale": 0.8},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["data"]["brightness_scale"] == pytest.approx(0.8)
+    assert r.json()["data"]["accepted"] is True
+
+    # Verify the value is stored
+    r2 = client.get("/api/v1/brightness", headers=auth_headers)
+    assert r2.json()["data"]["brightness_scale"] == pytest.approx(0.8)
+
+
+def test_brightness_set_out_of_range(client, auth_headers):
+    """POST /brightness/set with scale > 1.0 returns 400 INVALID_ARGUMENT."""
+    r = client.post(
+        "/api/v1/brightness/set",
+        json={"brightness_scale": 1.5},
+        headers=auth_headers,
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "INVALID_ARGUMENT"
+
+
+def test_brightness_scale_in_state(client, auth_headers):
+    """GET /state must include brightness_scale."""
+    r = client.get("/api/v1/state", headers=auth_headers)
+    assert r.status_code == 200
+    assert "brightness_scale" in r.json()["data"]
+
+
+def test_playback_state_idle(client, auth_headers):
+    """GET /playback/state returns well-formed dict when idle."""
+    r = client.get("/api/v1/playback/state", headers=auth_headers)
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["playback_state"] == "idle"
+    assert d["show"] is None
+    assert "position_ms" in d
+    assert "duration_ms" in d
+    assert "brightness_scale" in d
+    assert "audio" in d
+    assert "volume" in d["audio"]
+    assert "muted" in d["audio"]
+
+
+def test_playback_state_when_playing(client, auth_headers, monkeypatch):
+    """GET /playback/state includes filtered show info when a show is playing."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "show_id", "test-show")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    r = client.get("/api/v1/playback/state", headers=auth_headers)
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["playback_state"] == "playing"
+    assert d["show"] is not None
+    assert d["show"]["show_id"] == "test-show"
+    assert "media_path" not in d["show"]
+    assert d["duration_ms"] == 60000
+    assert "brightness_scale" in d
+
+
+def test_playback_play_resets_brightness_scale(client, auth_headers, monkeypatch):
+    """Starting playback must reset brightness_scale to the default (0.5)."""
+    monkeypatch.setitem(engine_adapter._state, "brightness_scale", 0.1)
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_ensure_mpv", lambda: mock_mpv)
+
+    r = client.post("/api/v1/playback/play", json={"show_id": "test-show"}, headers=auth_headers)
+    assert r.status_code == 200
+    assert engine_adapter._state["brightness_scale"] == pytest.approx(0.5)
+
+
+def test_brightness_set_calls_wled(client, auth_headers, monkeypatch):
+    """POST /brightness/set invokes wled_brightness.apply_scale with correct args."""
+    from host_services import wled_brightness
+    calls = []
+    monkeypatch.setattr(wled_brightness, "apply_scale", lambda devices, scale, timeout=1.0: calls.append((devices, scale)))
+
+    r = client.post(
+        "/api/v1/brightness/set",
+        json={"brightness_scale": 0.6},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    # In mock/test mode _devices is empty, so no HTTP call, but apply_scale is reached
+    # (it returns early when hosts is empty — the important thing is it was called)
+    assert len(calls) == 1
+    assert calls[0][1] == pytest.approx(0.6)
+
+
+def test_brightness_scale_in_runtime_snapshot(monkeypatch):
+    """get_runtime_state_snapshot must include brightness_scale."""
+    monkeypatch.setitem(engine_adapter._state, "brightness_scale", 0.7)
+    snap = engine_adapter.get_runtime_state_snapshot()
+    assert snap["brightness_scale"] == pytest.approx(0.7)
+
+
+# ── mpv hang/deadlock hardening ───────────────────────────────────────────────
+
+def test_mpv_client_send_timeout_returns_error_and_closes_socket(monkeypatch):
+    """A recv() that blocks past the IPC timeout must not hang the caller; it must
+    return an error dict and always close the socket, even on failure."""
+    closed = []
+
+    class FakeSocket:
+        def settimeout(self, _t):
+            pass
+
+        def connect(self, _path):
+            pass
+
+        def sendall(self, _data):
+            pass
+
+        def recv(self, _n):
+            raise engine_adapter.socket.timeout()
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(engine_adapter.socket, "socket", lambda *a, **kw: FakeSocket())
+
+    mpv = engine_adapter.MpvClient("/tmp/fake.sock")
+    result = mpv._send(["get_property", "time-pos"])
+
+    assert result == {"error": "timeout"}
+    assert closed == [True]
+
+
+def test_mpv_client_send_generic_exception_still_closes_socket(monkeypatch):
+    """Any other _send failure (e.g. connection refused) must still close the socket."""
+    closed = []
+
+    class FakeSocket:
+        def settimeout(self, _t):
+            pass
+
+        def connect(self, _path):
+            raise ConnectionRefusedError("boom")
+
+        def sendall(self, _data):
+            pass
+
+        def recv(self, _n):
+            return b""
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(engine_adapter.socket, "socket", lambda *a, **kw: FakeSocket())
+
+    mpv = engine_adapter.MpvClient("/tmp/fake.sock")
+    result = mpv._send(["stop"])
+
+    assert result == {"error": "boom"}
+    assert closed == [True]
+
+
+def test_live_position_ms_falls_back_on_non_positive_position(monkeypatch):
+    """A timed-out get_position() reads back as 0.0; this must not be reported as
+    the live position (which would look like 'just started'), it must fall back
+    to the last known stored position."""
+    monkeypatch.setitem(engine_adapter._state, "position_ms", 12345)
+    mock_mpv = MagicMock()
+    mock_mpv.get_idle_active.return_value = False
+    mock_mpv.get_position.return_value = 0.0
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    assert engine_adapter._live_position_ms() == 12345
+
+
+def test_live_position_ms_returns_live_value_when_positive(monkeypatch):
+    monkeypatch.setitem(engine_adapter._state, "position_ms", 0)
+    mock_mpv = MagicMock()
+    mock_mpv.get_idle_active.return_value = False
+    mock_mpv.get_position.return_value = 5.5
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    assert engine_adapter._live_position_ms() == 5500
+
+
+def test_finalize_natural_end_clears_dead_mpv_refs(monkeypatch, tmp_path):
+    """If mpv's process already exited, finalize must clear _mpv/_mpv_proc (and the
+    stale socket file) so the next play request rebuilds them via _ensure_mpv."""
+    sock_path = str(tmp_path / "mpv.sock")
+    open(sock_path, "w").close()
+
+    dead_proc = MagicMock()
+    dead_proc.poll.return_value = 1
+    dead_proc.returncode = 1
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", dead_proc)
+    monkeypatch.setattr(engine_adapter, "_mpv", engine_adapter.MpvClient(sock_path))
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "show_id", "test-show")
+
+    engine_adapter._finalize_natural_end()
+
+    assert engine_adapter._mpv is None
+    assert engine_adapter._mpv_proc is None
+    assert not os.path.exists(sock_path)
+    assert engine_adapter._state["playback_state"] == "stopped"
+
+
+def test_finalize_natural_end_keeps_mpv_refs_when_process_alive(monkeypatch):
+    """Normal natural-end finalize (mpv idle but alive) must not tear down _mpv/_mpv_proc."""
+    alive_proc = MagicMock()
+    alive_proc.poll.return_value = None
+    mock_mpv = MagicMock()
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", alive_proc)
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+
+    engine_adapter._finalize_natural_end()
+
+    assert engine_adapter._mpv is mock_mpv
+    assert engine_adapter._mpv_proc is alive_proc
+    assert engine_adapter._state["playback_state"] == "stopped"
+
+
+class _StopWatchdogLoop(Exception):
+    """Sentinel used to break out of the watchdog's `while True` after N ticks."""
+
+
+def _run_watchdog_ticks(monkeypatch, ticks):
+    """Run `_natural_end_watchdog` for exactly `ticks` iterations by making
+    time.sleep raise after the desired number of calls (sleep is the first thing
+    each loop iteration does, so this cleanly stops the loop between ticks)."""
+    calls = {"n": 0}
+
+    def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] > ticks:
+            raise _StopWatchdogLoop()
+
+    monkeypatch.setattr(engine_adapter.time, "sleep", fake_sleep)
+    with pytest.raises(_StopWatchdogLoop):
+        engine_adapter._natural_end_watchdog()
+
+
+def test_natural_end_watchdog_finalizes_on_dead_process(monkeypatch):
+    """A dead mpv process must be detected without waiting on IPC at all, and
+    finalize only after _WATCHDOG_CRASH_STREAK consecutive dead ticks."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    dead_proc = MagicMock()
+    dead_proc.poll.return_value = 1
+    dead_proc.returncode = 1
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", dead_proc)
+    monkeypatch.setattr(engine_adapter, "_mpv", MagicMock())
+
+    finalize_calls = []
+    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+
+    _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_CRASH_STREAK)
+
+    assert len(finalize_calls) == 1
+
+
+def test_natural_end_watchdog_finalizes_on_ipc_unreachable(monkeypatch):
+    """A live process whose IPC never succeeds (timeout/refused) must also be
+    treated as a crash after _WATCHDOG_CRASH_STREAK consecutive failures."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    alive_proc = MagicMock()
+    alive_proc.poll.return_value = None
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", alive_proc)
+
+    mock_mpv = MagicMock()
+    mock_mpv._send.return_value = {"error": "timeout"}
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    finalize_calls = []
+    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+
+    _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_CRASH_STREAK)
+
+    assert len(finalize_calls) == 1
+    mock_mpv._send.assert_called_with(["get_property", "idle-active"])
+
+
+def test_natural_end_watchdog_still_finalizes_on_idle_streak(monkeypatch):
+    """Regression guard: normal natural-end detection (mpv alive, IPC healthy,
+    idle-active=True for _WATCHDOG_IDLE_STREAK ticks) must keep working."""
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setitem(engine_adapter._state, "duration_ms", 60000)
+
+    alive_proc = MagicMock()
+    alive_proc.poll.return_value = None
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", alive_proc)
+
+    mock_mpv = MagicMock()
+    mock_mpv._send.return_value = {"data": True, "error": "success"}
+    monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
+
+    finalize_calls = []
+    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+
+    _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_IDLE_STREAK)
+
+    assert len(finalize_calls) == 1

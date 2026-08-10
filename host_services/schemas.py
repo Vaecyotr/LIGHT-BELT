@@ -112,3 +112,9 @@ class SceneApplyRequest(BaseModel):
 
 class SceneDeleteRequest(BaseModel):
     scene_id: str = Field(min_length=1)
+
+# ────────────────── Brightness (V1.2) ──────────────────
+
+class BrightnessSetRequest(BaseModel):
+    brightness_scale: float = Field(ge=0.0, le=1.0)
+    transition_ms: Optional[float] = Field(default=0, ge=0)
