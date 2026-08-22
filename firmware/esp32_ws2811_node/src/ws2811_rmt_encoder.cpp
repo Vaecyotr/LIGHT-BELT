@@ -32,7 +32,7 @@ Ws2811RmtPulse encodedPulse(bool one) {
 }  // namespace
 
 size_t ws2811RmtPulseCount(uint16_t group_count) {
-  if (group_count == 0 || group_count > MAX_PIXELS_PER_OUTPUT) {
+  if (group_count == 0 || group_count > FRAME_PIXEL_CAPACITY) {
     return 0;
   }
   return static_cast<size_t>(group_count) * WS2811_RMT_PULSES_PER_GROUP;

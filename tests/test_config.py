@@ -95,7 +95,7 @@ class TestConfig:
 
     def test_rk3588_production_profile_loads_without_verification_claim(self):
         Config.reset()
-        profile = Path("config/profiles/rk3588-production.yaml")
+        profile = Path("config/profile-archive/rk3588-production.yaml")
         config = Config(profile)
         assert config.get("outputs.mode") == "production"
         assert config.get("system.clock.mode") == "mpv"

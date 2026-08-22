@@ -1,6 +1,8 @@
-# Host template for the nine independent WLED/DDP strips. NOT HARDWARE VERIFIED.
-# scripts/resolve_nodes.py copies this tracked template to config/runtime/ and
-# replaces mDNS names with current IPs; unresolved nodes become disabled.
+# CURRENT RK3588 PRODUCTION SOURCE TEMPLATE — nine independent WLED/DDP strips.
+# This tracked file is the source of truth for topology and pixel counts.
+# Do not edit site-profile.yaml directly: the deployed systemd ExecStartPre
+# runs scripts/resolve_nodes.py to generate it with current mDNS results.
+# Unresolved nodes become disabled. NOT HARDWARE VERIFIED unless separately recorded.
 outputs:
   mode: production
   enabled: [ddp]
@@ -12,11 +14,12 @@ system:
   platform: linux_arm64
   output_fps: 30.0
   clock: {mode: mpv}
+  audio:
+    source: {kind: wled_audio_sync_v2}
   smoothing: {max_brightness: 0.65, gamma: 1.3}
 layout:
   topology_version: 3
   digital_output_policy: one_output_wled
-  total_strips: 9
   zones: []
   analog_nodes: []
   strips:
@@ -30,26 +33,26 @@ layout:
     - {id: strip_21, type: digital, pixel_count: 10, video_zone: bottom, direction: forward}
     - {id: strip_22, type: digital, pixel_count: 40, video_zone: bottom, direction: forward}
   digital_nodes:
-    - {node_id: 1, host: wled-strip-32.local, port: 4048, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 2, host: wled-strip-41.local, port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 3, host: wled-strip-44.local, port: 4048, pixel_count: 20, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 4, host: wled-strip-12.local, port: 4048, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 5, host: wled-strip-22.local, port: 4048, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 6, host: wled-strip-31.local, port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 7, host: wled-strip-43.local, port: 4048, pixel_count: 20, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 8, host: wled-strip-11.local, port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 9, host: wled-strip-21.local, port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 1, host: wled-strip-32.local, port: 4048}
+    - {node_id: 2, host: wled-strip-41.local, port: 4048}
+    - {node_id: 3, host: wled-strip-44.local, port: 4048}
+    - {node_id: 4, host: wled-strip-12.local, port: 4048}
+    - {node_id: 5, host: wled-strip-22.local, port: 4048}
+    - {node_id: 6, host: wled-strip-31.local, port: 4048}
+    - {node_id: 7, host: wled-strip-43.local, port: 4048}
+    - {node_id: 8, host: wled-strip-11.local, port: 4048}
+    - {node_id: 9, host: wled-strip-21.local, port: 4048}
   digital_segments: []
   digital_outputs:
-    - {node_id: 1, output_id: 1, gpio: 16, strip_id: strip_32, pixel_count: 40, direction: forward}
-    - {node_id: 2, output_id: 1, gpio: 16, strip_id: strip_41, pixel_count: 10, direction: forward}
-    - {node_id: 3, output_id: 1, gpio: 16, strip_id: strip_44, pixel_count: 20, direction: forward}
-    - {node_id: 4, output_id: 1, gpio: 16, strip_id: strip_12, pixel_count: 40, direction: forward}
-    - {node_id: 5, output_id: 1, gpio: 16, strip_id: strip_22, pixel_count: 40, direction: forward}
-    - {node_id: 6, output_id: 1, gpio: 16, strip_id: strip_31, pixel_count: 10, direction: forward}
-    - {node_id: 7, output_id: 1, gpio: 16, strip_id: strip_43, pixel_count: 20, direction: forward}
-    - {node_id: 8, output_id: 1, gpio: 16, strip_id: strip_11, pixel_count: 10, direction: forward}
-    - {node_id: 9, output_id: 1, gpio: 16, strip_id: strip_21, pixel_count: 10, direction: forward}
+    - {node_id: 1, output_id: 1, gpio: 16, strip_id: strip_32, direction: forward}
+    - {node_id: 2, output_id: 1, gpio: 16, strip_id: strip_41, direction: forward}
+    - {node_id: 3, output_id: 1, gpio: 16, strip_id: strip_44, direction: forward}
+    - {node_id: 4, output_id: 1, gpio: 16, strip_id: strip_12, direction: forward}
+    - {node_id: 5, output_id: 1, gpio: 16, strip_id: strip_22, direction: forward}
+    - {node_id: 6, output_id: 1, gpio: 16, strip_id: strip_31, direction: forward}
+    - {node_id: 7, output_id: 1, gpio: 16, strip_id: strip_43, direction: forward}
+    - {node_id: 8, output_id: 1, gpio: 16, strip_id: strip_11, direction: forward}
+    - {node_id: 9, output_id: 1, gpio: 16, strip_id: strip_21, direction: forward}
   virtual_paths: []
   video_zone_map:
     left: [strip_32, strip_31]

@@ -41,7 +41,7 @@ void encodeByte(uint8_t source, uint8_t *destination) {
 }  // namespace
 
 size_t ws2811Spi6FrameSize(uint16_t group_count) {
-  if (group_count == 0 || group_count > MAX_PIXELS_PER_OUTPUT) {
+  if (group_count == 0 || group_count > FRAME_PIXEL_CAPACITY) {
     return 0;
   }
   return WS2811_SPI6_PRE_GUARD_BYTES + WS2811_SPI6_POST_GUARD_BYTES +

@@ -281,30 +281,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/CapabilitiesResponse"
               example:
+                # Representative excerpt. Runtime returns every layout target
+                # and all 20 registry effects.
                 ok: true
                 request_id: req-capabilities-001
                 data:
                   targets:
                     - target_id: all
                       name: All
-                    - target_id: screen_surround
-                      name: Screen Surround
+                    - target_id: strip_11
+                      name: Strip 11
                   effects:
                     - effect_type: static
                       name: Static
                       params:
                         - color
                         - intensity
-                      effect_params: []
+                      effect_params:
+                        - color
+                        - color_timeline
                     - effect_type: chase
                       name: Chase
                       params:
                         - speed
                         - intensity
                       effect_params:
-                        - width
-                        - gap
+                        - beat_boost
+                        - color_source
                         - direction
+                        - gap
+                        - speed
+                        - trail
+                        - width
                   websocket:
                     message_types:
                       - session.connected
@@ -313,6 +321,7 @@ paths:
                       - device.status
                       - error.event
                       - heartbeat
+                      - scene.applied
                   supports:
                     playback: true
                     resume: true
@@ -322,6 +331,9 @@ paths:
                     color_temperature: true
                     transitions: true
                     websocket: true
+                    audio: true
+                    scenes: true
+                    brightness_scale: true
         "401":
           $ref: "#/components/responses/ErrorResponse"
         "500":
@@ -526,7 +538,7 @@ paths:
             schema:
               $ref: "#/components/schemas/LightsSetRequest"
             example:
-              target_id: screen_surround
+              target_id: strip_11
               brightness: 0.72
               color_temperature: 4200
               transition_ms: 800
@@ -541,7 +553,7 @@ paths:
                 ok: true
                 request_id: req-lights-001
                 data:
-                  target_id: screen_surround
+                  target_id: strip_11
                   brightness: 0.72
                   color_temperature: 4200
                   transition_ms: 800
@@ -574,7 +586,7 @@ paths:
               chase:
                 summary: 为连续路径设置追逐灯效
                 value:
-                  target_id: virtual_path.screen_to_wall
+                  target_id: strip_11
                   effect_type: chase
                   params:
                     speed: 0.65
@@ -587,7 +599,7 @@ paths:
               static:
                 summary: 为屏幕环绕区域设置静态颜色
                 value:
-                  target_id: screen_surround
+                  target_id: strip_11
                   effect_type: static
                   params:
                     color:
@@ -607,7 +619,7 @@ paths:
                 ok: true
                 request_id: req-effects-001
                 data:
-                  target_id: virtual_path.screen_to_wall
+                  target_id: strip_11
                   effect_type: chase
                   transition_ms: 500
                   accepted: true
@@ -933,9 +945,9 @@ components:
         Host Service 暴露给 APP 的逻辑目标 ID。实际可用值由引擎布局在启动时
         动态生成，通过 GET /capabilities 的 targets 数组获取。固定项包括
         "all"（全部灯带广播）和 "starry_sky"（星空灯），其余形如
-        "strip_<label>"（单条 WS2811 灯带）。以下枚举为当前部署参考值，
-        不限制未来可扩展的动态值。
-      enum:
+        "strip_<label>"（单条 WS2811 灯带）。该 schema 故意不使用 enum；
+        客户端必须以运行时 capabilities 为准，新增灯带无需修改 OpenAPI。
+      examples:
         - all
         - strip_11
         - strip_12
@@ -947,6 +959,7 @@ components:
         - strip_43
         - strip_44
         - starry_sky
+        - strip_extra
     EffectType:
       type: string
       enum:
@@ -961,8 +974,101 @@ components:
         - video_ambient
         - video_audio_fusion
         - calm
-        - demo
+        - color_wipe
         - twinkle
+        - demo
+        - step_pulse
+        - single_dot
+        - theater_phase
+        - flowing_bands
+        - onset_ripple
+        - heat_fire
+        - history_stream
+      x-effect-registry:
+        - effect_type: static
+          name: Static
+          params: [color, intensity]
+          effect_params: [color, color_timeline]
+        - effect_type: breath
+          name: Breath
+          params: [color, intensity]
+          effect_params: [color, color_timeline, min_brightness, period]
+        - effect_type: color_wave
+          name: Color Wave
+          params: [speed, intensity]
+          effect_params: [hue_cycle_rate, speed, width]
+        - effect_type: chase
+          name: Chase
+          params: [speed, intensity]
+          effect_params: [beat_boost, color_source, direction, gap, speed, trail, width]
+        - effect_type: comet
+          name: Comet
+          params: [speed, intensity]
+          effect_params: [count, decay, phase_spacing, speed, tail_length, trajectory]
+        - effect_type: audio_pulse
+          name: Audio Pulse
+          params: [color, intensity]
+          effect_params: [attack, color, color_timeline, release]
+        - effect_type: bass_pulse
+          name: Bass Pulse
+          params: [color, intensity]
+          effect_params: [attack, color, color_timeline, release]
+        - effect_type: spectrum
+          name: Spectrum
+          params: [intensity]
+          effect_params: [bass_zones, mid_zones, treble_zones]
+        - effect_type: video_ambient
+          name: Video Ambient
+          params: [intensity]
+          effect_params: [smoothing]
+        - effect_type: video_audio_fusion
+          name: Video Audio Fusion
+          params: [intensity]
+          effect_params: [audio_weight, bass_boost, treble_limit, video_weight]
+        - effect_type: calm
+          name: Calm
+          params: [color, intensity]
+          effect_params: [color, color_timeline, period]
+        - effect_type: color_wipe
+          name: Color Wipe
+          params: [color, speed, intensity]
+          effect_params: [color, color_timeline, progress_source, slew_seconds, speed]
+        - effect_type: twinkle
+          name: Twinkle
+          params: [color, intensity]
+          effect_params: [birth_gain_source, blur_radius_px, color, color_source, color_timeline, density, event_gate_source, event_width_px, fade_time]
+        - effect_type: demo
+          name: Demo
+          params: []
+          effect_params: [cycle_interval, effects]
+        - effect_type: step_pulse
+          name: Step Pulse
+          params: [intensity]
+          effect_params: [high_color, low_color, period]
+        - effect_type: single_dot
+          name: Single Dot
+          params: [color, speed, intensity]
+          effect_params: [color, color_timeline, direction, speed]
+        - effect_type: theater_phase
+          name: Theater Phase
+          params: [color, speed, intensity]
+          effect_params: [color, color_timeline, speed]
+        - effect_type: flowing_bands
+          name: Flowing Bands
+          params: [color, speed, intensity]
+          effect_params: [band_width_px, base_gain, color, color_timeline, direction, gap_width_px, highlight_gain, phase_offset_steps, steps_per_second]
+        - effect_type: onset_ripple
+          name: Onset Ripple
+          params: [color, speed, intensity]
+          effect_params: [color, color_timeline, decay_seconds, event_origin, floor_gain, onset_threshold, propagation, wave_speed_pps, wave_width_px, wrap]
+        - effect_type: heat_fire
+          name: Heat Fire
+          params: [color, speed, intensity]
+          effect_params: [color, color_timeline, cooling_per_second, diffusion, spark_rate, spark_strength, spark_zone_px]
+        - effect_type: history_stream
+          name: History Stream
+          params: [color, speed, intensity]
+          effect_params: [color, color_timeline, direction, sample_gain_source, steps_per_second]
     DeviceType:
       type: string
       enum: [wled_board]
@@ -1241,6 +1347,7 @@ components:
           type: array
           items:
             type: string
+          description: Registry-declared effect.params keys; common params with the same name remain distinct.
     CapabilityWebSocket:
       type: object
       required: [message_types]
@@ -1260,6 +1367,9 @@ components:
         - color_temperature
         - transitions
         - websocket
+        - audio
+        - scenes
+        - brightness_scale
       properties:
         playback:
           type: boolean
@@ -1276,6 +1386,12 @@ components:
         transitions:
           type: boolean
         websocket:
+          type: boolean
+        audio:
+          type: boolean
+        scenes:
+          type: boolean
+        brightness_scale:
           type: boolean
     CapabilitiesData:
       type: object
@@ -1409,11 +1525,9 @@ components:
         speed:
           type: number
           minimum: 0
-          maximum: 1
         intensity:
           type: number
           minimum: 0
-          maximum: 1
     EffectsSetRequest:
       type: object
       required: [target_id, effect_type]
@@ -1439,6 +1553,11 @@ components:
           $ref: "#/components/schemas/TargetId"
         effect_type:
           $ref: "#/components/schemas/EffectType"
+        params:
+          $ref: "#/components/schemas/EffectCommonParams"
+        effect_params:
+          type: object
+          additionalProperties: true
         transition_ms:
           type: number
           minimum: 0
@@ -1694,6 +1813,11 @@ components:
           maximum: 6500
         effect_type:
           $ref: "#/components/schemas/EffectType"
+        params:
+          $ref: "#/components/schemas/EffectCommonParams"
+        effect_params:
+          type: object
+          additionalProperties: true
         transition_ms:
           type: number
           minimum: 0

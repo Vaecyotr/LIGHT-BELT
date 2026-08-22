@@ -31,8 +31,8 @@ from light_engine.outputs.udp_v3 import (
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
-DEFAULT_PROFILE = Path("config/profiles/ws2811-ab-node2-strip41-immediate-15fps.yaml")
-DEFAULT_SHOW = Path("config/shows/ws2811-ab-strip41-blue-breath-40s.yaml")
+DEFAULT_PROFILE = Path("config/profile-archive/ws2811-ab-node2-strip41-immediate-15fps.yaml")
+DEFAULT_SHOW = Path("config/shows/archive/ws2811-ab-experiments/ws2811-ab-strip41-blue-breath-40s.yaml")
 EXPECTED_ADDRESS = ("192.168.31.58", 4048)
 EXPECTED_OUTPUTS = {1: (4, 10)}
 BLACK = (0, 0, 0)

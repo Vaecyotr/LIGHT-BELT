@@ -2,11 +2,47 @@
 
 NOT HARDWARE VERIFIED.
 
-Each production ESP32 consumes one complete UDP v3 node frame and drives one
-WS2811 strip through output ID 1 on GPIO4. One logical strip maps to one
-physical node; production firmware does not join strip buffers or share one
-ESP32 data backend across strips. Explicit legacy Node 2 environments retain
-the earlier multi-output diagnostics for comparison only.
+This directory contains the project's custom UDP v3 **maintenance firmware**.
+Current production uses nine independent WLED controllers over DDP; it has not
+moved to this firmware. The tracked 9-strip/200-pixel maintenance profile is
+only a current profile snapshot, not an immutable topology or a protocol,
+firmware, or product capacity limit. The 13-node/260-pixel environments and
+runbooks below are historical archive material only. Both this maintenance
+firmware and all related hardware behavior are **NOT HARDWARE VERIFIED**.
+
+Each custom one-strip image consumes a complete logical UDP v3 node frame and
+drives one WS2811 strip through output ID 1 on GPIO4. One logical strip maps to
+one physical node; these images do not join strip buffers or share one ESP32
+data backend across strips. Explicit legacy Node 2 environments retain the
+earlier multi-output diagnostics for comparison only.
+
+## Phase 32 chunked frames and resource envelope
+
+The historical complete-frame message remains `message_type = 0x01`; its
+existing golden vectors are unchanged. A frame that does not fit the configured
+UDP payload budget is sent as `message_type = 0x03` chunk datagrams. Every
+chunk retains the same logical-frame identity. The receiver owns at most one
+incomplete frame, accepts valid out-of-order and identical duplicate data, and
+queues exactly one frame only after every configured output is complete. It
+rejects bad CRCs, invalid ranges or lengths, unknown outputs, wrong GPIOs,
+conflicting overlaps, and mixed identities without exposing a partial frame.
+Physical refresh therefore remains atomic. The normative software details are
+in the [UDP v3 chunk contract](../../docs/reference/udp-v3-chunk-contract.md).
+
+The wire and firmware contract has `MAX_OUTPUTS <= 3`. Software vectors at
+`>=101` pixels, including the 481-pixel tail vector, demonstrate that old
+100-pixel assumptions are not product limits; they are not installed-topology
+claims and are **NOT HARDWARE VERIFIED**. Wire pixel counts and offsets are
+unsigned 16-bit values, but each image accepts only its compiled output IDs,
+GPIOs, and lengths.
+
+The parser's absolute UDP payload ceiling is 65,507 bytes. The actual packet
+buffer for an ESP32 image is derived as the smaller of its complete configured
+frame size and `UDP_V3_RECEIVE_BUFFER_BYTES` (4,096 bytes by default). The
+reassembler allocates three RGB bytes plus one received-map byte per compiled
+pixel, and allocation failure is an explicit initialization failure. Incoming
+packets cannot expand those compiled buffers. Native-test capacities are test
+harness values, not ESP32 product limits.
 
 Every newly opened Host UDP v3 output marks sequence 1 as `KEY_FRAME`. Host
 encodes every target node before any send, then transmits three complete rounds
@@ -19,11 +55,11 @@ previous committed frame or black while the next complete scheduled frame may
 recover. Generation zero, ordinary duplicate, and stale non-KEY frames remain
 rejected. This allows a completed show to run again without resetting ESP32.
 
-## Scheduled production presentation
+## Retained scheduled custom-firmware presentation
 
-Every `esp32-s3-node-N` production image enables both
+Every retained `esp32-s3-node-N` image enables both
 `LIGHT_BELT_FIXED_GPIO4_SPI` and `LIGHT_BELT_REQUIRE_SCHEDULED_APPLY`.
-Production therefore rejects an immediate UDP v3 frame instead of displaying
+That scheduled configuration rejects an immediate UDP v3 frame instead of displaying
 it on receipt. Explicit legacy Node 2 diagnostic environments do not enable
 that requirement and retain immediate behavior.
 
@@ -33,7 +69,7 @@ beacon and the frame deadline. On output startup the Host sends five beacons
 node datagram for one logical frame shares
 `apply_at_us = host_monotonic_us + 20000` and sets `SCHEDULED_APPLY`.
 
-These are the current formal profile values, not a hardware-accepted timing
+These are retained custom-firmware values, not a hardware-accepted timing
 set. The robust Node 2 A/B used a 60 ms lead, 100 ms beacon interval, and 32
 startup beacons 50 ms apart. Formal profile migration remains a P1 Scheduled
 hardware gate and must not be mixed into Immediate output commissioning.
@@ -45,7 +81,7 @@ a 32-sample window, reject samples older than 2 s or uncertainty above 5 ms,
 allow at most 2 ms start lateness, and reject deadlines more than 100 ms ahead.
 There is no wall-clock or UTC dependency.
 
-The production output task prepares the complete DMA buffer without touching
+The scheduled output task prepares the complete DMA buffer without touching
 GPIO, computes `tx_start = local_apply_deadline - encoded_wire_time`, and only
 then starts the permanently routed GPIO4 SPI transaction. The common
 `apply_at_us` is the guaranteed WS2811 latch-completion boundary, not the time
@@ -57,8 +93,8 @@ at which every unequal-length strip begins sending:
 | 20 | 640 | 1600 us |
 | 40 | 880 | 2200 us |
 
-Clock-not-ready, invalid, too-late, too-far, cancelled, and immediate
-production frames fail closed and are counted in serial statistics. The
+Clock-not-ready, invalid, too-late, too-far, cancelled, and immediate frames
+fail closed and are counted in serial statistics. The
 Host/firmware scheduling path is software implemented. Actual cross-node
 latch skew remains **NOT HARDWARE VERIFIED** until powered GPIO/data paths are
 captured with a logic analyzer.
@@ -71,19 +107,19 @@ transaction after the validated start deadline. Session admission remains
 available to the next complete scheduled frame. Immediate diagnostics retain
 their explicit retry behavior.
 
-## Electrical assumption
+## Historical electrical assumption
 
-Each production node uses one independent level shifter:
+Each historical custom-firmware node used one independent level shifter:
 
 ```text
 ESP32 GPIO4 -> SN74LVC1T45 A -> SN74LVC1T45 B -> WS2811 DI
 ```
 
-For the current installation, connect SN74LVC1T45 `DIR` directly to ESP32
+For this historical wiring plan, connect SN74LVC1T45 `DIR` directly to ESP32
 3V3. The firmware has no direction-control GPIO. Use 3V3 for `VCCA`, 5V for
 `VCCB`, and a common ground for the ESP32, level shifters, WS2811 strips, 24V
 supply return, and 5V buck return. Every encoded transaction starts and ends
-with a low reset interval; no production firmware path drives GPIO5, GPIO6,
+with a low reset interval; no one-strip firmware path drives GPIO5, GPIO6,
 GPIO15, GPIO16, or GPIO17. Explicit legacy Node 2 diagnostics may still drive
 GPIO5 and GPIO6.
 
@@ -92,7 +128,7 @@ details and the complete 13-node topology remain NOT HARDWARE VERIFIED until
 onsite acceptance completes. The fixed GPIO4 single-lane path has prior onsite
 evidence, but that evidence does not verify the new node assignments.
 
-## Node selection
+## Historical node selection
 
 `src/config.local.h` contains only the Wi-Fi credentials. Start from the
 ignored example:
@@ -120,10 +156,10 @@ Select the physical node only through its PlatformIO environment:
 | `esp32-s3-node-12` | 12 | `strip_45` | `192.168.31.212` | 1 | 4 | 20 |
 | `esp32-s3-node-13` | 13 | `strip_93` | `192.168.31.213` | 1 | 4 | 20 |
 
-Every production environment enables `LIGHT_BELT_FIXED_GPIO4_SPI`. SPI2 is
+Every listed one-strip environment enables `LIGHT_BELT_FIXED_GPIO4_SPI`. SPI2 is
 routed to GPIO4 once during initialization and remains attached while frames
-play; production refreshes never detach or reroute the GPIO matrix signal.
-The startup log identifies the current production candidate as
+play; one-strip refreshes never detach or reroute the GPIO matrix signal.
+The startup log identifies the retained candidate as
 `spi4_dma_fixed_gpio4_500us_candidate_not_hardware_verified`. It uses the
 3.2 MHz `1000`/`1100` encoding with symmetric 500 us reset-low guards. This
 identity is a deployment diagnostic, not a hardware-verification claim.
@@ -200,7 +236,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 On a host where `gcc` and `g++` are already available, the equivalent
 PlatformIO command remains `pio test -d firmware/esp32_ws2811_node -e native`.
 
-Build every production node image explicitly and sequentially. Keep SCons at
+To reproduce the archived maintenance set, build every node image explicitly
+and sequentially. Keep SCons at
 two jobs so Windows does not expand its C-drive page file under compiler
 pressure:
 
@@ -222,7 +259,7 @@ pio run -d firmware\esp32_ws2811_node -e esp32-s3-node-8 `
 pio device monitor --port COM7 --baud 115200
 ```
 
-The production single-lane candidate encodes WS2811 data at 3.2 MHz with
+The retained single-lane candidate encodes WS2811 data at 3.2 MHz with
 `0=1000` and `1=1100`, producing 312.5/937.5 ns for zero and 625/625 ns for
 one. Symmetric 200-byte zero guards hold GPIO4 low for 500 us before and after
 every payload. It uses the previously exercised SPI2/GPIO4 path and keeps that
@@ -240,7 +277,7 @@ hand.
 
 The fixed-GPIO4 isolation image completed the earlier Stage 1 on strip 41.
 These commands reproduce the old three-output Node 2 diagnostics; their UDP
-frame contract does not match the production one-strip Node 2 image. Set the
+frame contract does not match the retained one-strip Node 2 image. Set the
 observed serial port once, then build, upload, and monitor the explicit legacy
 hybrid image:
 
@@ -264,16 +301,16 @@ Only strip 41 may be white from 2-7 seconds, only strip 42 may be white from
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config "config\profiles\node2-effects-demo.yaml" run `
-  --show "config\shows\ws2811-node2-lane-isolation.yaml"
+  --config "config\profile-archive\node2-effects-demo.yaml" run `
+  --show "config\shows\archive\ws2811-diagnostics\ws2811-node2-lane-isolation.yaml"
 ```
 
 Then rerun the Stage 1 nine-effect strip 41 show:
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config "config\profiles\node2-effects-demo.yaml" run `
-  --show "config\shows\ws2811-stage1-strip41-nine-effects.yaml"
+  --config "config\profile-archive\node2-effects-demo.yaml" run `
+  --show "config\shows\archive\ws2811-commissioning\ws2811-stage1-strip41-nine-effects.yaml"
 ```
 
 Only after both strips remain stable, run the deterministic strip 41 to strip
@@ -281,21 +318,21 @@ Only after both strips remain stable, run the deterministic strip 41 to strip
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config "config\profiles\node2-effects-demo.yaml" run `
-  --show "config\shows\ws2811-stage2-strip41-to-strip42.yaml"
+  --config "config\profile-archive\node2-effects-demo.yaml" run `
+  --show "config\shows\archive\ws2811-commissioning\ws2811-stage2-strip41-to-strip42.yaml"
 ```
 
-Production acceptance requires all intended one-strip nodes to be flashed with
+Historical custom-firmware acceptance required all intended one-strip nodes to be flashed with
 their matching `esp32-s3-node-N` environments. Run the complete show only with
 the matching one-ESP-per-strip physical profile:
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config "config\profiles\ws2811-installed-one-esp-per-strip.yaml" run `
-  --show "config\shows\ws2811-stage3-installed-300s.yaml"
+  --config "config\profile-archive\ws2811-installed-one-esp-per-strip.yaml" run `
+  --show "config\shows\archive\ws2811-commissioning\ws2811-stage3-installed-300s.yaml"
 ```
 
-During an uninterrupted production run, `parse_rejected`, `state_rejected`,
+During an uninterrupted historical maintenance run, `parse_rejected`, `state_rejected`,
 `clock_not_ready`, `scheduled_late`, `scheduled_far`, `scheduled_invalid`,
 `scheduled_start_late`, `scheduled_cancelled`, `immediate_dropped`,
 `output_errors`, `invariant_errors`, and `timeout_black` must remain zero;

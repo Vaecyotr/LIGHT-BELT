@@ -944,7 +944,7 @@ def test_brightness_scale_in_runtime_snapshot(monkeypatch):
 
 # ── mpv hang/deadlock hardening ───────────────────────────────────────────────
 
-def test_mpv_client_send_timeout_returns_error_and_closes_socket(monkeypatch):
+def test_mpv_client_send_timeout_returns_error_and_closes_socket():
     """A recv() that blocks past the IPC timeout must not hang the caller; it must
     return an error dict and always close the socket, even on failure."""
     closed = []
@@ -965,16 +965,14 @@ def test_mpv_client_send_timeout_returns_error_and_closes_socket(monkeypatch):
         def close(self):
             closed.append(True)
 
-    monkeypatch.setattr(engine_adapter.socket, "socket", lambda *a, **kw: FakeSocket())
-
-    mpv = engine_adapter.MpvClient("/tmp/fake.sock")
+    mpv = engine_adapter.MpvClient("/tmp/fake.sock", socket_factory=FakeSocket)
     result = mpv._send(["get_property", "time-pos"])
 
     assert result == {"error": "timeout"}
     assert closed == [True]
 
 
-def test_mpv_client_send_generic_exception_still_closes_socket(monkeypatch):
+def test_mpv_client_send_generic_exception_still_closes_socket():
     """Any other _send failure (e.g. connection refused) must still close the socket."""
     closed = []
 
@@ -994,12 +992,45 @@ def test_mpv_client_send_generic_exception_still_closes_socket(monkeypatch):
         def close(self):
             closed.append(True)
 
-    monkeypatch.setattr(engine_adapter.socket, "socket", lambda *a, **kw: FakeSocket())
-
-    mpv = engine_adapter.MpvClient("/tmp/fake.sock")
+    mpv = engine_adapter.MpvClient("/tmp/fake.sock", socket_factory=FakeSocket)
     result = mpv._send(["stop"])
 
     assert result == {"error": "boom"}
+    assert closed == [True]
+
+
+def test_mpv_client_default_factory_preserves_unix_stream_socket(monkeypatch):
+    """Production IPC still constructs a Linux AF_UNIX stream socket."""
+    calls = []
+    closed = []
+
+    class FakeSocket:
+        def settimeout(self, _t):
+            pass
+
+        def connect(self, _path):
+            pass
+
+        def sendall(self, _data):
+            pass
+
+        def recv(self, _n):
+            return b'{"error":"success","data":true}\n'
+
+        def close(self):
+            closed.append(True)
+
+    def socket_factory(*args):
+        calls.append(args)
+        return FakeSocket()
+
+    monkeypatch.setattr(engine_adapter.socket, "AF_UNIX", 123, raising=False)
+    monkeypatch.setattr(engine_adapter.socket, "socket", socket_factory)
+
+    result = engine_adapter.MpvClient("/tmp/fake.sock")._send(["get_property", "pause"])
+
+    assert result == {"error": "success", "data": True}
+    assert calls == [(123, engine_adapter.socket.SOCK_STREAM)]
     assert closed == [True]
 
 

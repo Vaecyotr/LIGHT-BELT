@@ -33,6 +33,9 @@ async def scene_apply(body: SceneApplyRequest, request: Request):
     data, err = engine_adapter.scene_apply(body.scene_id, body.transition_ms)
     if err == "NOT_FOUND":
         return not_found(request, f"Scene not found: {body.scene_id}")
+    if err == "INVALID_ARGUMENT":
+        details = data.get("error_detail") if data else None
+        return invalid_argument(request, "Scene validation failed", details)
     return ok(request, data)
 
 

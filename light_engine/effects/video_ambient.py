@@ -2,7 +2,7 @@
 
 from light_engine.config import Config
 from light_engine.color import rgb_to_rgbcct
-from light_engine.effects.base import BaseEffect, runtime_float
+from light_engine.effects.base import BaseEffect, apply_common_intensity, runtime_float
 from light_engine.mapping.resolve import resolve_video_color
 from light_engine.models import (
     DigitalStrip,
@@ -80,12 +80,15 @@ class VideoAmbientEffect(BaseEffect):
         for zd in ctx.mode_parameters.get("zone_defs", []):
             zone_mapping[zd["id"]] = zd.get("video_zone", "center")
 
-        return PixelFrame(
-            timestamp=ctx.timestamp,
-            sequence=ctx.sequence,
-            strips=strips,
-            zones=zones,
-            metadata={"effect": "video_ambient", "zone_mapping": zone_mapping},
+        return apply_common_intensity(
+            PixelFrame(
+                timestamp=ctx.timestamp,
+                sequence=ctx.sequence,
+                strips=strips,
+                zones=zones,
+                metadata={"effect": "video_ambient", "zone_mapping": zone_mapping},
+            ),
+            ctx.intensity,
         )
 
     def reset(self) -> None:

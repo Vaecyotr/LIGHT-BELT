@@ -19,5 +19,6 @@ async def effects_set(body: EffectsSetRequest, request: Request):
     if err == "NOT_FOUND":
         return not_found(request, f"Unknown target_id: {body.target_id}")
     if err == "INVALID_ARGUMENT":
-        return invalid_argument(request, f"Unknown effect_type: {body.effect_type}")
+        details = data.get("error_detail") if data else None
+        return invalid_argument(request, "Effect validation failed", details)
     return ok(request, data)

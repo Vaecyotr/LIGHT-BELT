@@ -13,8 +13,8 @@ from light_engine.outputs.udp_v3 import FLAG_KEY_FRAME, FLAG_SAFE_STATE, UdpV3Pa
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
-PROFILE = Path("config/profiles/ws2811-emergency-node2-strip41.yaml")
-SHOW = Path("config/shows/ws2811-emergency-node2-strip41-gate1m-120s.yaml")
+PROFILE = Path("config/profile-archive/ws2811-emergency-node2-strip41.yaml")
+SHOW = Path("config/shows/archive/ws2811-emergency/ws2811-emergency-node2-strip41-gate1m-120s.yaml")
 FPS = 5.0
 TOTAL_PACKETS = 600
 RENDER_FRAMES = TOTAL_PACKETS - 1

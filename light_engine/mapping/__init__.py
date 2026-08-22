@@ -181,20 +181,65 @@ class Layout:
                     video_zone=zone.video_zone,
                 ))
 
+        output_data = config.get("layout.digital_outputs", [])
+        strip_lengths = {strip.id: strip.pixel_count for strip in self.strips}
+        derived_node_lengths: dict[int, int] = {}
+        if self.topology_version == 3:
+            for idx, item in enumerate(output_data):
+                path = f"layout.digital_outputs[{idx}]"
+                node_id = _require_int(item, "node_id", path, 1)
+                strip_id = _require_str(item, "strip_id", path)
+                if strip_id not in strip_lengths:
+                    raise ConfigError(
+                        path, "strip_id", strip_id, "existing layout.strips id"
+                    )
+                derived_node_lengths[node_id] = (
+                    derived_node_lengths.get(node_id, 0) + strip_lengths[strip_id]
+                )
+
         digital_data = config.get("layout.digital_nodes", [])
         if digital_data:
             for idx, item in enumerate(digital_data):
                 path = f"layout.digital_nodes[{idx}]"
+                if self.topology_version == 3:
+                    node_id = _require_int(item, "node_id", path, 1)
+                    if node_id not in derived_node_lengths:
+                        raise ConfigError(
+                            path,
+                            "node_id",
+                            node_id,
+                            "node referenced by layout.digital_outputs",
+                        )
+                    pixel_count = derived_node_lengths[node_id]
+                    authored_pixel_count = item.get("pixel_count")
+                    if authored_pixel_count is not None:
+                        authored_pixel_count = _require_int(
+                            item, "pixel_count", path, 1
+                        )
+                        if authored_pixel_count != pixel_count:
+                            raise ConfigError(
+                                path,
+                                "pixel_count",
+                                authored_pixel_count,
+                                f"derived output pixel total {pixel_count}",
+                            )
+                else:
+                    node_id = _require_int(item, "node_id", path, 1)
+                    pixel_count = _require_int(item, "pixel_count", path, 1)
                 self.digital_nodes.append(DigitalNodeMapping(
-                    node_id=_require_int(item, "node_id", path, 1),
+                    node_id=node_id,
                     host=_optional_str(item, "host", path, "127.0.0.1"),
                     port=_require_int(item, "port", path, 1),
-                    pixel_count=_require_int(item, "pixel_count", path, 1),
-                    max_udp_payload=_require_int(
-                        item, "max_udp_payload", path, 1
+                    pixel_count=pixel_count,
+                    max_udp_payload=_optional_int(
+                        item, "max_udp_payload", path, 4096, 1
                     ),
                     protocol_version=_optional_int(
-                        item, "protocol_version", path, 2, 2
+                        item,
+                        "protocol_version",
+                        path,
+                        3 if self.topology_version == 3 else 2,
+                        2,
                     ),
                     enabled=item.get("enabled", True),
                 ))
@@ -246,15 +291,35 @@ class Layout:
                 ))
                 offset += strip.pixel_count
 
-        output_data = config.get("layout.digital_outputs", [])
         for idx, item in enumerate(output_data):
             path = f"layout.digital_outputs[{idx}]"
+            strip_id = _require_str(item, "strip_id", path)
+            if self.topology_version == 3:
+                if strip_id not in strip_lengths:
+                    raise ConfigError(
+                        path, "strip_id", strip_id, "existing layout.strips id"
+                    )
+                pixel_count = strip_lengths[strip_id]
+                authored_pixel_count = item.get("pixel_count")
+                if authored_pixel_count is not None:
+                    authored_pixel_count = _require_int(
+                        item, "pixel_count", path, 1
+                    )
+                    if authored_pixel_count != pixel_count:
+                        raise ConfigError(
+                            path,
+                            "pixel_count",
+                            authored_pixel_count,
+                            f"logical strip {strip_id!r} length {pixel_count}",
+                        )
+            else:
+                pixel_count = _require_int(item, "pixel_count", path, 1)
             self.digital_outputs.append(DigitalOutputMapping(
                 node_id=_require_int(item, "node_id", path, 1),
                 output_id=_require_int(item, "output_id", path, 1),
                 gpio=_require_int(item, "gpio", path, 0),
-                strip_id=_require_str(item, "strip_id", path),
-                pixel_count=_require_int(item, "pixel_count", path, 1),
+                strip_id=strip_id,
+                pixel_count=pixel_count,
                 direction=_optional_str(item, "direction", path, "forward"),
             ))
 

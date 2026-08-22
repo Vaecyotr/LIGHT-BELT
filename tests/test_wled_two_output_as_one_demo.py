@@ -10,8 +10,8 @@ from light_engine.outputs.transform import OutputTransform
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
-PROFILE = Path("config/profiles/wled-two-output-20-20-as-one.yaml")
-SHOW = Path("config/shows/wled-two-output-20-20-as-one-demo.yaml")
+PROFILE = Path("config/profile-archive/wled-two-output-20-20-as-one.yaml")
+SHOW = Path("config/shows/archive/wled-legacy-demos/wled-two-output-20-20-as-one-demo.yaml")
 FPS = 30.0
 
 

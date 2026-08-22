@@ -40,7 +40,7 @@ void encodeByte(uint8_t source, uint8_t *destination) {
 }  // namespace
 
 size_t ws2811Spi3FrameSize(uint16_t group_count) {
-  if (group_count == 0 || group_count > MAX_PIXELS_PER_OUTPUT) {
+  if (group_count == 0 || group_count > FRAME_PIXEL_CAPACITY) {
     return 0;
   }
   return 2U * WS2811_SPI3_GUARD_BYTES +

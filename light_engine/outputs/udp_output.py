@@ -15,6 +15,7 @@ from light_engine.outputs.udp_v3 import (
     UdpV3ClockBeacon,
     UdpV3Output,
     UdpV3Packet,
+    encode_udp_v3_frame_datagrams,
 )
 
 
@@ -399,7 +400,7 @@ class UdpOutputV3(UdpOutputV2):
                     raise ValueError(
                         f"UDP v3 node {digital_frame.node_id} has no independent outputs"
                     )
-                packet = UdpV3Packet(
+                logical_packet = UdpV3Packet(
                     digital_node_id=digital_frame.node_id,
                     sequence=frame.sequence,
                     media_timestamp_us=media_timestamp_us,
@@ -416,9 +417,14 @@ class UdpOutputV3(UdpOutputV2):
                         )
                         for output in digital_frame.outputs
                     ),
-                ).encode()
-                encoded_datagrams.append(
+                )
+                packets = encode_udp_v3_frame_datagrams(
+                    logical_packet,
+                    max_udp_payload=digital_frame.max_udp_payload,
+                )
+                encoded_datagrams.extend(
                     (packet, (digital_frame.host, digital_frame.port))
+                    for packet in packets
                 )
             except Exception as exc:
                 frame_ok = False
@@ -483,8 +489,9 @@ class UdpOutputV3(UdpOutputV2):
         caps = super().capabilities()
         caps.update(
             {
-                "protocol": "UDP complete multi-output physical node frame v3",
-                "max_pixels": 300,
+                "protocol": "UDP complete logical multi-output node frame v3",
+                "max_pixels": 65535,
+                "supports_frame_chunking": True,
                 "supports_scheduled_apply": True,
                 "scheduled_apply_enabled": self._scheduled_apply,
                 "schedule_lead_us": self._lead_us if self._scheduled_apply else None,

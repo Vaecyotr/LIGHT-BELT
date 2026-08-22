@@ -1,0 +1,76 @@
+{
+  "protocol": "udp_v3_chunk",
+  "wire_format": "big_endian, message_type=3, apply_at_us=0 means unscheduled",
+  "vectors": [
+    {
+      "name": "node_9_scheduled_chunk_tail",
+      "message_type": 3,
+      "digital_node_id": 9,
+      "flags": 4,
+      "sequence": 7,
+      "media_timestamp_us": 123456,
+      "apply_at_us": 999000,
+      "chunks": [
+        {
+          "output_id": 1,
+          "gpio": 4,
+          "total_pixel_count": 481,
+          "chunk_offset": 480,
+          "pixels": [[17, 34, 51]]
+        }
+      ],
+      "encoded_hex": "4c450303090400000007000000000001e24000000000000f3e5801000d010401e101e000010003112233e11f89f5"
+    },
+    {
+      "name": "node_9_scheduled_481_packetized_head",
+      "packet_set": "node_9_scheduled_481_packetized",
+      "packet_index": 0,
+      "packet_count": 2,
+      "max_udp_payload": 1481,
+      "message_type": 3,
+      "digital_node_id": 9,
+      "flags": 4,
+      "sequence": 8,
+      "media_timestamp_us": 123457,
+      "apply_at_us": 999100,
+      "chunks": [
+        {
+          "output_id": 1,
+          "gpio": 4,
+          "total_pixel_count": 481,
+          "chunk_offset": 0,
+          "pixel_repeat": 479,
+          "pixels": [[0, 0, 0]]
+        }
+      ],
+      "encoded_hex_segments": [
+        "4c450303090400000008000000000001e24100000000000f3ebc0105a7010401e1000001df059d",
+        {"hex": "00", "repeat": 1437},
+        "f7e6b892"
+      ]
+    },
+    {
+      "name": "node_9_scheduled_481_packetized_tail",
+      "packet_set": "node_9_scheduled_481_packetized",
+      "packet_index": 1,
+      "packet_count": 2,
+      "max_udp_payload": 1481,
+      "message_type": 3,
+      "digital_node_id": 9,
+      "flags": 4,
+      "sequence": 8,
+      "media_timestamp_us": 123457,
+      "apply_at_us": 999100,
+      "chunks": [
+        {
+          "output_id": 1,
+          "gpio": 4,
+          "total_pixel_count": 481,
+          "chunk_offset": 479,
+          "pixels": [[9, 8, 7], [17, 34, 51]]
+        }
+      ],
+      "encoded_hex": "4c450303090400000008000000000001e24100000000000f3ebc010010010401e101df00020006090807112233c749d20e"
+    }
+  ]
+}

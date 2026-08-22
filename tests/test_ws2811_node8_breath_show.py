@@ -10,8 +10,8 @@ from light_engine.outputs.ddp_output import DDP_HEADER_LEN, DdpOutput
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
-PROFILE = Path("config/profiles/ws2811-ab-node8-strip42-immediate-15fps.yaml")
-SHOW = Path("config/shows/ws2811-ab-strip42-blue-breath-40s.yaml")
+PROFILE = Path("config/profile-archive/ws2811-ab-node8-strip42-immediate-15fps.yaml")
+SHOW = Path("config/shows/archive/ws2811-ab-experiments/ws2811-ab-strip42-blue-breath-40s.yaml")
 FPS = 15.0
 BLACK = (0, 0, 0)
 

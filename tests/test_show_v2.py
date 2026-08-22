@@ -39,7 +39,7 @@ def _catalog() -> TargetCatalog:
 def _data() -> dict:
     import yaml
 
-    return yaml.safe_load(Path("config/shows/cabin-show-v2.yaml").read_text(encoding="utf-8"))
+    return yaml.safe_load(Path("config/shows/archive/cabin-v2/cabin-show-v2.yaml").read_text(encoding="utf-8"))
 
 
 def _invalid(data: dict, path: str, reason: str | None = None) -> None:
@@ -55,7 +55,7 @@ def _strip(frame, strip_id: str):
 
 
 def test_cabin_v2_has_three_paths_covering_all_fourteen_logical_runs() -> None:
-    show = load_show(Path("config/shows/cabin-show-v2.yaml"), _catalog())
+    show = load_show(Path("config/shows/archive/cabin-v2/cabin-show-v2.yaml"), _catalog())
     golden = json.loads(Path("tests/goldens/show_orchestration/v2/cabin_authoring_contract.json").read_text(encoding="utf-8"))
 
     covered = {member.id for path in show.virtual_paths for member in path.targets}

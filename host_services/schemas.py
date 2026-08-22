@@ -5,16 +5,11 @@
 
 from typing import Any, Optional
 from pydantic import BaseModel, Field
+from light_engine.effects import list_effects
 
 # ────────────────── 枚举常量 ──────────────────
 
 VALID_CLIENT_TYPES = {"tablet", "phone", "debug"}
-
-VALID_EFFECT_TYPES = {
-    "static", "breath", "color_wave", "chase", "comet",
-    "audio_pulse", "bass_pulse", "spectrum",
-    "video_ambient", "video_audio_fusion", "calm", "demo",
-}
 
 VALID_WS_TYPES = {
     "session.connected", "runtime.state", "playback.progress",
@@ -66,12 +61,12 @@ class LightsSetRequest(BaseModel):
 
 class EffectCommonParams(BaseModel):
     color: Optional[RGB] = None
-    speed: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    intensity: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    speed: Optional[float] = Field(default=None, ge=0.0, allow_inf_nan=False)
+    intensity: Optional[float] = Field(default=None, ge=0.0, allow_inf_nan=False)
 
 class EffectsSetRequest(BaseModel):
     target_id: str
-    effect_type: str
+    effect_type: str = Field(json_schema_extra={"enum": list_effects()})
     params: Optional[EffectCommonParams] = None
     effect_params: Optional[dict[str, Any]] = None
     transition_ms: Optional[float] = Field(default=0, ge=0)
@@ -95,7 +90,10 @@ class SceneEntry(BaseModel):
     brightness: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     color_temperature: Optional[int] = Field(default=None, ge=2700, le=6500)
     # effects/set 字段
-    effect_type: Optional[str] = None
+    effect_type: Optional[str] = Field(
+        default=None,
+        json_schema_extra={"enum": list_effects()},
+    )
     params: Optional[EffectCommonParams] = None
     effect_params: Optional[dict[str, Any]] = None
     transition_ms: Optional[float] = Field(default=0, ge=0)

@@ -60,16 +60,16 @@ subset, validate, inspect, and then run this exact pair:
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/ws2811-installed-one-esp-per-strip.yaml `
-  validate-show --show config/shows/ws2811-stage3-installed-300s.yaml
+  --config config/profile-archive/ws2811-installed-one-esp-per-strip.yaml `
+  validate-show --show config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/ws2811-installed-one-esp-per-strip.yaml `
-  inspect-topology --show config/shows/ws2811-stage3-installed-300s.yaml
+  --config config/profile-archive/ws2811-installed-one-esp-per-strip.yaml `
+  inspect-topology --show config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/ws2811-installed-one-esp-per-strip.yaml run `
-  --show config/shows/ws2811-stage3-installed-300s.yaml
+  --config config/profile-archive/ws2811-installed-one-esp-per-strip.yaml run `
+  --show config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml
 ```
 
 For the complete thirteen-node digital target, validate, inspect, and then run
@@ -77,16 +77,16 @@ this exact pair only after every controller is physically present:
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/cabin-lighting-v3-site-local.yaml `
-  validate-show --show config/shows/ws2811-stage3-full-300s.yaml
+  --config config/profile-archive/cabin-lighting-v3-site-local.yaml `
+  validate-show --show config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/cabin-lighting-v3-site-local.yaml `
-  inspect-topology --show config/shows/ws2811-stage3-full-300s.yaml
+  --config config/profile-archive/cabin-lighting-v3-site-local.yaml `
+  inspect-topology --show config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/cabin-lighting-v3-site-local.yaml run `
-  --show config/shows/ws2811-stage3-full-300s.yaml
+  --config config/profile-archive/cabin-lighting-v3-site-local.yaml run `
+  --show config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml
 ```
 
 Do not substitute one show for the other. A successful digital run is not
@@ -112,12 +112,12 @@ Record start/end time and responsible people for all steps:
 1. Disable Host physical output and power down the lighting system.
 2. Confirm no controller retains the old five-node multi-output firmware.
 3. Connect one strip to each selected ESP32 through its GPIO4 data path.
-4. Select `config/profiles/ws2811-installed-one-esp-per-strip.yaml` with
-   `config/shows/ws2811-stage3-installed-300s.yaml` for the current field
-   subset, or `config/profiles/cabin-lighting-v3-site-local.yaml` with
-   `config/shows/ws2811-stage3-full-300s.yaml` for the complete onsite digital
+4. Select `config/profile-archive/ws2811-installed-one-esp-per-strip.yaml` with
+   `config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml` for the current field
+   subset, or `config/profile-archive/cabin-lighting-v3-site-local.yaml` with
+   `config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml` for the complete onsite digital
    target. Never use the TEST-NET
-   `config/profiles/cabin-lighting-v3-production.yaml` template for a live
+   `config/profile-archive/cabin-lighting-v3-production.yaml` template for a live
    deployment.
 5. Power up and begin with a complete black frame.
 6. On failure, stop output and roll back profile, firmware set, and wiring

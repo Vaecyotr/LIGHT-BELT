@@ -4,6 +4,9 @@
 // Shared protocol and output defaults. Physical topology is selected only by
 // the esp32-s3-node-N PlatformIO environment.
 #define UDP_PORT 9001
+#ifndef UDP_V3_RECEIVE_BUFFER_BYTES
+#define UDP_V3_RECEIVE_BUFFER_BYTES 4096
+#endif
 #define SAFE_TIMEOUT_MS 1000
 
 // Project-owned values. Do not use FastLED color-order tokens here.

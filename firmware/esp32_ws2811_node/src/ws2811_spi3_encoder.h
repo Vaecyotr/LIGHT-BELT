@@ -14,7 +14,7 @@ static constexpr size_t WS2811_SPI3_GUARD_BYTES = 32;
 static constexpr size_t WS2811_SPI3_BYTES_PER_GROUP = 9;
 static constexpr size_t WS2811_SPI3_MAX_FRAME_BYTES =
     2U * WS2811_SPI3_GUARD_BYTES +
-    MAX_PIXELS_PER_OUTPUT * WS2811_SPI3_BYTES_PER_GROUP;
+    FRAME_PIXEL_CAPACITY * WS2811_SPI3_BYTES_PER_GROUP;
 
 // Returns zero for an invalid group count.
 size_t ws2811Spi3FrameSize(uint16_t group_count);

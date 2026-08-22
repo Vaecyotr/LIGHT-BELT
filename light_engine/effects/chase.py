@@ -13,6 +13,7 @@ from typing import Optional
 from light_engine.config import Config
 from light_engine.effects.base import (
     BaseEffect,
+    apply_common_intensity,
     runtime_bool,
     runtime_float,
     runtime_int,
@@ -157,8 +158,11 @@ class ChaseEffect(BaseEffect):
                 color=RGBCCTColor(),
             ))
 
-        return PixelFrame(
-            timestamp=ctx.timestamp, sequence=ctx.sequence, strips=strips, zones=zones
+        return apply_common_intensity(
+            PixelFrame(
+                timestamp=ctx.timestamp, sequence=ctx.sequence, strips=strips, zones=zones
+            ),
+            ctx.intensity,
         )
 
     def reset(self) -> None:

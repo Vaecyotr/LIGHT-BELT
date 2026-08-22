@@ -4,7 +4,12 @@ import math
 
 from light_engine.config import Config
 from light_engine.color import rgb_to_rgbcct
-from light_engine.effects.base import BaseEffect, runtime_float, runtime_rgb
+from light_engine.effects.base import (
+    BaseEffect,
+    apply_common_intensity,
+    runtime_float,
+    runtime_rgb,
+)
 from light_engine.models import (
     DigitalStrip,
     EffectContext,
@@ -56,8 +61,11 @@ class BreathEffect(BaseEffect):
                 color=rgb_to_rgbcct(r, g, b),
             ))
 
-        return PixelFrame(
-            timestamp=ctx.timestamp, sequence=ctx.sequence, strips=strips, zones=zones
+        return apply_common_intensity(
+            PixelFrame(
+                timestamp=ctx.timestamp, sequence=ctx.sequence, strips=strips, zones=zones
+            ),
+            ctx.intensity,
         )
 
     def reset(self) -> None:

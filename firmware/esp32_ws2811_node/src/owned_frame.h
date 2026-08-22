@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "protocol.h"
+#include "resource_limits.h"
 
 namespace light_belt {
 
@@ -17,7 +18,7 @@ static_assert(sizeof(RgbPixel) == 3, "RGB pixels must remain tightly packed");
 
 struct OwnedOutputFrame {
   OutputDescriptor descriptor;
-  RgbPixel pixels[MAX_PIXELS_PER_OUTPUT];
+  RgbPixel pixels[FRAME_PIXEL_CAPACITY];
 };
 
 // Unlike UdpV3Frame, this type owns every pixel. It is safe to place in a

@@ -16,6 +16,13 @@ When documents or code disagree, use this order:
 Do not copy the implementation plan into this file. Do not add line-number
 references or details likely to drift.
 
+For Show design, `assets/energy-wakeup/energy-wakeup.yaml` is the immutable
+original source, while `config/shows/energy-wakeup.yaml` is the approved,
+runnable copy and the only current Show compatibility baseline. Treat the
+32 retired YAML files under categorized `config/shows/archive/` as legacy
+replay/regression material, never as evidence for new visual or parameter
+requirements. The `config/shows/` root contains only the approved current Show.
+
 ## Windows Python
 
 On Windows, use only the bundled interpreter:
@@ -52,7 +59,18 @@ not fall back to another Python.
 - Start by checking `git status`.
 - Implement only the Phase explicitly approved by the user.
 - Do not start, prepare, or partially implement later Phases without approval.
-- Before modifying files, run the baseline tests with the bundled interpreter:
+- Before spawning each new sub-agent, apply the complete tier-selection rules
+  in the next section. Set both model family and reasoning effort explicitly;
+  never inherit the primary agent's tier by default. Announce the selected tier
+  and a brief reason in the commentary channel before spawning. Reusing an
+  existing agent with a follow-up is not a new spawn and must be described as
+  reuse rather than a new tier selection.
+- Before modifying files, run the baseline tests with the bundled interpreter.
+  Run this pre-change baseline at most once per Codex task/session: context
+  compaction, task steering, follow-up prompts, and sub-agent work must reuse
+  the recorded result instead of starting another baseline run. Relevant
+  post-change tests and the final full-suite verification are not baseline runs
+  and remain required:
 
   ```powershell
   .\.python\Scripts\python.exe -m pytest -q
@@ -65,6 +83,48 @@ not fall back to another Python.
   transports.
 - Keep changes Phase-scoped and avoid unrelated refactors.
 - Do not run `git commit` unless the user explicitly asks for it.
+
+## Sub-Agent Tier Selection
+
+Choose the lowest model family and lowest reasoning tier that can reliably
+finish the bounded subtask. Prefer Luna for explicit/mechanical work, Terra for
+ordinary engineering, and Sol for ambiguity, cross-module reasoning, difficult
+diagnosis, or high-risk judgment. Use Ultra or concurrent agents only when the
+work contains genuinely independent parallel subtasks; otherwise raise the
+reasoning tier of one agent. For every new agent, state the selected tier and a
+short reason before spawning it.
+
+Execution mapping: Light -> `low`, Medium -> `medium`, High -> `high`, Extra
+High -> `xhigh`, and Max -> `max`. Ultra is a parallel-routing tier, not a
+mandatory reasoning-effort literal: decompose it into independent agents and
+give each agent the lowest supported effort required by its bounded subtask.
+Model mapping: Luna -> `gpt-5.6-luna`, Terra -> `gpt-5.6-terra`, and Sol ->
+`gpt-5.6-sol`. If the orchestration API cannot override a full-history fork,
+use a bounded or no-history fork and include the required context explicitly;
+do not fall back to inherited model or effort defaults.
+In particular, Luna does not support an `ultra` reasoning-effort value, so a
+Luna Ultra workload must use multiple Luna agents with supported per-agent
+efforts; never pass an unsupported value. A provider's literal `ultra` effort,
+when available, still requires the individual subtask itself to justify it.
+
+- **Luna Light**：改名、改配置、格式化、机械替换、简单 grep 后修改。
+- **Luna Medium**：明确需求的小功能、简单脚本、批量修改、补测试、普通报错修复。
+- **Luna High**：边界清楚但涉及多个文件的实现、较复杂重构、需要一定自检的任务。
+- **Luna Extra High**：明确但容易出错的复杂实现、较长依赖链排错、要求较强验证的机械型任务。
+- **Luna Max**：任务逻辑明确但非常繁琐、需要长时间单线程推理和反复校验、不值得调用更贵模型时使用。
+- **Luna Ultra**：大量彼此独立、明确、可并行的低难度子任务，如批量检查、测试、迁移、搜索和一致性修复。
+- **Terra Light**：日常小功能、小 bug、常规配置和代码维护。
+- **Terra Medium**：默认档，适合绝大多数功能开发、debug、多文件修改、API 接入和普通重构。
+- **Terra High**：复杂 bug、跨模块功能、状态机、较大重构、需要理解项目结构后再修改。
+- **Terra Extra High**：难定位问题、复杂依赖、并发/异步问题、需要多轮验证和较完整工程判断的任务。
+- **Terra Max**：单个高难问题，需要深挖根因、设计方案、验证副作用并尽量一次做对。
+- **Terra Ultra**：复杂项目任务可拆成多个相对独立方向时，并行做代码搜索、测试、架构分析、实现和审查。
+- **Sol Light**：任务本身不难，但要求高质量判断、低返工或需要理解复杂上下文。
+- **Sol Medium**：复杂代码开发、架构相关修改、模糊需求、重要功能和较难 bug 的高可靠默认档。
+- **Sol High**：系统级问题、跨模块根因分析、大型重构、性能问题、复杂状态与边界条件。
+- **Sol Extra High**：非常难的 bug、并发竞态、架构缺陷、跨软硬件/网络/系统层问题，需要深入推理和验证。
+- **Sol Max**：单个极难且强耦合的问题，无法有效拆分，要求最大单 Agent 推理深度和最低返工率。
+- **Sol Ultra**：大型开放任务，可拆成多个独立研究/实现方向，由多个 Agent 并行调查、编码、测试、审查，最后统一整合。
 
 ## Core Architecture
 

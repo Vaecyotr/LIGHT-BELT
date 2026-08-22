@@ -142,7 +142,7 @@ firmware\esp32_ws2811_node\src\node_configs\node_3.h
 firmware\esp32_ws2811_node\src\node_configs\node_4.h
 firmware\esp32_ws2811_node\src\node_configs\node_5.h
 
-config\profiles\cabin-lighting-v3-site-local.yaml
+config\profile-archive\cabin-lighting-v3-site-local.yaml
 ```
 
 上传的 `LIGHT-BELT_LATEST.zip` 不是这一版多节点代码，内容已经落后，不能作为后续烧录依据。

@@ -25,8 +25,8 @@ from light_engine.outputs.ddp_output import (
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
-PROFILE_PATH = Path("config/profiles/node2-effects-demo.yaml")
-SHOW_PATH = Path("config/shows/node2-effects-demo.yaml")
+PROFILE_PATH = Path("config/profile-archive/node2-effects-demo.yaml")
+SHOW_PATH = Path("config/shows/archive/ws2811-diagnostics/node2-effects-demo.yaml")
 ACTIVE_STRIPS = ("strip_41", "strip_42")
 CODE_EFFECTS = {
     "static",

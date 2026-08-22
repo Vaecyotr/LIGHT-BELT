@@ -36,8 +36,8 @@ from light_engine.show import TargetCatalog, TargetResolver, ShowRuntime, black_
 
 
 ACCEPTANCE = Path("config/acceptance/cabin-lighting-v3/topology.yaml")
-PROFILE = Path("config/profiles/cabin-lighting-v3-production.yaml")
-SHOW = Path("config/shows/cabin-show-v2.yaml")
+PROFILE = Path("config/profile-archive/cabin-lighting-v3-production.yaml")
+SHOW = Path("config/shows/archive/cabin-v2/cabin-show-v2.yaml")
 GOLDEN = Path("firmware/shared/udp_v3_golden.json")
 
 
@@ -336,9 +336,9 @@ def test_golden_is_authoritative_and_codec_rejects_corrupt_unknown_incomplete_an
     assert UdpV3Packet.decode(bytes.fromhex(vector["encoded_hex"]), expected_outputs={1: (4, 2)}) is None
     assert UdpV3Packet.decode(bytes.fromhex(vector["encoded_hex"]), min_sequence=0x01020305) is None
     assert UdpV3Packet.decode(bytes.fromhex(vector["encoded_hex"]), max_udp_payload=len(bytes(raw)) - 1) is None
-    assert len(UdpV3Output(1, 4, ((0, 0, 0),) * 100).pixels) == 100
-    with pytest.raises(ValueError, match="100"):
-        UdpV3Output(1, 4, ((0, 0, 0),) * 101)
+    assert len(UdpV3Output(1, 4, ((0, 0, 0),) * 101).pixels) == 101
+    with pytest.raises(ValueError, match="uint16"):
+        UdpV3Output(1, 4, ((0, 0, 0),) * 65_536)
 
 
 def test_safe_black_frame_encodes_all_configured_outputs_and_replay_is_deterministic() -> None:

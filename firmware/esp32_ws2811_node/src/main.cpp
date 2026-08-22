@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "chunk_reassembly.h"
 #include "led_output.h"
 #include "owned_frame.h"
 #include "presentation_clock.h"
@@ -31,6 +32,7 @@ namespace {
 WiFiUDP udp;
 light_belt::RuntimeStats runtime_stats;
 light_belt::LedOutput led_output(&runtime_stats);
+light_belt::UdpV3ChunkReassembler chunk_reassembler;
 
 struct QueuedNodeFrame {
   light_belt::OwnedNodeFrame frame;
@@ -44,7 +46,11 @@ QueueHandle_t frame_queue = nullptr;
 std::atomic<uint32_t> announced_session_generation{0};
 std::atomic<uint32_t> prepared_session_generation{0};
 std::atomic<uint32_t> committed_session_generation{0};
-uint8_t packet_buffer[light_belt::UDP_V3_MAX_PACKET_LEN];
+static_assert(
+    light_belt::CONFIGURED_PACKET_BUFFER_LEN <=
+        light_belt::UDP_V3_MAX_PACKET_LEN,
+    "configured node frame must fit one UDP datagram address space");
+uint8_t packet_buffer[light_belt::CONFIGURED_PACKET_BUFFER_LEN];
 bool runtime_ready = false;
 
 constexpr uint32_t kStatsIntervalMs = 5000;
@@ -60,8 +66,8 @@ static_assert(OUTPUT_0_ID == 1, "emergency A/B requires output 1");
 static_assert(OUTPUT_0_GPIO == 4, "emergency A/B requires GPIO4");
 static_assert(
     OUTPUT_0_PIXELS >= 2 &&
-        OUTPUT_0_PIXELS <= light_belt::MAX_PIXELS_PER_OUTPUT,
-    "emergency A/B requires 2..MAX groups");
+        OUTPUT_0_PIXELS <= light_belt::FRAME_PIXEL_CAPACITY,
+    "emergency A/B output exceeds compiled frame capacity");
 #endif
 #if defined(LIGHT_BELT_FASTLED_GPIO4_IMMEDIATE_AB)
 constexpr const char *kBackendName = "fastled_rmt4_builtin_gpio4_immediate_ab";
@@ -419,23 +425,46 @@ void networkTask(void *) {
       continue;
     }
 
-    light_belt::UdpV3Frame parsed{};
-    const light_belt::ParseResult parse_result = light_belt::parseUdpV3Frame(
-        packet_buffer, static_cast<size_t>(read_len), NODE_ID,
-        led_output.descriptors(), led_output.outputCount(), &parsed);
-    if (parse_result != light_belt::ParseResult::Ok) {
-      runtime_stats.parse_rejected.fetch_add(1);
-      continue;
-    }
-
-    const bool scheduled =
-        (parsed.flags & light_belt::UDP_V3_FLAG_SCHEDULED_APPLY) != 0;
     light_belt::OwnedNodeFrame owned{};
-    if (!light_belt::copyUdpV3Frame(parsed, led_output.descriptors(),
-                                    led_output.outputCount(), &owned)) {
-      runtime_stats.state_rejected.fetch_add(1);
-      continue;
+    if (static_cast<size_t>(read_len) > 3U &&
+        packet_buffer[3] == light_belt::UDP_V3_MESSAGE_FRAME_CHUNK) {
+      light_belt::UdpV3ChunkFrame parsed_chunk{};
+      const light_belt::ParseResult parse_result =
+          light_belt::parseUdpV3ChunkFrame(
+              packet_buffer, static_cast<size_t>(read_len), NODE_ID,
+              led_output.descriptors(), led_output.outputCount(),
+              &parsed_chunk);
+      if (parse_result != light_belt::ParseResult::Ok) {
+        runtime_stats.parse_rejected.fetch_add(1);
+        continue;
+      }
+      const light_belt::ReassemblyResult reassembly_result =
+          chunk_reassembler.accept(parsed_chunk, &owned);
+      if (reassembly_result == light_belt::ReassemblyResult::Incomplete ||
+          reassembly_result == light_belt::ReassemblyResult::Duplicate) {
+        continue;
+      }
+      if (reassembly_result != light_belt::ReassemblyResult::Complete) {
+        runtime_stats.state_rejected.fetch_add(1);
+        continue;
+      }
+    } else {
+      light_belt::UdpV3Frame parsed{};
+      const light_belt::ParseResult parse_result = light_belt::parseUdpV3Frame(
+          packet_buffer, static_cast<size_t>(read_len), NODE_ID,
+          led_output.descriptors(), led_output.outputCount(), &parsed);
+      if (parse_result != light_belt::ParseResult::Ok) {
+        runtime_stats.parse_rejected.fetch_add(1);
+        continue;
+      }
+      if (!light_belt::copyUdpV3Frame(parsed, led_output.descriptors(),
+                                      led_output.outputCount(), &owned)) {
+        runtime_stats.state_rejected.fetch_add(1);
+        continue;
+      }
     }
+    const bool scheduled =
+        (owned.flags & light_belt::UDP_V3_FLAG_SCHEDULED_APPLY) != 0;
 #if defined(LIGHT_BELT_EMERGENCY_CHANGE_ONLY_AB)
     const light_belt::EmergencyOutputPolicy emergency_policy = {
         NODE_ID, led_output.descriptors()[0]};
@@ -460,7 +489,7 @@ void networkTask(void *) {
       const uint64_t local_now_us =
           static_cast<uint64_t>(esp_timer_get_time());
       const light_belt::ApplyDeadline deadline =
-          presentation_clock.evaluateDeadline(parsed.apply_at_us, local_now_us);
+          presentation_clock.evaluateDeadline(owned.apply_at_us, local_now_us);
       runtime_stats.clock_ready.store(
           deadline.clock_status == light_belt::PresentationClockStatus::Ready
               ? 1U
@@ -537,6 +566,7 @@ void networkTask(void *) {
             runtime_stats.frames_queued.fetch_add(1);
             runtime_stats.scheduled_queued.fetch_add(1);
             runtime_stats.last_received_sequence.store(owned.sequence);
+            chunk_reassembler.noteComplete(owned);
             rx_session_generation = candidate_generation;
             last_rx_sequence = owned.sequence;
             has_rx_sequence = true;
@@ -636,6 +666,7 @@ void networkTask(void *) {
       runtime_stats.scheduled_queued.fetch_add(1);
     }
     runtime_stats.last_received_sequence.store(owned.sequence);
+    chunk_reassembler.noteComplete(owned);
     rx_session_generation = candidate_generation;
     last_rx_sequence = owned.sequence;
     has_rx_sequence = true;
@@ -894,6 +925,11 @@ void setup() {
   }
   if (!led_output.begin()) {
     Serial.println("fatal output_init_failed");
+    return;
+  }
+  if (!chunk_reassembler.begin(
+          led_output.descriptors(), led_output.outputCount())) {
+    Serial.println("fatal reassembly_init_failed");
     return;
   }
 #if defined(LIGHT_BELT_REQUIRE_SCHEDULED_APPLY) && \

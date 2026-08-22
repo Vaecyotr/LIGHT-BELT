@@ -52,8 +52,8 @@ class Case:
 CASES = (
     Case(
         id="node2_black_sentinel",
-        profile=Path("config/profiles/ws2811-emergency-node2-strip41.yaml"),
-        show=Path("config/shows/ws2811-emergency-black-sentinel-3s.yaml"),
+        profile=Path("config/profile-archive/ws2811-emergency-node2-strip41.yaml"),
+        show=Path("config/shows/archive/ws2811-emergency/ws2811-emergency-black-sentinel-3s.yaml"),
         duration=3.0,
         nodes=(
             NodeSpec(
@@ -71,8 +71,8 @@ CASES = (
     ),
     Case(
         id="node2_blue_isolation",
-        profile=Path("config/profiles/ws2811-emergency-node2-strip41.yaml"),
-        show=Path("config/shows/ws2811-emergency-node2-strip41-blue-60s.yaml"),
+        profile=Path("config/profile-archive/ws2811-emergency-node2-strip41.yaml"),
+        show=Path("config/shows/archive/ws2811-emergency/ws2811-emergency-node2-strip41-blue-60s.yaml"),
         duration=60.0,
         nodes=(
             NodeSpec(
@@ -90,8 +90,8 @@ CASES = (
     ),
     Case(
         id="node8",
-        profile=Path("config/profiles/ws2811-emergency-node8-strip42.yaml"),
-        show=Path("config/shows/ws2811-emergency-node8-strip42-blue-60s.yaml"),
+        profile=Path("config/profile-archive/ws2811-emergency-node8-strip42.yaml"),
+        show=Path("config/shows/archive/ws2811-emergency/ws2811-emergency-node8-strip42-blue-60s.yaml"),
         duration=60.0,
         nodes=(
             NodeSpec(
@@ -109,8 +109,8 @@ CASES = (
     ),
     Case(
         id="node2_node8",
-        profile=Path("config/profiles/ws2811-emergency-two-node-41-42.yaml"),
-        show=Path("config/shows/ws2811-emergency-two-node-blue-staged-110s.yaml"),
+        profile=Path("config/profile-archive/ws2811-emergency-two-node-41-42.yaml"),
+        show=Path("config/shows/archive/ws2811-emergency/ws2811-emergency-two-node-blue-staged-110s.yaml"),
         duration=110.0,
         nodes=(
             NodeSpec(
@@ -134,9 +134,9 @@ CASES = (
     ),
     Case(
         id="node2_node8_green_static",
-        profile=Path("config/profiles/ws2811-emergency-two-node-41-42.yaml"),
+        profile=Path("config/profile-archive/ws2811-emergency-two-node-41-42.yaml"),
         show=Path(
-            "config/shows/"
+            "config/shows/archive/ws2811-emergency/"
             "ws2811-emergency-two-node-green-static-staged-35s.yaml"
         ),
         duration=35.0,

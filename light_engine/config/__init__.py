@@ -24,6 +24,8 @@ _KNOWN_OUTPUTS = {
     "udp_v3",
 }
 _HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+_UDP_V3_MIN_CHUNK_DATAGRAM_BYTES = 29 + 10 + 3 + 4
+_UDP_MAX_PAYLOAD_BYTES = 65_507
 
 
 class ConfigError(Exception):
@@ -136,6 +138,24 @@ def _require_ipv4_or_hostname(value: Any, path: str, field: str) -> str:
     return host
 
 
+def _require_ipv4(value: Any, path: str, field: str) -> str:
+    address = _require_nonempty_str(value, path, field)
+    try:
+        parsed = ipaddress.ip_address(address)
+    except ValueError as exc:
+        raise ConfigError(path, field, value, "valid IPv4 address") from exc
+    if not isinstance(parsed, ipaddress.IPv4Address):
+        raise ConfigError(path, field, value, "valid IPv4 address")
+    return address
+
+
+def _require_multicast_ipv4(value: Any, path: str, field: str) -> str:
+    address = _require_ipv4(value, path, field)
+    if not ipaddress.ip_address(address).is_multicast:
+        raise ConfigError(path, field, value, "multicast IPv4 address")
+    return address
+
+
 def _require_int(value: Any, path: str, field: str, minimum: int) -> int:
     if type(value) is not int or value < minimum:
         raise ConfigError(path, field, value, f"integer >= {minimum}")
@@ -196,6 +216,40 @@ def validate_config(data: dict[str, Any]) -> None:
         ["internal", "offline", "fake", "mpv"],
     )
     _require_number(system.get("output_fps"), "system", "output_fps", 1.0)
+    audio = _require_mapping(system.get("audio"), "system.audio", "audio")
+    audio_source = _require_mapping(
+        audio.get("source"), "system.audio.source", "source"
+    )
+    _validate_choice(
+        audio_source.get("kind"),
+        "system.audio.source",
+        "kind",
+        ["disabled", "wled_audio_sync_v2"],
+    )
+    _require_multicast_ipv4(
+        audio_source.get("multicast_group"),
+        "system.audio.source",
+        "multicast_group",
+    )
+    audio_source_port = _require_int(
+        audio_source.get("port"), "system.audio.source", "port", 1
+    )
+    if audio_source_port > 65535:
+        raise ConfigError(
+            "system.audio.source", "port", audio_source_port, "integer in [1, 65535]"
+        )
+    _require_ipv4(
+        audio_source.get("interface_ipv4"),
+        "system.audio.source",
+        "interface_ipv4",
+    )
+    _require_finite_number(
+        audio_source.get("stale_after_ms"),
+        "system.audio.source",
+        "stale_after_ms",
+        minimum=0.0,
+        strictly_greater=True,
+    )
     smoothing = _require_mapping(
         system.get("smoothing"), "system.smoothing", "smoothing"
     )
@@ -501,8 +555,8 @@ def validate_config(data: dict[str, Any]) -> None:
         _require_nonempty_str(node.get("channel_order"), path, "channel_order")
 
     digital_node_lengths: dict[int, int] = {}
+    authored_digital_node_lengths: dict[int, Optional[int]] = {}
     digital_node_versions: dict[int, int] = {}
-    digital_node_payload_limits: dict[int, int] = {}
     digital_node_endpoints: dict[tuple[str, int], str] = {}
     for idx, item in enumerate(digital_nodes):
         path = f"layout.digital_nodes[{idx}]"
@@ -527,23 +581,57 @@ def validate_config(data: dict[str, Any]) -> None:
                 "unique digital node UDP (host, port) endpoint",
             )
         digital_node_endpoints[endpoint] = path
-        pixel_count = _require_int(node.get("pixel_count"), path, "pixel_count", 1)
-        protocol_version = node.get("protocol_version", 2)
+        authored_pixel_count = node.get("pixel_count")
+        if topology_version == 3:
+            pixel_count = (
+                None
+                if authored_pixel_count is None
+                else _require_int(authored_pixel_count, path, "pixel_count", 1)
+            )
+        else:
+            pixel_count = _require_int(
+                authored_pixel_count, path, "pixel_count", 1
+            )
+        # UDP-v3 transport metadata is optional for DDP/WLED authoring.
+        # Topology v3 still uses the internal value for independent outputs.
+        protocol_version = node.get(
+            "protocol_version", 3 if topology_version == 3 else 2
+        )
         if protocol_version not in {2, 3}:
             raise ConfigError(path, "protocol_version", protocol_version, "2 or 3")
-        max_udp_payload = _require_int(
-            node.get("max_udp_payload"), path, "max_udp_payload", 1
-        )
-        if protocol_version == 2 and pixel_count * 3 > max_udp_payload:
+        if "udp_v3" in seen_outputs:
+            max_udp_payload = _require_int(
+                node.get("max_udp_payload"), path, "max_udp_payload", 1
+            )
+        else:
+            max_udp_payload = _require_int(
+                node.get("max_udp_payload", 4096), path, "max_udp_payload", 1
+            )
+        if "udp_v3" in seen_outputs and not (
+            _UDP_V3_MIN_CHUNK_DATAGRAM_BYTES
+            <= max_udp_payload
+            <= _UDP_MAX_PAYLOAD_BYTES
+        ):
+            raise ConfigError(
+                path,
+                "max_udp_payload",
+                max_udp_payload,
+                "integer in [46, 65507] allowing one UDP v3 RGB pixel chunk",
+            )
+        if (
+            protocol_version == 2
+            and pixel_count is not None
+            and pixel_count * 3 > max_udp_payload
+        ):
             raise ConfigError(
                 path,
                 "max_udp_payload",
                 max_udp_payload,
                 f">= physical payload size {pixel_count * 3}",
             )
-        digital_node_lengths[node_id] = pixel_count
+        digital_node_lengths[node_id] = 0 if pixel_count is None else pixel_count
+        authored_digital_node_lengths[node_id] = pixel_count
         digital_node_versions[node_id] = protocol_version
-        digital_node_payload_limits[node_id] = max_udp_payload
 
     occupied: dict[int, set[int]] = {
         node_id: set() for node_id in digital_node_lengths
@@ -627,7 +715,7 @@ def validate_config(data: dict[str, Any]) -> None:
                     "4 under layout.digital_output_policy 'one_output_gpio4'",
                 )
             strip_id = _require_nonempty_str(output.get("strip_id"), path, "strip_id")
-            pixel_count = _require_int(output.get("pixel_count"), path, "pixel_count", 1)
+            authored_pixel_count = output.get("pixel_count")
             _validate_choice(output.get("direction", "forward"), path, "direction", ["forward", "reverse"])
             if node_id not in digital_node_lengths:
                 raise ConfigError(path, "node_id", node_id, "existing layout.digital_nodes node_id")
@@ -635,10 +723,18 @@ def validate_config(data: dict[str, Any]) -> None:
                 raise ConfigError(path, "node_id", node_id, "UDP v3 digital node")
             if strip_id not in strip_lengths:
                 raise ConfigError(path, "strip_id", strip_id, "existing layout.strips id")
-            if pixel_count != strip_lengths[strip_id]:
-                raise ConfigError(path, "pixel_count", pixel_count, f"exact logical strip {strip_id!r} length {strip_lengths[strip_id]}")
-            if pixel_count > 100:
-                raise ConfigError(path, "pixel_count", pixel_count, "<= 100 per physical output")
+            pixel_count = strip_lengths[strip_id]
+            if authored_pixel_count is not None:
+                authored_pixel_count = _require_int(
+                    authored_pixel_count, path, "pixel_count", 1
+                )
+                if authored_pixel_count != pixel_count:
+                    raise ConfigError(
+                        path,
+                        "pixel_count",
+                        authored_pixel_count,
+                        f"exact logical strip {strip_id!r} length {pixel_count}",
+                    )
             if strip_id in seen_strips:
                 raise ConfigError(path, "strip_id", strip_id, "unique complete strip mapping")
             seen_strips.add(strip_id)
@@ -665,16 +761,18 @@ def validate_config(data: dict[str, Any]) -> None:
             if len(gpios) != len(set(gpios)):
                 raise ConfigError("layout.digital_outputs", "gpio", node_id, "unique within node")
             mapped_pixel_count = sum(item["pixel_count"] for item in outputs_for_node)
-            if mapped_pixel_count != digital_node_lengths[node_id]:
+            authored_node_pixel_count = authored_digital_node_lengths[node_id]
+            if (
+                authored_node_pixel_count is not None
+                and mapped_pixel_count != authored_node_pixel_count
+            ):
                 raise ConfigError(
                     "layout.digital_outputs",
                     "node_id",
                     node_id,
                     f"output pixel total {mapped_pixel_count} matching digital node pixel_count",
                 )
-            encoded_size = 29 + sum(6 + item["pixel_count"] * 3 for item in outputs_for_node) + 4
-            if encoded_size > digital_node_payload_limits[node_id]:
-                raise ConfigError("layout.digital_outputs", "node_id", node_id, "one complete UDP v3 datagram within max_udp_payload")
+            digital_node_lengths[node_id] = mapped_pixel_count
         for node_id, protocol_version in digital_node_versions.items():
             if protocol_version == 3 and node_id not in by_node:
                 raise ConfigError("layout.digital_outputs", "node_id", node_id, "at least one output for each UDP v3 node")

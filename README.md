@@ -1,15 +1,17 @@
 # LIGHT-BELT
 
-LIGHT-BELT's current/default deployment is DDP to nine independent WLED
-boards: node 1 `strip_32` (40), node 2 `strip_41` (10), node 3 `strip_44`
+LIGHT-BELT's current/default deployment is DDP to nine independent ESP32
+nodes: node 1 `strip_32` (40), node 2 `strip_41` (10), node 3 `strip_44`
 (20), node 4 `strip_12` (40), node 5 `strip_22` (40), node 6 `strip_31`
 (10), node 7 `strip_43` (20), node 8 `strip_11` (10), and node 9 `strip_21`
-(10). Every board has only `output_id: 1`; GPIO16 is topology metadata only.
+(10). Every node has only `output_id: 1`; GPIO16 is topology metadata only.
 This Profile has no RGB+CCT zones, analog nodes, STM32 devices, or RS-485
-transport. **NOT HARDWARE VERIFIED.**
+transport. Nine nodes and 200 pixel groups are this Profile's current snapshot,
+not system capacity limits. **NOT HARDWARE VERIFIED.**
 
-The topology, protocol, and scheduled-presentation software contracts are
-accepted by the final regression suite.
+The current DDP topology/packetization software contracts and the separate
+custom-firmware UDP-v3 chunk/scheduled-presentation maintenance contracts are
+covered by software regression tests.
 Physical wiring, endpoint assignment, power distribution, cross-node timing,
 and visible output remain **NOT HARDWARE VERIFIED**.
 
@@ -35,6 +37,14 @@ compatibility material, not the current/default installation.
 - [Cabin operator guide](docs/current/cabin-lighting-v3-operator-guide.md)
 - [Show v2 authoring](docs/current/show-v2-authoring.md)
 - [Effect reference](docs/reference/effect-reference.md)
+- [WLED Audio Sync V2 input contract](docs/reference/wled-audio-sync-v2.md)
+
+The runtime registry currently contains 20 effects, including the Phase 32
+native `flowing_bands`, `onset_ripple`, and `heat_fire` implementations. The
+RK3588 Profile enables WLED Audio Sync V2 multicast input; this is independent
+from its DDP lighting output. See the two reference documents above for the
+authored parameter and stale/source-priority contracts. Audio multicast and
+the three effects remain **NOT HARDWARE VERIFIED**.
 
 ## Quick validation
 
@@ -43,18 +53,18 @@ Use only the bundled Windows interpreter:
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
   --config config/profiles/rk3588-host-service.yaml `
-  validate-show --show config/shows/cabin-show-v2.yaml
+  validate-show --show config/shows/energy-wakeup.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
   --config config/profiles/rk3588-host-service.yaml `
-  inspect-topology --show config/shows/cabin-show-v2.yaml
+  inspect-topology --show config/shows/energy-wakeup.yaml
 ```
 
 The tracked WLED template uses mDNS names; production uses its generated
 runtime Profile. Memory and fake transports require explicit configuration.
 
 Historical compatibility field material uses
-`config/profiles/ws2811-installed-one-esp-per-strip.yaml`: nodes 1, 2, 4, 5,
+`config/profile-archive/ws2811-installed-one-esp-per-strip.yaml`: nodes 1, 2, 4, 5,
 6, 7, 8, 9, and 10 at `192.168.31.201` through `.210` with the unused node 3
 address omitted. The complete target also reserves nodes 3, 11, 12, and 13 at
 `.203` and `.211` through `.213`. Logical `strip_*` IDs and Show v2 content do

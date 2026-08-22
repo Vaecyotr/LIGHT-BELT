@@ -236,13 +236,13 @@ repair. It supports a residual single-path or regenerated-signal problem but
 does not yet distinguish Node 2 output/interface/contact/ground/DI from a strip
 receiver defect.
 
-`config/shows/ws2811-ab-two-node-all-effects-171s.yaml` is the next exploratory
+`config/shows/archive/ws2811-ab-experiments/ws2811-ab-two-node-all-effects-171s.yaml` is the next exploratory
 sweep. It covers all 17 registered effects on both strips, uses one-second
 black separators, and puts deterministic pure-color effects before generated
 media and full-color effects. It is not an acceptance gate or evidence for
 unrestricted APP color control.
 
-`config/shows/ws2811-ab-two-node-virtual-path-color-comet-32s.yaml` is the
+`config/shows/archive/ws2811-ab-experiments/ws2811-ab-two-node-virtual-path-color-comet-32s.yaml` is the
 shorter logical-path demonstration. It treats strip 41 followed by strip 42 as
 one 30-group path, runs one color-changing comet forward for 14 seconds, then
 reverses the whole path for 14 seconds. The Host-focused test proves one path
@@ -402,14 +402,14 @@ Show to read stats.
 Host profile and fixed Shows:
 
 ```text
-config/profiles/ws2811-emergency-node2-strip41.yaml
-config/shows/ws2811-emergency-black-sentinel-3s.yaml
-config/shows/ws2811-emergency-node2-strip41-110s.yaml
-config/shows/ws2811-emergency-node2-strip41-gate1m-120s.yaml
-config/profiles/ws2811-emergency-node8-strip42.yaml
-config/shows/ws2811-emergency-node8-strip42-blue-60s.yaml
-config/profiles/ws2811-emergency-two-node-41-42.yaml
-config/shows/ws2811-emergency-two-node-blue-staged-110s.yaml
+config/profile-archive/ws2811-emergency-node2-strip41.yaml
+config/shows/archive/ws2811-emergency/ws2811-emergency-black-sentinel-3s.yaml
+config/shows/archive/ws2811-emergency/ws2811-emergency-node2-strip41-110s.yaml
+config/shows/archive/ws2811-emergency/ws2811-emergency-node2-strip41-gate1m-120s.yaml
+config/profile-archive/ws2811-emergency-node8-strip42.yaml
+config/shows/archive/ws2811-emergency/ws2811-emergency-node8-strip42-blue-60s.yaml
+config/profile-archive/ws2811-emergency-two-node-41-42.yaml
+config/shows/archive/ws2811-emergency/ws2811-emergency-two-node-blue-staged-110s.yaml
 ```
 
 Primary implementation and tests:
@@ -495,9 +495,9 @@ Force Node 2 black before the Node 8 isolation run:
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config config\profiles\ws2811-emergency-node2-strip41.yaml `
+  --config config\profile-archive\ws2811-emergency-node2-strip41.yaml `
   run `
-  --show config\shows\ws2811-emergency-black-sentinel-3s.yaml
+  --show config\shows\archive\ws2811-emergency\ws2811-emergency-black-sentinel-3s.yaml
 ```
 
 The sentinel sends 15 logical black packets total. With no errors, the Node 2
@@ -509,9 +509,9 @@ Run Node 8 isolation gate:
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config config\profiles\ws2811-emergency-node8-strip42.yaml `
+  --config config\profile-archive\ws2811-emergency-node8-strip42.yaml `
   run `
-  --show config\shows\ws2811-emergency-node8-strip42-blue-60s.yaml
+  --show config\shows\archive\ws2811-emergency\ws2811-emergency-node8-strip42-blue-60s.yaml
 ```
 
 Node 8 must end at 300 receives/attempts/commits, 198 identical skips,
@@ -522,9 +522,9 @@ Run Gate 1m:
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config config\profiles\ws2811-emergency-node2-strip41.yaml `
+  --config config\profile-archive\ws2811-emergency-node2-strip41.yaml `
   run `
-  --show config\shows\ws2811-emergency-node2-strip41-gate1m-120s.yaml
+  --show config\shows\archive\ws2811-emergency\ws2811-emergency-node2-strip41-gate1m-120s.yaml
 ```
 
 ## Gate 1m Timeline And Counters

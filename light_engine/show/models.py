@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -10,6 +11,13 @@ from typing import Any, Mapping
 def frozen_mapping(values: Mapping[str, Any]) -> Mapping[str, Any]:
     """Return an immutable shallow copy of a mapping."""
     return MappingProxyType(dict(values))
+
+
+def _common_multiplier(value: float, name: str) -> float:
+    number = float(value)
+    if not math.isfinite(number) or number < 0.0:
+        raise ValueError(f"effect {name} must be a finite number >= 0")
+    return number
 
 
 @dataclass(frozen=True)
@@ -51,6 +59,8 @@ class CueBranchSpec:
 class EffectSpec:
     mode: str
     id: str | None = None
+    speed: float = 1.0
+    intensity: float = 1.0
     params: Mapping[str, Any] = field(default_factory=dict)
     allowed: Mapping[str, str] = field(default_factory=dict)
     fallback: str | None = None
@@ -63,6 +73,8 @@ class EffectSpec:
         allowed: Mapping[str, str] | None = None,
         fallback: str | None = None,
         *,
+        speed: float = 1.0,
+        intensity: float = 1.0,
         name: str | None = None,
         parameters: Mapping[str, Any] | None = None,
     ) -> None:
@@ -72,6 +84,8 @@ class EffectSpec:
             raise TypeError("EffectSpec accepts params or legacy parameters, not both")
         object.__setattr__(self, "mode", mode)
         object.__setattr__(self, "id", id if id is not None else name)
+        object.__setattr__(self, "speed", _common_multiplier(speed, "speed"))
+        object.__setattr__(self, "intensity", _common_multiplier(intensity, "intensity"))
         object.__setattr__(self, "params", frozen_mapping(params if params is not None else (parameters or {})))
         object.__setattr__(self, "allowed", frozen_mapping(allowed or {}))
         object.__setattr__(self, "fallback", fallback)

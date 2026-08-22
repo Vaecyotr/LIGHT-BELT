@@ -76,6 +76,7 @@ if (-not (Test-Path -LiteralPath $vcvars)) {
 $relativeSources = @(
     "test\test_protocol.cpp",
     "src\protocol.cpp",
+    "src\chunk_reassembly.cpp",
     "src\presentation_clock.cpp",
     "src\frame_state.cpp",
     "src\owned_frame.cpp",

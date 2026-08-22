@@ -13,20 +13,20 @@ from light_engine.outputs.udp_v3 import UdpV3Packet
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
-SHOW = Path("config/shows/ws2811-ab-strip41-blue-breath-40s.yaml")
+SHOW = Path("config/shows/archive/ws2811-ab-experiments/ws2811-ab-strip41-blue-breath-40s.yaml")
 BLACK = (0, 0, 0)
 
 
 @pytest.mark.parametrize(
     ("profile", "fps"),
     (
-        (Path("config/profiles/ws2811-ab-node2-strip41-immediate.yaml"), 30.0),
+        (Path("config/profile-archive/ws2811-ab-node2-strip41-immediate.yaml"), 30.0),
         (
-            Path("config/profiles/ws2811-ab-node2-strip41-immediate-15fps.yaml"),
+            Path("config/profile-archive/ws2811-ab-node2-strip41-immediate-15fps.yaml"),
             15.0,
         ),
         (
-            Path("config/profiles/ws2811-ab-node2-strip41-immediate-5fps.yaml"),
+            Path("config/profile-archive/ws2811-ab-node2-strip41-immediate-5fps.yaml"),
             5.0,
         ),
     ),

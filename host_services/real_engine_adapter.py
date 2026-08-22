@@ -237,7 +237,13 @@ class RealEngineAdapter:
                 "start": 0.0,
                 "end": 86400.0,
                 "target": {"type": "digital_strip", "id": tid},
-                "effect": {"mode": "fixed", "id": effect_type, "params": {}},
+                "effect": {
+                    "mode": "fixed",
+                    "id": effect_type,
+                    "speed": ts.get("speed", 1.0),
+                    "intensity": ts.get("intensity", 1.0),
+                    "params": dict(ts.get("effect_params") or {}),
+                },
                 "color": {"mode": "solid", "color": color},
             })
 

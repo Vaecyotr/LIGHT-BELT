@@ -1,4 +1,5 @@
-# Maintenance-only profile for nine custom UDP v3 receivers. NOT HARDWARE VERIFIED.
+# MAINTENANCE PROFILE — NOT THE DEFAULT PRODUCTION PROFILE.
+# Nine custom UDP v3 receivers only. NOT HARDWARE VERIFIED.
 # WLED does not implement this project's UDP v3 protocol. Stop the show, fill
 # the TEST-NET addresses with the custom-firmware receivers, set
 # ENGINE_PROFILE_PATH to this file, and restart the Host. There is no APP
@@ -16,7 +17,7 @@ outputs:
       lead_us: 20000
       session_start_repeats: 3
       session_start_spacing_us: 2000
-      beacon: {host: 255.255.255.255, port: 4048, interval_us: 500000, startup_count: 3, startup_spacing_us: 10000}
+      beacon: {host: 255.255.255.255, port: 9001, interval_us: 500000, startup_count: 3, startup_spacing_us: 10000}
   rs485_v2: {enabled: false}
 system:
   platform: linux_arm64
@@ -26,7 +27,6 @@ system:
 layout:
   topology_version: 3
   digital_output_policy: one_output_gpio4
-  total_strips: 9
   zones: []
   analog_nodes: []
   strips:
@@ -40,26 +40,26 @@ layout:
     - {id: strip_21, type: digital, pixel_count: 10, video_zone: bottom, direction: forward}
     - {id: strip_22, type: digital, pixel_count: 40, video_zone: bottom, direction: forward}
   digital_nodes:
-    - {node_id: 1, host: 192.0.2.31, port: 4048, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 2, host: 192.0.2.32, port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 3, host: 192.0.2.33, port: 4048, pixel_count: 20, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 4, host: 192.0.2.34, port: 4048, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 5, host: 192.0.2.35, port: 4048, pixel_count: 40, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 6, host: 192.0.2.36, port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 7, host: 192.0.2.37, port: 4048, pixel_count: 20, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 8, host: 192.0.2.38, port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
-    - {node_id: 9, host: 192.0.2.39, port: 4048, pixel_count: 10, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 1, host: 192.0.2.31, port: 9001, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 2, host: 192.0.2.32, port: 9001, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 3, host: 192.0.2.33, port: 9001, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 4, host: 192.0.2.34, port: 9001, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 5, host: 192.0.2.35, port: 9001, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 6, host: 192.0.2.36, port: 9001, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 7, host: 192.0.2.37, port: 9001, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 8, host: 192.0.2.38, port: 9001, max_udp_payload: 1400, protocol_version: 3}
+    - {node_id: 9, host: 192.0.2.39, port: 9001, max_udp_payload: 1400, protocol_version: 3}
   digital_segments: []
   digital_outputs:
-    - {node_id: 1, output_id: 1, gpio: 4, strip_id: strip_32, pixel_count: 40, direction: forward}
-    - {node_id: 2, output_id: 1, gpio: 4, strip_id: strip_41, pixel_count: 10, direction: forward}
-    - {node_id: 3, output_id: 1, gpio: 4, strip_id: strip_44, pixel_count: 20, direction: forward}
-    - {node_id: 4, output_id: 1, gpio: 4, strip_id: strip_12, pixel_count: 40, direction: forward}
-    - {node_id: 5, output_id: 1, gpio: 4, strip_id: strip_22, pixel_count: 40, direction: forward}
-    - {node_id: 6, output_id: 1, gpio: 4, strip_id: strip_31, pixel_count: 10, direction: forward}
-    - {node_id: 7, output_id: 1, gpio: 4, strip_id: strip_43, pixel_count: 20, direction: forward}
-    - {node_id: 8, output_id: 1, gpio: 4, strip_id: strip_11, pixel_count: 10, direction: forward}
-    - {node_id: 9, output_id: 1, gpio: 4, strip_id: strip_21, pixel_count: 10, direction: forward}
+    - {node_id: 1, output_id: 1, gpio: 4, strip_id: strip_32, direction: forward}
+    - {node_id: 2, output_id: 1, gpio: 4, strip_id: strip_41, direction: forward}
+    - {node_id: 3, output_id: 1, gpio: 4, strip_id: strip_44, direction: forward}
+    - {node_id: 4, output_id: 1, gpio: 4, strip_id: strip_12, direction: forward}
+    - {node_id: 5, output_id: 1, gpio: 4, strip_id: strip_22, direction: forward}
+    - {node_id: 6, output_id: 1, gpio: 4, strip_id: strip_31, direction: forward}
+    - {node_id: 7, output_id: 1, gpio: 4, strip_id: strip_43, direction: forward}
+    - {node_id: 8, output_id: 1, gpio: 4, strip_id: strip_11, direction: forward}
+    - {node_id: 9, output_id: 1, gpio: 4, strip_id: strip_21, direction: forward}
   virtual_paths: []
   video_zone_map:
     left: [strip_32, strip_31]

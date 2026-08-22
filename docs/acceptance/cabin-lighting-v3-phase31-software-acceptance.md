@@ -26,9 +26,9 @@ measured cross-node latch timing.
 
 ## Show and runtime evidence
 
-- `ws2811-stage3-installed-300s.yaml` covers the exact current nine-node field
+- `config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml` covers the exact current nine-node field
   subset.
-- `ws2811-stage3-full-300s.yaml` covers all 13 digital nodes.
+- `config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml` covers all 13 digital nodes.
 - Both shows contain five fixed 60-second sections and remain independent of
   video, audio, beat, node ID, output ID, GPIO, host, and port.
 - The complete-show integration test decodes 13 UDP v3 datagrams per sampled
@@ -82,8 +82,8 @@ latch behavior remain **NOT HARDWARE VERIFIED**.
 | Sequential low-concurrency production builds, Nodes 8-13 | 0, all six environments succeeded |
 | Final single-process build listing Nodes 1-13 together | 0, all 13 environments succeeded in 214.799 s (218.7 s wall time) |
 | `pio run -j 2 -d firmware\esp32_ws2811_node -e esp32-s3-node-2-fixed-gpio4-diagnostic` | 0, diagnostic environment succeeded |
-| `.\.python\Scripts\python.exe -m light_engine --config config\profiles\ws2811-installed-one-esp-per-strip.yaml validate-show --show config\shows\ws2811-stage3-installed-300s.yaml` | 0, 5 cues / 300 s |
-| `.\.python\Scripts\python.exe -m light_engine --config config\profiles\cabin-lighting-v3-site-local.yaml validate-show --show config\shows\ws2811-stage3-full-300s.yaml` | 0, 5 cues / 300 s |
+| `.\.python\Scripts\python.exe -m light_engine --config config\profile-archive\ws2811-installed-one-esp-per-strip.yaml validate-show --show config\shows\archive\ws2811-commissioning\ws2811-stage3-installed-300s.yaml` | 0, 5 cues / 300 s |
+| `.\.python\Scripts\python.exe -m light_engine --config config\profile-archive\cabin-lighting-v3-site-local.yaml validate-show --show config\shows\archive\ws2811-commissioning\ws2811-stage3-full-300s.yaml` | 0, 5 cues / 300 s |
 | `.\.python\Scripts\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800` | 0, 229.1 FPS; P50 4.10 ms; P95 6.42 ms; P99 7.65 ms; 0 drops |
 
 Every final production node build produced a 723,408-byte `firmware.bin`.

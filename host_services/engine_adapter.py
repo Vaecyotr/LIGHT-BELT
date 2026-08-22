@@ -17,14 +17,14 @@ import uuid
 import socket
 import subprocess
 import threading
-from typing import Any
+from typing import Any, Callable
+from light_engine.effects import get_effect_registration, list_effect_registrations
 from .config import (
     SCENE_MAX_COUNT, SCENE_FILE_PATH, SHOWS_MANIFEST_PATH,
     ENGINE_PROFILE_PATH, ENGINE_ADAPTER, VIDEO_DETECT_ENABLED,
     WLED_RUNTIME_PROFILE, WLED_TEMPLATE_PROFILE,
     BRIGHTNESS_SCALE_DEFAULT, WLED_HTTP_TIMEOUT_S,
 )
-from .schemas import VALID_EFFECT_TYPES
 
 _log = logging.getLogger(__name__)
 
@@ -116,15 +116,25 @@ _valid_target_ids, _capability_targets, _devices = _load_layout_vocab()
 # ══════════════════════════════════════════════
 
 class MpvClient:
-    def __init__(self, sock_path: str):
+    def __init__(
+        self,
+        sock_path: str,
+        *,
+        socket_factory: Callable[[], Any] | None = None,
+    ):
         self._sock_path = sock_path
+        self._socket_factory = socket_factory
 
     _SEND_TIMEOUT_S = 2.0
 
     def _send(self, cmd: list) -> dict:
         s = None
         try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s = (
+                self._socket_factory()
+                if self._socket_factory is not None
+                else socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            )
             s.settimeout(self._SEND_TIMEOUT_S)
             s.connect(self._sock_path)
             msg = json.dumps({"command": cmd}) + "\n"
@@ -313,7 +323,7 @@ def _mark_devices_output() -> None:
 _real_adapter = None  # type: Any  # RealEngineAdapter | None
 
 # Accumulated manual-target state for real-adapter calls.
-# key = target_id (strip), value = {target_id, effect_type, color}.
+# key = target_id (strip), value = one complete manual Show effect request.
 _manual_targets: dict[str, dict] = {}
 
 
@@ -361,10 +371,25 @@ def _detect_video_available() -> bool:
 _state["video_available"] = _detect_video_available()
 
 
-def _accumulate_hw_entry(tid: str, effect_type: str, hw_color: list) -> None:
+def _accumulate_hw_entry(
+    tid: str,
+    effect_type: str,
+    hw_color: list,
+    *,
+    speed: float = 1.0,
+    intensity: float = 1.0,
+    effect_params: dict[str, Any] | None = None,
+) -> None:
     """Merge one hw entry into _manual_targets, expanding 'all' to per-strip IDs."""
     strip_ids = _valid_target_ids - {"all", "starry_sky"}
-    entry = {"target_id": tid, "effect_type": effect_type, "color": hw_color}
+    entry = {
+        "target_id": tid,
+        "effect_type": effect_type,
+        "color": hw_color,
+        "speed": speed,
+        "intensity": intensity,
+        "effect_params": dict(effect_params or {}),
+    }
     if tid == "all":
         for sid in strip_ids:
             _manual_targets[sid] = {**entry, "target_id": sid}
@@ -441,31 +466,13 @@ def get_shows() -> list[dict]:
 
 def get_capabilities() -> dict:
     effects = [
-        {"effect_type": "static", "name": "Static",
-         "params": ["color", "intensity"], "effect_params": []},
-        {"effect_type": "breath", "name": "Breath",
-         "params": ["color", "intensity"], "effect_params": ["period", "min_brightness"]},
-        {"effect_type": "chase", "name": "Chase",
-         "params": ["speed", "intensity"],
-         "effect_params": ["width", "gap", "direction"]},
-        {"effect_type": "color_wave", "name": "Color Wave",
-         "params": ["speed", "intensity"], "effect_params": ["width"]},
-        {"effect_type": "comet", "name": "Comet",
-         "params": ["speed", "intensity"], "effect_params": ["tail_length", "decay"]},
-        {"effect_type": "audio_pulse", "name": "Audio Pulse",
-         "params": ["color", "intensity"], "effect_params": ["attack", "release"]},
-        {"effect_type": "bass_pulse", "name": "Bass Pulse",
-         "params": ["color", "intensity"], "effect_params": ["attack", "release"]},
-        {"effect_type": "spectrum", "name": "Spectrum",
-         "params": ["intensity"], "effect_params": ["bass_zones", "mid_zones", "treble_zones"]},
-        {"effect_type": "video_ambient", "name": "Video Ambient",
-         "params": ["intensity"], "effect_params": ["smoothing"]},
-        {"effect_type": "video_audio_fusion", "name": "Video Audio Fusion",
-         "params": ["intensity"], "effect_params": ["video_weight", "audio_weight"]},
-        {"effect_type": "calm", "name": "Calm",
-         "params": ["color", "intensity"], "effect_params": ["period"]},
-        {"effect_type": "demo", "name": "Demo",
-         "params": [], "effect_params": ["cycle_interval", "effects"]},
+        {
+            "effect_type": registration.id,
+            "name": registration.capability.display_name,
+            "params": list(registration.capability.common_params),
+            "effect_params": sorted(registration.parameter_keys),
+        }
+        for registration in list_effect_registrations()
     ]
     ws_types = [
         "session.connected", "runtime.state", "playback.progress",
@@ -746,13 +753,45 @@ def lights_set(target_id: str, brightness: float | None,
 # Effects
 # ══════════════════════════════════════════════
 
+def _validate_effect_request(
+    target_id: str,
+    effect_type: str,
+    effect_params: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Validate one Host effect request against the runtime Registry."""
+    from .layout_vocab import STARRY_SKY_TARGET_ID
+
+    if target_id == STARRY_SKY_TARGET_ID and effect_type == "off":
+        return {}, None
+    try:
+        registration = get_effect_registration(effect_type)
+    except KeyError:
+        return {}, {"field": "effect_type", "reason": "unknown registered effect"}
+    if target_id == STARRY_SKY_TARGET_ID and effect_type != "twinkle":
+        return {}, {
+            "field": "effect_type",
+            "reason": "starry_sky supports only twinkle or off",
+        }
+    try:
+        return dict(registration.validator(effect_params or {})), None
+    except (TypeError, ValueError) as exc:
+        return {}, {"field": "effect_params", "reason": str(exc)}
+
+
 def effects_set(target_id: str, effect_type: str,
                 transition_ms: float,
                 params=None, effect_params=None) -> tuple[dict | None, str | None]:
     from .layout_vocab import STARRY_SKY_TARGET_ID
     if target_id not in _valid_target_ids:
         return None, "NOT_FOUND"
-    # twinkle is the only valid effect for starry_sky; "off" is also accepted
+    validated_effect_params, validation_error = _validate_effect_request(
+        target_id,
+        effect_type,
+        effect_params,
+    )
+    if validation_error is not None:
+        return {"error_detail": validation_error}, "INVALID_ARGUMENT"
+    # twinkle is the only registered effect for starry_sky; "off" is an action.
     if target_id == STARRY_SKY_TARGET_ID:
         from . import starry_sky as _ss
         if effect_type == "twinkle":
@@ -766,8 +805,6 @@ def effects_set(target_id: str, effect_type: str,
             "transition_ms": transition_ms,
             "accepted": True,
         }, None
-    if effect_type not in VALID_EFFECT_TYPES:
-        return None, "INVALID_ARGUMENT"
     _state["scene_id"] = None
     data: dict[str, Any] = {
         "target_id": target_id,
@@ -778,13 +815,21 @@ def effects_set(target_id: str, effect_type: str,
     if params is not None:
         data["params"] = params.model_dump(exclude_none=True)
     if effect_params is not None:
-        data["effect_params"] = effect_params
+        data["effect_params"] = validated_effect_params
     if _real_adapter is not None:
         if params is not None and params.color is not None:
             hw_color = [params.color.r / 255, params.color.g / 255, params.color.b / 255]
         else:
             hw_color = [1.0, 1.0, 1.0]
-        _accumulate_hw_entry(target_id, effect_type, hw_color)
+        common = params.model_dump(exclude_none=True) if params is not None else {}
+        _accumulate_hw_entry(
+            target_id,
+            effect_type,
+            hw_color,
+            speed=common.get("speed", 1.0),
+            intensity=common.get("intensity", 1.0),
+            effect_params=validated_effect_params,
+        )
         _apply_manual_targets()
     return data, None
 
@@ -859,6 +904,27 @@ def _save_scenes() -> None:
         _log.warning("failed to persist scenes to %s: %s", SCENE_FILE_PATH, exc)
 
 
+def _validate_scene_entries(
+    entries: list[dict] | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Validate persisted or incoming scene effects through the Registry."""
+    for i, entry in enumerate(entries or []):
+        if entry.get("target_id") not in _valid_target_ids:
+            return {"entry_index": i, "field": "target_id"}, "INVALID_ARGUMENT"
+        if not entry.get("effect_type"):
+            continue
+        validated_params, validation_error = _validate_effect_request(
+            entry["target_id"],
+            entry["effect_type"],
+            entry.get("effect_params"),
+        )
+        if validation_error is not None:
+            return {"entry_index": i, **validation_error}, "INVALID_ARGUMENT"
+        if "effect_params" in entry:
+            entry["effect_params"] = validated_params
+    return None, None
+
+
 # 服务启动时从磁盘恢复场景（文件不存在则保持空）
 _scenes.update(_load_scenes())
 
@@ -876,12 +942,9 @@ def scene_save(scene_id: str | None, name: str,
                entries: list[dict] | None) -> tuple[dict | None, str | None]:
     if audio is None and entries is None:
         return None, "INVALID_ARGUMENT"
-    if entries:
-        for i, e in enumerate(entries):
-            if e.get("target_id") not in _valid_target_ids:
-                return {"error_detail": {"entry_index": i, "field": "target_id"}}, "INVALID_ARGUMENT"
-            if e.get("effect_type") and e["effect_type"] not in VALID_EFFECT_TYPES:
-                return {"error_detail": {"entry_index": i, "field": "effect_type"}}, "INVALID_ARGUMENT"
+    validation_error, error = _validate_scene_entries(entries)
+    if error is not None:
+        return {"error_detail": validation_error}, error
     if scene_id is None:
         scene_id = f"scene-{uuid.uuid4().hex[:8]}"
     if scene_id not in _scenes and len(_scenes) >= SCENE_MAX_COUNT:
@@ -901,6 +964,9 @@ def scene_apply(scene_id: str,
     if scene_id not in _scenes:
         return None, "NOT_FOUND"
     scene = _scenes[scene_id]
+    validation_error, error = _validate_scene_entries(scene.get("entries"))
+    if error is not None:
+        return {"error_detail": validation_error}, error
     if _state["playback_state"] == "playing":
         playback_stop()
     if scene.get("audio"):
@@ -935,7 +1001,15 @@ def scene_apply(scene_id: str,
                 brightness = e.get("brightness")
                 hw_color = [brightness if brightness is not None else 1.0] * 3
             effect_type = e.get("effect_type", "static")
-            _accumulate_hw_entry(tid, effect_type, hw_color)
+            common = e.get("params") or {}
+            _accumulate_hw_entry(
+                tid,
+                effect_type,
+                hw_color,
+                speed=common.get("speed", 1.0),
+                intensity=common.get("intensity", 1.0),
+                effect_params=e.get("effect_params"),
+            )
         _apply_manual_targets()
     _state["scene_id"] = scene_id
     return {

@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 
-PROFILE = Path("config/profiles/cabin-lighting-v3-site-local.yaml")
+PROFILE = Path("config/profile-archive/cabin-lighting-v3-site-local.yaml")
 FIRMWARE_DIR = Path("firmware/esp32_ws2811_node")
 NODE_CONFIG_DIR = Path("firmware/esp32_ws2811_node/src/node_configs")
 DEFINE_RE = re.compile(r"^#define\s+([A-Z0-9_]+)\s+(\d+)\s*$", re.MULTILINE)

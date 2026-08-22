@@ -5,7 +5,9 @@
 #include <unity.h>
 
 #include "../../shared/udp_v3_golden.h"
+#include "../../shared/udp_v3_chunk_golden.h"
 #include "../src/frame_state.h"
+#include "../src/chunk_reassembly.h"
 #include "../src/owned_frame.h"
 #include "../src/presentation_clock.h"
 #include "../src/protocol.h"
@@ -110,6 +112,70 @@ size_t makeFrame(
   repairCrc(raw, len);
   return len;
 }
+
+constexpr size_t kChunkTestBufferLen = 2048;
+
+size_t makeChunkFrame(
+    uint8_t *raw,
+    uint8_t node_id,
+    uint32_t sequence,
+    light_belt::OutputDescriptor output,
+    uint16_t chunk_offset,
+    uint16_t chunk_pixel_count,
+    uint8_t value_bias = 0,
+    uint64_t media_timestamp_us = 123,
+    uint64_t apply_at_us = 0,
+    uint8_t flags = 0) {
+  memset(raw, 0, kChunkTestBufferLen);
+  writeU16(raw, light_belt::UDP_V3_MAGIC);
+  raw[2] = light_belt::UDP_V3_VERSION;
+  raw[3] = light_belt::UDP_V3_MESSAGE_FRAME_CHUNK;
+  raw[4] = node_id;
+  raw[5] = static_cast<uint8_t>(
+      flags | (apply_at_us == 0 ? 0 :
+          light_belt::UDP_V3_FLAG_SCHEDULED_APPLY));
+  writeU32(raw + 6, sequence);
+  writeU64(raw + 10, media_timestamp_us);
+  writeU64(raw + 18, apply_at_us);
+  raw[26] = 1;
+  size_t cursor = light_belt::UDP_V3_HEADER_LEN;
+  raw[cursor] = output.output_id;
+  raw[cursor + 1] = output.gpio;
+  writeU16(raw + cursor + 2, output.pixel_count);
+  writeU16(raw + cursor + 4, chunk_offset);
+  writeU16(raw + cursor + 6, chunk_pixel_count);
+  writeU16(raw + cursor + 8, chunk_pixel_count * 3U);
+  cursor += light_belt::UDP_V3_CHUNK_DESCRIPTOR_LEN;
+  for (uint16_t pixel = 0; pixel < chunk_pixel_count; ++pixel) {
+    const uint16_t absolute = static_cast<uint16_t>(chunk_offset + pixel);
+    raw[cursor++] = static_cast<uint8_t>(absolute + value_bias);
+    raw[cursor++] = static_cast<uint8_t>(absolute + value_bias + 1U);
+    raw[cursor++] = static_cast<uint8_t>(absolute + value_bias + 2U);
+  }
+  writeU16(
+      raw + 27,
+      static_cast<uint16_t>(cursor - light_belt::UDP_V3_HEADER_LEN));
+  const size_t len = cursor + light_belt::UDP_V3_CRC_LEN;
+  repairCrc(raw, len);
+  return len;
+}
+
+light_belt::UdpV3ChunkFrame parseChunk(
+    const uint8_t *raw,
+    size_t len,
+    uint8_t node_id,
+    const light_belt::OutputDescriptor *outputs,
+    uint8_t output_count) {
+  light_belt::UdpV3ChunkFrame frame{};
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ParseResult::Ok),
+      static_cast<int>(light_belt::parseUdpV3ChunkFrame(
+          raw, len, node_id, outputs, output_count, &frame)));
+  return frame;
+}
+
+void *alwaysFailAllocate(size_t) { return nullptr; }
+void noOpRelease(void *) {}
 
 void makeClockBeacon(
     uint8_t *raw,
@@ -1345,7 +1411,7 @@ void test_spi_encoder_preserves_warm_rgb_values_and_reorders_grb_only() {
 }
 
 void test_spi_encoder_lengths_for_1_10_20_40_and_100_groups() {
-  light_belt::RgbPixel pixels[light_belt::MAX_PIXELS_PER_OUTPUT] = {};
+  light_belt::RgbPixel pixels[light_belt::FRAME_PIXEL_CAPACITY] = {};
   uint8_t storage[light_belt::WS2811_SPI_MAX_FRAME_BYTES + 2] = {};
   const uint16_t counts[] = {1, 10, 20, 40, 100};
   for (const uint16_t count : counts) {
@@ -1440,7 +1506,7 @@ void test_spi_encoder_rejects_invalid_inputs_without_touching_destination() {
   TEST_ASSERT_EQUAL_UINT32(0, light_belt::ws2811SpiFrameSize(0));
   TEST_ASSERT_EQUAL_UINT32(
       0, light_belt::ws2811SpiFrameSize(
-             light_belt::MAX_PIXELS_PER_OUTPUT + 1));
+             light_belt::FRAME_PIXEL_CAPACITY + 1));
 }
 
 void test_spi_encoded_diagnostics_cover_buffer_and_uniform_groups() {
@@ -1475,7 +1541,11 @@ void test_spi3_encoder_exact_00_ff_aa_55_patterns_and_guards() {
   TEST_ASSERT_EQUAL_UINT32(2400000, light_belt::WS2811_SPI3_CLOCK_HZ);
   TEST_ASSERT_EQUAL_UINT32(32, light_belt::WS2811_SPI3_GUARD_BYTES);
   TEST_ASSERT_EQUAL_UINT32(9, light_belt::WS2811_SPI3_BYTES_PER_GROUP);
-  TEST_ASSERT_EQUAL_UINT32(964, light_belt::WS2811_SPI3_MAX_FRAME_BYTES);
+  TEST_ASSERT_EQUAL_UINT32(
+      2U * light_belt::WS2811_SPI3_GUARD_BYTES +
+          light_belt::FRAME_PIXEL_CAPACITY *
+              light_belt::WS2811_SPI3_BYTES_PER_GROUP,
+      light_belt::WS2811_SPI3_MAX_FRAME_BYTES);
 
   const uint8_t sources[] = {0x00, 0xFF, 0xAA, 0x55};
   const uint8_t expected[][3] = {
@@ -1536,7 +1606,7 @@ void test_spi3_encoder_preserves_rgb_and_reorders_grb_only() {
 }
 
 void test_spi3_encoder_lengths_for_1_10_20_40_and_100_groups() {
-  light_belt::RgbPixel pixels[light_belt::MAX_PIXELS_PER_OUTPUT] = {};
+  light_belt::RgbPixel pixels[light_belt::FRAME_PIXEL_CAPACITY] = {};
   uint8_t storage[light_belt::WS2811_SPI3_MAX_FRAME_BYTES + 2U] = {};
   const uint16_t counts[] = {1, 10, 20, 40, 100};
   for (const uint16_t count : counts) {
@@ -1576,7 +1646,7 @@ void test_spi3_encoder_rejects_invalid_inputs_without_mutation() {
       &pixel, 0, light_belt::Ws2811ColorOrder::RGB,
       encoded, sizeof(encoded), &encoded_len));
   TEST_ASSERT_FALSE(light_belt::encodeWs2811Spi3(
-      &pixel, light_belt::MAX_PIXELS_PER_OUTPUT + 1U,
+      &pixel, light_belt::FRAME_PIXEL_CAPACITY + 1U,
       light_belt::Ws2811ColorOrder::RGB,
       encoded, sizeof(encoded), &encoded_len));
   TEST_ASSERT_FALSE(light_belt::encodeWs2811Spi3(
@@ -1596,7 +1666,7 @@ void test_spi3_encoder_rejects_invalid_inputs_without_mutation() {
   TEST_ASSERT_EQUAL_UINT32(0, light_belt::ws2811Spi3FrameSize(0));
   TEST_ASSERT_EQUAL_UINT32(
       0, light_belt::ws2811Spi3FrameSize(
-             light_belt::MAX_PIXELS_PER_OUTPUT + 1U));
+             light_belt::FRAME_PIXEL_CAPACITY + 1U));
 }
 
 void test_spi6_encoder_exact_vectors_guards_and_group_limits() {
@@ -1605,7 +1675,12 @@ void test_spi6_encoder_exact_vectors_guards_and_group_limits() {
   TEST_ASSERT_EQUAL_UINT32(313, light_belt::WS2811_SPI6_PRE_GUARD_BYTES);
   TEST_ASSERT_EQUAL_UINT32(313, light_belt::WS2811_SPI6_POST_GUARD_BYTES);
   TEST_ASSERT_EQUAL_UINT32(18, light_belt::WS2811_SPI6_BYTES_PER_GROUP);
-  TEST_ASSERT_EQUAL_UINT32(2426, light_belt::WS2811_SPI6_MAX_FRAME_BYTES);
+  TEST_ASSERT_EQUAL_UINT32(
+      light_belt::WS2811_SPI6_PRE_GUARD_BYTES +
+          light_belt::FRAME_PIXEL_CAPACITY *
+              light_belt::WS2811_SPI6_BYTES_PER_GROUP +
+          light_belt::WS2811_SPI6_POST_GUARD_BYTES,
+      light_belt::WS2811_SPI6_MAX_FRAME_BYTES);
 
   const uint8_t sources[] = {0x00, 0xFF, 0xAA, 0x55};
   const uint8_t expected[][6] = {
@@ -1644,13 +1719,16 @@ void test_spi6_encoder_exact_vectors_guards_and_group_limits() {
   TEST_ASSERT_EQUAL_UINT32(986, light_belt::ws2811Spi6FrameSize(20));
   TEST_ASSERT_EQUAL_UINT32(2426, light_belt::ws2811Spi6FrameSize(100));
   TEST_ASSERT_EQUAL_UINT32(0, light_belt::ws2811Spi6FrameSize(0));
-  TEST_ASSERT_EQUAL_UINT32(0, light_belt::ws2811Spi6FrameSize(101));
+  TEST_ASSERT_EQUAL_UINT32(
+      0, light_belt::ws2811Spi6FrameSize(
+             light_belt::FRAME_PIXEL_CAPACITY + 1U));
   const light_belt::RgbPixel pixel = {1, 2, 3};
   uint8_t encoded[light_belt::WS2811_SPI6_MAX_FRAME_BYTES] = {};
   memset(encoded, 0x5A, sizeof(encoded));
   size_t encoded_len = 123;
   TEST_ASSERT_FALSE(light_belt::encodeWs2811Spi6(
-      &pixel, 101, light_belt::Ws2811ColorOrder::RGB,
+      &pixel, light_belt::FRAME_PIXEL_CAPACITY + 1U,
+      light_belt::Ws2811ColorOrder::RGB,
       encoded, sizeof(encoded), &encoded_len));
   TEST_ASSERT_EQUAL_UINT32(123, encoded_len);
   TEST_ASSERT_EQUAL_HEX8(0x5A, encoded[0]);
@@ -1763,9 +1841,9 @@ void test_parallel_spi_encoder_uses_longest_lane_and_black_padding() {
     TEST_ASSERT_EQUAL_HEX8(0, static_cast<uint8_t>(encoded[index] & 0x01));
   }
 
-  light_belt::RgbPixel max_lane[light_belt::MAX_PIXELS_PER_OUTPUT] = {};
+  light_belt::RgbPixel max_lane[light_belt::FRAME_PIXEL_CAPACITY] = {};
   const light_belt::Ws2811ParallelSpiLane max_lanes[] = {
-      {max_lane, light_belt::MAX_PIXELS_PER_OUTPUT}};
+      {max_lane, light_belt::FRAME_PIXEL_CAPACITY}};
   TEST_ASSERT_EQUAL_UINT32(
       light_belt::WS2811_PARALLEL_SPI_MAX_FRAME_BYTES,
       light_belt::ws2811ParallelSpiFrameSize(max_lanes, 1));
@@ -1795,7 +1873,7 @@ void test_parallel_spi_encoder_rejects_without_mutating_outputs() {
   TEST_ASSERT_FALSE(light_belt::encodeWs2811ParallelSpi(
       lanes, 1, light_belt::Ws2811ColorOrder::RGB,
       encoded, sizeof(encoded), &encoded_len));
-  lanes[0] = {pixel, light_belt::MAX_PIXELS_PER_OUTPUT + 1U};
+  lanes[0] = {pixel, light_belt::FRAME_PIXEL_CAPACITY + 1U};
   TEST_ASSERT_FALSE(light_belt::encodeWs2811ParallelSpi(
       lanes, 1, light_belt::Ws2811ColorOrder::RGB,
       encoded, sizeof(encoded), &encoded_len));
@@ -1827,7 +1905,10 @@ void test_rmt_encoder_exact_00_ff_aa_and_55_patterns() {
   TEST_ASSERT_EQUAL_UINT16(10, light_belt::WS2811_RMT_ONE_HIGH_TICKS);
   TEST_ASSERT_EQUAL_UINT16(10, light_belt::WS2811_RMT_ONE_LOW_TICKS);
   TEST_ASSERT_EQUAL_UINT32(24, light_belt::WS2811_RMT_PULSES_PER_GROUP);
-  TEST_ASSERT_EQUAL_UINT32(2400, light_belt::WS2811_RMT_MAX_PULSES);
+  TEST_ASSERT_EQUAL_UINT32(
+      light_belt::FRAME_PIXEL_CAPACITY *
+          light_belt::WS2811_RMT_PULSES_PER_GROUP,
+      light_belt::WS2811_RMT_MAX_PULSES);
   const uint8_t sources[] = {0x00, 0xFF, 0xAA, 0x55};
   for (const uint8_t source : sources) {
     const light_belt::RgbPixel pixel = {source, source, source};
@@ -1871,7 +1952,7 @@ void test_rmt_encoder_preserves_rgb_and_reorders_grb_only() {
 }
 
 void test_rmt_encoder_lengths_for_1_10_20_40_and_100_groups() {
-  static light_belt::RgbPixel pixels[light_belt::MAX_PIXELS_PER_OUTPUT] = {};
+  static light_belt::RgbPixel pixels[light_belt::FRAME_PIXEL_CAPACITY] = {};
   static light_belt::Ws2811RmtPulse storage[
       light_belt::WS2811_RMT_MAX_PULSES + 2U] = {};
   const uint16_t counts[] = {1, 10, 20, 40, 100};
@@ -1918,7 +1999,7 @@ void test_rmt_encoder_rejects_invalid_inputs_without_mutation() {
       &pixel, 0, light_belt::Ws2811ColorOrder::RGB,
       encoded, required, &encoded_count));
   TEST_ASSERT_FALSE(light_belt::encodeWs2811Rmt(
-      &pixel, light_belt::MAX_PIXELS_PER_OUTPUT + 1U,
+      &pixel, light_belt::FRAME_PIXEL_CAPACITY + 1U,
       light_belt::Ws2811ColorOrder::RGB,
       encoded, required, &encoded_count));
   TEST_ASSERT_FALSE(light_belt::encodeWs2811Rmt(
@@ -1939,7 +2020,236 @@ void test_rmt_encoder_rejects_invalid_inputs_without_mutation() {
   TEST_ASSERT_EQUAL_UINT32(0, light_belt::ws2811RmtPulseCount(0));
   TEST_ASSERT_EQUAL_UINT32(
       0, light_belt::ws2811RmtPulseCount(
-             light_belt::MAX_PIXELS_PER_OUTPUT + 1U));
+             light_belt::FRAME_PIXEL_CAPACITY + 1U));
+}
+
+void test_udp_v3_chunk_golden_preserves_481_tail_contract() {
+  const light_belt::OutputDescriptor output[] = {{1, 4, 481}};
+  const light_belt::UdpV3ChunkFrame frame = parseChunk(
+      UDP_V3_CHUNK_GOLDEN_0, UDP_V3_CHUNK_GOLDEN_0_len, 9, output, 1);
+  TEST_ASSERT_EQUAL_UINT8(1, frame.chunk_count);
+  TEST_ASSERT_EQUAL_UINT32(7, frame.sequence);
+  TEST_ASSERT_EQUAL_UINT64(123456, frame.media_timestamp_us);
+  TEST_ASSERT_EQUAL_UINT64(999000, frame.apply_at_us);
+  TEST_ASSERT_EQUAL_UINT16(481, frame.chunks[0].descriptor.pixel_count);
+  TEST_ASSERT_EQUAL_UINT16(480, frame.chunks[0].chunk_offset);
+  TEST_ASSERT_EQUAL_UINT16(1, frame.chunks[0].chunk_pixel_count);
+  TEST_ASSERT_EQUAL_HEX8(0x11, frame.chunks[0].payload[0]);
+  TEST_ASSERT_EQUAL_HEX8(0x22, frame.chunks[0].payload[1]);
+  TEST_ASSERT_EQUAL_HEX8(0x33, frame.chunks[0].payload[2]);
+}
+
+void test_udp_v3_chunk_golden_reassembles_481_frame_in_both_orders_once() {
+  const light_belt::OutputDescriptor output[] = {{1, 4, 481}};
+  const uint8_t *datagrams[] = {
+      UDP_V3_CHUNK_GOLDEN_1, UDP_V3_CHUNK_GOLDEN_2};
+  const size_t lengths[] = {
+      UDP_V3_CHUNK_GOLDEN_1_len, UDP_V3_CHUNK_GOLDEN_2_len};
+  TEST_ASSERT_EQUAL_UINT32(1480, lengths[0]);
+  TEST_ASSERT_EQUAL_UINT32(49, lengths[1]);
+
+  for (uint8_t pass = 0; pass < 2; ++pass) {
+    light_belt::UdpV3ChunkReassembler reassembler;
+    TEST_ASSERT_TRUE(reassembler.begin(output, 1));
+    light_belt::OwnedNodeFrame completed{};
+    uint8_t complete_count = 0;
+    for (uint8_t step = 0; step < 2; ++step) {
+      const uint8_t index = pass == 0 ? step : static_cast<uint8_t>(1U - step);
+      const light_belt::UdpV3ChunkFrame parsed = parseChunk(
+          datagrams[index], lengths[index], 9, output, 1);
+      const light_belt::ReassemblyResult result =
+          reassembler.accept(parsed, &completed);
+      if (result == light_belt::ReassemblyResult::Complete) {
+        ++complete_count;
+      } else {
+        TEST_ASSERT_EQUAL(
+            static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+            static_cast<int>(result));
+      }
+    }
+    TEST_ASSERT_EQUAL_UINT8(1, complete_count);
+    TEST_ASSERT_EQUAL_UINT32(8, completed.sequence);
+    TEST_ASSERT_EQUAL_UINT16(481, completed.outputs[0].descriptor.pixel_count);
+    TEST_ASSERT_EQUAL_UINT8(0, completed.outputs[0].pixels[0].r);
+    TEST_ASSERT_EQUAL_UINT8(0, completed.outputs[0].pixels[478].b);
+    TEST_ASSERT_EQUAL_UINT8(9, completed.outputs[0].pixels[479].r);
+    TEST_ASSERT_EQUAL_UINT8(8, completed.outputs[0].pixels[479].g);
+    TEST_ASSERT_EQUAL_UINT8(7, completed.outputs[0].pixels[479].b);
+    TEST_ASSERT_EQUAL_UINT8(17, completed.outputs[0].pixels[480].r);
+    TEST_ASSERT_EQUAL_UINT8(34, completed.outputs[0].pixels[480].g);
+    TEST_ASSERT_EQUAL_UINT8(51, completed.outputs[0].pixels[480].b);
+  }
+}
+
+void test_udp_v3_chunk_parser_rejects_corruption_ranges_and_topology() {
+  const light_belt::OutputDescriptor output[] = {{1, 4, 481}};
+  uint8_t raw[kChunkTestBufferLen] = {};
+  size_t len = makeChunkFrame(raw, 9, 7, output[0], 480, 1);
+  light_belt::UdpV3ChunkFrame parsed{};
+
+  raw[40] ^= 0x01;
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ParseResult::BadCrc),
+      static_cast<int>(light_belt::parseUdpV3ChunkFrame(
+          raw, len, 9, output, 1, &parsed)));
+  len = makeChunkFrame(raw, 9, 7, output[0], 480, 1);
+  writeU16(raw + light_belt::UDP_V3_HEADER_LEN + 6, 2);
+  repairCrc(raw, len);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ParseResult::BadRange),
+      static_cast<int>(light_belt::parseUdpV3ChunkFrame(
+          raw, len, 9, output, 1, &parsed)));
+  len = makeChunkFrame(raw, 9, 7, output[0], 480, 1);
+  raw[light_belt::UDP_V3_HEADER_LEN] = 2;
+  repairCrc(raw, len);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ParseResult::UnknownOutput),
+      static_cast<int>(light_belt::parseUdpV3ChunkFrame(
+          raw, len, 9, output, 1, &parsed)));
+  len = makeChunkFrame(raw, 9, 7, output[0], 480, 1);
+  writeU16(raw + light_belt::UDP_V3_HEADER_LEN + 2, 482);
+  repairCrc(raw, len);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ParseResult::UnknownOutput),
+      static_cast<int>(light_belt::parseUdpV3ChunkFrame(
+          raw, len, 9, output, 1, &parsed)));
+}
+
+void test_udp_v3_chunk_reassembly_is_atomic_out_of_order_and_idempotent() {
+  const light_belt::OutputDescriptor output[] = {{1, 4, 481}};
+  light_belt::UdpV3ChunkReassembler reassembler;
+  TEST_ASSERT_TRUE(reassembler.begin(output, 1));
+  uint8_t raw[kChunkTestBufferLen] = {};
+  light_belt::OwnedNodeFrame completed{};
+  completed.sequence = 0xA5A5A5A5U;
+
+  size_t len = makeChunkFrame(raw, 9, 7, output[0], 480, 1);
+  light_belt::UdpV3ChunkFrame tail = parseChunk(raw, len, 9, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+      static_cast<int>(reassembler.accept(tail, &completed)));
+  TEST_ASSERT_EQUAL_UINT32(0xA5A5A5A5U, completed.sequence);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+      static_cast<int>(reassembler.accept(tail, &completed)));
+
+  len = makeChunkFrame(raw, 9, 7, output[0], 479, 2);
+  light_belt::UdpV3ChunkFrame overlap = parseChunk(raw, len, 9, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+      static_cast<int>(reassembler.accept(overlap, &completed)));
+  len = makeChunkFrame(raw, 9, 7, output[0], 479, 2, 1);
+  light_belt::UdpV3ChunkFrame conflict = parseChunk(raw, len, 9, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Rejected),
+      static_cast<int>(reassembler.accept(conflict, &completed)));
+
+  len = makeChunkFrame(raw, 9, 7, output[0], 0, 479);
+  light_belt::UdpV3ChunkFrame head = parseChunk(raw, len, 9, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Complete),
+      static_cast<int>(reassembler.accept(head, &completed)));
+  TEST_ASSERT_EQUAL_UINT16(481, completed.outputs[0].descriptor.pixel_count);
+  TEST_ASSERT_EQUAL_UINT8(0, completed.outputs[0].pixels[0].r);
+  TEST_ASSERT_EQUAL_UINT8(224, completed.outputs[0].pixels[480].r);
+  // Reassembly completion is not acknowledgement: a downstream admission
+  // failure must still allow the Host's complete KEY/datagram retry through.
+  len = makeChunkFrame(raw, 9, 7, output[0], 480, 1);
+  light_belt::UdpV3ChunkFrame retry = parseChunk(raw, len, 9, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Complete),
+      static_cast<int>(reassembler.accept(retry, &completed)));
+  reassembler.noteComplete(completed);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Duplicate),
+      static_cast<int>(reassembler.accept(retry, &completed)));
+}
+
+void test_udp_v3_chunk_newer_old_wrap_and_key_reset_rules() {
+  const light_belt::OutputDescriptor output[] = {{1, 4, 4}};
+  light_belt::UdpV3ChunkReassembler reassembler;
+  TEST_ASSERT_TRUE(reassembler.begin(output, 1));
+  uint8_t raw[kChunkTestBufferLen] = {};
+  light_belt::OwnedNodeFrame completed{};
+
+  size_t len = makeChunkFrame(raw, 2, 10, output[0], 0, 2, 0, 100);
+  light_belt::UdpV3ChunkFrame seq10 = parseChunk(raw, len, 2, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+      static_cast<int>(reassembler.accept(seq10, &completed)));
+  len = makeChunkFrame(raw, 2, 10, output[0], 2, 2, 0, 101);
+  light_belt::UdpV3ChunkFrame mixed = parseChunk(raw, len, 2, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Rejected),
+      static_cast<int>(reassembler.accept(mixed, &completed)));
+
+  len = makeChunkFrame(raw, 2, 11, output[0], 0, 2, 0, 110);
+  light_belt::UdpV3ChunkFrame seq11a = parseChunk(raw, len, 2, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+      static_cast<int>(reassembler.accept(seq11a, &completed)));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Rejected),
+      static_cast<int>(reassembler.accept(seq10, &completed)));
+  len = makeChunkFrame(raw, 2, 11, output[0], 2, 2, 0, 110);
+  light_belt::UdpV3ChunkFrame seq11b = parseChunk(raw, len, 2, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Complete),
+      static_cast<int>(reassembler.accept(seq11b, &completed)));
+
+  len = makeChunkFrame(raw, 2, 1, output[0], 0, 4, 0, 1, 0,
+                       light_belt::UDP_V3_FLAG_KEY_FRAME);
+  light_belt::UdpV3ChunkFrame key_reset = parseChunk(raw, len, 2, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Complete),
+      static_cast<int>(reassembler.accept(key_reset, &completed)));
+
+  reassembler.reset();
+  TEST_ASSERT_TRUE(reassembler.begin(output, 1));
+  len = makeChunkFrame(raw, 2, 0xFFFFFFFFU, output[0], 0, 2);
+  light_belt::UdpV3ChunkFrame wrap_old = parseChunk(raw, len, 2, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+      static_cast<int>(reassembler.accept(wrap_old, &completed)));
+  len = makeChunkFrame(raw, 2, 0, output[0], 0, 4);
+  light_belt::UdpV3ChunkFrame wrapped = parseChunk(raw, len, 2, output, 1);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Complete),
+      static_cast<int>(reassembler.accept(wrapped, &completed)));
+}
+
+void test_udp_v3_chunk_multi_output_completion_and_allocation_failure() {
+  const light_belt::OutputDescriptor outputs[] = {
+      {1, 4, 2}, {2, 5, 1}, {3, 6, 3}};
+  light_belt::UdpV3ChunkReassembler reassembler;
+  TEST_ASSERT_TRUE(reassembler.begin(outputs, 3));
+  uint8_t raw[kChunkTestBufferLen] = {};
+  light_belt::OwnedNodeFrame completed{};
+
+  size_t len = makeChunkFrame(raw, 2, 20, outputs[2], 0, 3);
+  light_belt::UdpV3ChunkFrame third = parseChunk(raw, len, 2, outputs, 3);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+      static_cast<int>(reassembler.accept(third, &completed)));
+  len = makeChunkFrame(raw, 2, 20, outputs[0], 0, 2);
+  light_belt::UdpV3ChunkFrame first = parseChunk(raw, len, 2, outputs, 3);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Incomplete),
+      static_cast<int>(reassembler.accept(first, &completed)));
+  len = makeChunkFrame(raw, 2, 20, outputs[1], 0, 1);
+  light_belt::UdpV3ChunkFrame second = parseChunk(raw, len, 2, outputs, 3);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(light_belt::ReassemblyResult::Complete),
+      static_cast<int>(reassembler.accept(second, &completed)));
+  TEST_ASSERT_EQUAL_UINT8(3, completed.output_count);
+  TEST_ASSERT_EQUAL_UINT8(1, completed.outputs[0].descriptor.output_id);
+  TEST_ASSERT_EQUAL_UINT8(2, completed.outputs[1].descriptor.output_id);
+  TEST_ASSERT_EQUAL_UINT8(3, completed.outputs[2].descriptor.output_id);
+
+  const light_belt::ReassemblyAllocator failing = {
+      alwaysFailAllocate, noOpRelease};
+  light_belt::UdpV3ChunkReassembler failed(&failing);
+  TEST_ASSERT_FALSE(failed.begin(outputs, 3));
 }
 
 }  // namespace
@@ -1950,6 +2260,12 @@ void tearDown() {}
 int runTests() {
   UNITY_BEGIN();
   RUN_TEST(test_udp_v3_immediate_and_scheduled_frames_are_unambiguous);
+  RUN_TEST(test_udp_v3_chunk_golden_preserves_481_tail_contract);
+  RUN_TEST(test_udp_v3_chunk_golden_reassembles_481_frame_in_both_orders_once);
+  RUN_TEST(test_udp_v3_chunk_parser_rejects_corruption_ranges_and_topology);
+  RUN_TEST(test_udp_v3_chunk_reassembly_is_atomic_out_of_order_and_idempotent);
+  RUN_TEST(test_udp_v3_chunk_newer_old_wrap_and_key_reset_rules);
+  RUN_TEST(test_udp_v3_chunk_multi_output_completion_and_allocation_failure);
   RUN_TEST(test_udp_v3_clock_beacon_has_fixed_broadcast_wire_contract);
   RUN_TEST(test_udp_v3_clock_beacon_rejects_length_header_and_crc_errors);
   RUN_TEST(test_presentation_clock_uses_window_minimum_and_spread);

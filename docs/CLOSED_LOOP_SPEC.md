@@ -2,7 +2,7 @@
 
 This section supersedes current/production wording in the historical sections
 below. The sole current/default production chain is DDP RGB24 to nine
-independent WLED boards with no RGB+CCT zones, analog nodes, STM32 devices, or
+independent ESP32 nodes with no RGB+CCT zones, analog nodes, STM32 devices, or
 RS-485 transport: `1/strip_32/40`, `2/strip_41/10`, `3/strip_44/20`,
 `4/strip_12/40`, `5/strip_22/40`, `6/strip_31/10`, `7/strip_43/20`,
 `8/strip_11/10`, and `9/strip_21/10`. Every board has only `output_id: 1`;
@@ -579,7 +579,7 @@ diagnostics
 
 - 协议 Node ID 唯一，且不与物理标签或 Host API target ID 混用。
 - `zone_32` 有合法、可配置的 STM32 RS-485 Node ID。
-- 完整现场 profile `cabin-lighting-v3-site-local.yaml` 的十三条数字运行均且仅映射到一个独立节点；每个节点只有 `output_id: 1`、GPIO4，并匹配 2.3 节的 group count 和现场地址。通用 production-shape template `cabin-lighting-v3-production.yaml` 保持相同节点映射，但有意保留 TEST-NET endpoints 和 RS-485 占位值，不得作为现场 profile 运行。
+- 已归档的完整现场 profile `config/profile-archive/cabin-lighting-v3-site-local.yaml` 的十三条数字运行均且仅映射到一个独立节点；每个节点只有 `output_id: 1`、GPIO4，并匹配 2.3 节的 group count 和现场地址。已归档的通用 production-shape template `config/profile-archive/cabin-lighting-v3-production.yaml` 保持相同节点映射，但有意保留 TEST-NET endpoints 和 RS-485 占位值，不得作为当前现场 profile 运行。
 - 当前现场 profile 只包含节点 1、2、4、5、6、7、8、9、10 及其九条灯带，不包含未接入节点的占位输出。
 - 单节点完整帧不超过 UDP 上限。
 - 非法配置在启动时失败，错误信息指出配置路径和具体字段。

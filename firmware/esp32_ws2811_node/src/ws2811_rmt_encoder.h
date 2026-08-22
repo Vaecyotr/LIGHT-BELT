@@ -16,7 +16,7 @@ static constexpr uint16_t WS2811_RMT_ONE_HIGH_TICKS = 10;
 static constexpr uint16_t WS2811_RMT_ONE_LOW_TICKS = 10;
 static constexpr size_t WS2811_RMT_PULSES_PER_GROUP = 24;
 static constexpr size_t WS2811_RMT_MAX_PULSES =
-    MAX_PIXELS_PER_OUTPUT * WS2811_RMT_PULSES_PER_GROUP;
+    FRAME_PIXEL_CAPACITY * WS2811_RMT_PULSES_PER_GROUP;
 
 // One WS2811 bit. The backend emits high_ticks at level 1 followed by
 // low_ticks at level 0, then holds the output low for the reset interval.

@@ -8,7 +8,12 @@ from typing import Optional
 
 import numpy as np
 
-from light_engine.analysis import AudioAnalyzer, MusicControlAnalyzer, VideoAnalyzer
+from light_engine.analysis import (
+    AudioAnalyzer,
+    MusicControlAnalyzer,
+    VideoAnalyzer,
+    WledAudioSyncV2Source,
+)
 from light_engine.clock import Clock, ClockError, MediaEnded, OfflineRenderClock
 from light_engine.config import Config
 from light_engine.effects.base import BaseEffect, create_effect, list_effects
@@ -47,6 +52,7 @@ class Engine:
         clock: Optional[Clock] = None,
         *,
         sequence_seed: Optional[int] = None,
+        live_audio_source: Optional[WledAudioSyncV2Source] = None,
     ):
         if config is None:
             config = Config.get_instance()
@@ -65,6 +71,17 @@ class Engine:
         self._video_analyzer: Optional[VideoAnalyzer] = None
         self._audio_analyzer: Optional[AudioAnalyzer] = None
         self._music_control_analyzer = MusicControlAnalyzer()
+
+        audio_source_config = config.get("system.audio.source", {})
+        self._live_audio_source: Optional[WledAudioSyncV2Source] = live_audio_source
+        if self._live_audio_source is None and audio_source_config.get("kind") == "wled_audio_sync_v2":
+            self._live_audio_source = WledAudioSyncV2Source(
+                multicast_group=audio_source_config["multicast_group"],
+                port=audio_source_config["port"],
+                interface=audio_source_config["interface_ipv4"],
+                stale_after=audio_source_config["stale_after_ms"] / 1000.0,
+            )
+        self._live_audio_was_stale = True
 
         # Media readers
         self._video_reader: Optional[VideoReader] = None
@@ -198,6 +215,15 @@ class Engine:
         self._run_end_wall = 0.0
         self._diagnostics["last_error"] = None
 
+        if self._audio_reader is None and self._live_audio_source is not None:
+            try:
+                self._live_audio_source.open()
+            except Exception as exc:
+                self._diagnostics["last_error"] = (
+                    f"WLED Audio Sync V2 source initialization failed: {exc}"
+                )
+                raise RuntimeError(self._diagnostics["last_error"]) from exc
+
         if not self._outputs:
             self.init_outputs()
             return
@@ -230,7 +256,9 @@ class Engine:
         self._running = True
         self._diagnostics["running"] = True
         self._diagnostics["video_available"] = self._video_reader is not None
-        self._diagnostics["audio_available"] = self._audio_reader is not None
+        self._diagnostics["audio_available"] = (
+            self._audio_reader is not None or self._live_audio_source is not None
+        )
 
         frame_period = 1.0 / self._output_fps
         video_period = 1.0 / self._video_fps if self._video_fps > 0 else 0.1
@@ -386,6 +414,9 @@ class Engine:
             self._video_analyzer.reset()
         if self._audio_analyzer is not None and hasattr(self._audio_analyzer, "reset"):
             self._audio_analyzer.reset()
+        if self._live_audio_source is not None:
+            self._live_audio_source.reset()
+            self._live_audio_was_stale = True
         self._music_control_analyzer.reset()
         if self._effect is not None:
             self._effect.reset()
@@ -412,13 +443,22 @@ class Engine:
 
     def _get_audio_features(self) -> Optional[AudioFeatures]:
         """Get latest audio features from reader or synthetic source."""
-        if self._audio_reader and self._audio_analyzer:
-            window = self._config.get("system.audio.window_size", 0.05)
-            samples = self._audio_reader.get_window_at(self._timestamp, window)
-            if samples is not None and len(samples) > 0:
-                return self._audio_analyzer.analyze(
-                    samples, self._timestamp, self._audio_reader.sample_rate
-                )
+        if self._audio_reader is not None:
+            if self._audio_analyzer is not None:
+                window = self._config.get("system.audio.window_size", 0.05)
+                samples = self._audio_reader.get_window_at(self._timestamp, window)
+                if samples is not None and len(samples) > 0:
+                    return self._audio_analyzer.analyze(
+                        samples, self._timestamp, self._audio_reader.sample_rate
+                    )
+            return None
+        if self._live_audio_source is not None:
+            features = self._live_audio_source.poll(self._timestamp)
+            live_stale = self._live_audio_source.stale
+            if live_stale and not self._live_audio_was_stale:
+                self._music_control_analyzer.reset()
+            self._live_audio_was_stale = live_stale
+            return features
         if self._data_source:
             return self._data_source.get_audio_features(self._timestamp)
         return None
@@ -454,6 +494,8 @@ class Engine:
             self._video_reader.close()
         if self._audio_reader:
             self._audio_reader.close()
+        if self._live_audio_source is not None:
+            self._live_audio_source.close()
         self._diagnostics["running"] = False
 
     # ---- Info ----
@@ -461,6 +503,11 @@ class Engine:
     def diagnostics(self) -> dict:
         """Return current diagnostic state."""
         self._diagnostics["output_health"] = health_summary(self._outputs)
+        self._diagnostics["audio_source"] = (
+            self._live_audio_source.diagnostics()
+            if self._live_audio_source is not None
+            else {"kind": "disabled"}
+        )
         return self._diagnostics
 
     def get_fps_stats(self) -> dict:

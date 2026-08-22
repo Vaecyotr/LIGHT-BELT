@@ -14,11 +14,13 @@ GOLDEN_INPUTS = (
     "rs485_v2_golden.json",
     "udp_v2_golden.json",
     "udp_v3_golden.json",
+    "udp_v3_chunk_golden.json",
 )
 GENERATED_PATHS = (
     Path("firmware/shared/rs485_v2_golden.h"),
     Path("firmware/shared/udp_v2_golden.h"),
     Path("firmware/shared/udp_v3_golden.h"),
+    Path("firmware/shared/udp_v3_chunk_golden.h"),
     Path("firmware/stm32_rgbcct_node/test/golden_vectors.h"),
     Path("firmware/esp32_ws2811_node/test/golden_vectors.h"),
 )

@@ -48,7 +48,7 @@ EmergencyPayloadState classifyEmergencyPayload(
     const EmergencyOutputPolicy &policy) {
   if (policy.output.output_id != 1 || policy.output.gpio != 4 ||
       policy.output.pixel_count < 2 ||
-      policy.output.pixel_count > MAX_PIXELS_PER_OUTPUT ||
+      policy.output.pixel_count > FRAME_PIXEL_CAPACITY ||
       candidate.node_id != policy.node_id || candidate.output_count != 1 ||
       (candidate.flags & ~UDP_V3_ALLOWED_FLAGS) != 0 ||
       (candidate.flags & UDP_V3_FLAG_SCHEDULED_APPLY) != 0 ||
@@ -247,7 +247,7 @@ bool physicalPixelPayloadsEqual(
     const OutputDescriptor &right_descriptor =
         right.outputs[output].descriptor;
     if (left_descriptor.pixel_count == 0 ||
-        left_descriptor.pixel_count > MAX_PIXELS_PER_OUTPUT ||
+        left_descriptor.pixel_count > FRAME_PIXEL_CAPACITY ||
         !sameDescriptor(left_descriptor, right_descriptor) ||
         memcmp(
             left.outputs[output].pixels,

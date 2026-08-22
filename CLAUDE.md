@@ -1,15 +1,24 @@
 # LIGHT-BELT project instructions
 
+## Current terminology
+
+- ESP32 = project lighting controller node
+- WLED = upstream open-source project
+- RK3588 = central host
+
 ## Current production deployment override
 
 This section overrides older topology and production wording elsewhere in this
-file. The sole current/default deployment is DDP to nine independent WLED
-boards: node 1 `strip_32` (40), node 2 `strip_41` (10), node 3 `strip_44`
+file. The sole current/default deployment is DDP to nine independent ESP32
+nodes: node 1 `strip_32` (40), node 2 `strip_41` (10), node 3 `strip_44`
 (20), node 4 `strip_12` (40), node 5 `strip_22` (40), node 6 `strip_31`
 (10), node 7 `strip_43` (20), node 8 `strip_11` (10), and node 9 `strip_21`
-(10). Every board has only `output_id: 1`; GPIO16 is topology metadata only.
+(10). Every node has only `output_id: 1`; GPIO16 is topology metadata only.
 There are no analog zones/nodes, STM32 devices, or RS-485 transport in this
 Profile. **NOT HARDWARE VERIFIED.**
+
+The 9 nodes and 200 digital pixels above describe only this Profile snapshot;
+they are not runtime, resolver, protocol, firmware, or product capacity limits.
 
 The Host default is the resolver-generated,
 ignored `config/runtime/wled-ddp-mdns.yaml`. Avahi resolves the unique names
@@ -21,6 +30,19 @@ or subnet scanning. The Host retains all nine `strip_*` API targets.
 maintenance only. WLED does not receive project UDP v3. Stop output, set
 `ENGINE_PROFILE_PATH`, and restart the Host to change Profile; the APP has no
 hot-switch. All physical behavior is **NOT HARDWARE VERIFIED**.
+
+## Current Show authority
+
+The immutable original Show source is
+`assets/energy-wakeup/energy-wakeup.yaml`; do not edit or run it as the current
+Show. The current approved and runnable copy is
+`config/shows/energy-wakeup.yaml`, which is the sole current Show compatibility
+baseline. The 32 retired YAML files are categorized under
+`config/shows/archive/`; all are legacy replay/regression fixtures and must not
+be used to infer current effects, parameters, topology, timing, authoring
+style, or product requirements. The `config/shows/` root contains only the
+approved current Show. Newly approved Shows must follow
+`config/shows/README.md`.
 
 ## Historical compatibility mission (not current production)
 
@@ -102,10 +124,10 @@ The current field subset is nodes `1`, `2`, `4`, `5`, `6`, `7`, `8`, `9`, and
 `10`. Nodes `3`, `11`, `12`, and `13` belong to the complete target but are not
 part of the nine-node field profile.
 
-The IPv4 column is the site address contract. It is implemented by
-`cabin-lighting-v3-site-local.yaml` for the complete target and by
-`ws2811-installed-one-esp-per-strip.yaml` for the current subset. The generic
-`cabin-lighting-v3-production.yaml` intentionally retains non-routable
+The IPv4 column is the archived custom-firmware site contract. It is retained in
+`config/profile-archive/cabin-lighting-v3-site-local.yaml` for the complete target and in
+`config/profile-archive/ws2811-installed-one-esp-per-strip.yaml` for the field subset. The generic
+`config/profile-archive/cabin-lighting-v3-production.yaml` intentionally retains non-routable
 `192.0.2.x` TEST-NET endpoints and `REPLACE_WITH_RS485_PORT`; it is an offline
 production-shape template, not a site deployment profile. Never run it as a
 substitute for either site profile or describe its TEST-NET endpoints as the
@@ -299,4 +321,3 @@ the target architecture:
 Do not implement RGBW, 11-byte serial v1, per-strip UDP fragmentation, or
 WS2812B as the new target merely because they appear in legacy documents.
 Preserve them only where explicitly required for migration or legacy mode.
-

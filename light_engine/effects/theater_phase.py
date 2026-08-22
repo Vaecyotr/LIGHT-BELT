@@ -2,7 +2,13 @@
 
 import math
 
-from light_engine.effects.base import BaseEffect, runtime_float, runtime_rgb
+from light_engine.effects.base import (
+    BaseEffect,
+    apply_common_intensity,
+    runtime_float,
+    runtime_motion_time,
+    runtime_rgb,
+)
 from light_engine.models import (
     DigitalStrip,
     EffectContext,
@@ -19,7 +25,8 @@ class TheaterPhaseEffect(BaseEffect):
         speed = max(0.0, runtime_float(ctx, "speed", 2.5))
         color = runtime_rgb(ctx, "color", (0.0, 0.0, 0.125))
         cue_time = max(0.0, float(ctx.mode_parameters.get("cue_local_time", 0.0)))
-        phase = int(math.floor(cue_time * speed + 1e-9)) % 3
+        motion_time = runtime_motion_time(ctx, cue_time)
+        phase = int(math.floor(motion_time * speed + 1e-9)) % 3
         black = (0.0, 0.0, 0.0)
 
         strips = []
@@ -41,9 +48,12 @@ class TheaterPhaseEffect(BaseEffect):
             ZoneOutput(zone_id=zone["id"], color=RGBCCTColor())
             for zone in ctx.mode_parameters.get("zone_defs", [])
         ]
-        return PixelFrame(
-            timestamp=ctx.timestamp,
-            sequence=ctx.sequence,
-            strips=strips,
-            zones=zones,
+        return apply_common_intensity(
+            PixelFrame(
+                timestamp=ctx.timestamp,
+                sequence=ctx.sequence,
+                strips=strips,
+                zones=zones,
+            ),
+            ctx.intensity,
         )

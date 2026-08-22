@@ -256,6 +256,36 @@ def test_build_manual_show_no_strip_ids_passes_all():
     os.unlink(result)
 
 
+def test_build_manual_show_preserves_common_controls_and_effect_params(adapter):
+    """Common speed and params.speed remain distinct in generated Show v2 YAML."""
+    import yaml
+
+    result = adapter._build_manual_show([
+        {
+            "target_id": "strip_11",
+            "effect_type": "color_wipe",
+            "color": [1.0, 0.5, 0.0],
+            "speed": 0.5,
+            "intensity": 0.75,
+            "effect_params": {"speed": 25.0},
+        },
+    ])
+    assert result is not None
+    try:
+        with open(result, encoding="utf-8") as stream:
+            document = yaml.safe_load(stream)
+        effect = document["show"]["cues"][0]["effect"]
+        assert effect == {
+            "mode": "fixed",
+            "id": "color_wipe",
+            "speed": 0.5,
+            "intensity": 0.75,
+            "params": {"speed": 25.0},
+        }
+    finally:
+        adapter.stop_manual()
+
+
 # ── on_playback_resume_yaml ───────────────────────────────────────────────────
 
 def test_playback_resume_yaml_restarts_subprocess(adapter):

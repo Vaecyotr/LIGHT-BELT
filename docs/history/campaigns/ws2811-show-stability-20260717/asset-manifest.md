@@ -18,7 +18,7 @@ exactly matched the previously recorded identities. See
 
 | File | SHA-256 |
 |---|---|
-| `host/config/profiles/ws2811-ab-two-node-41-42-immediate-15fps.yaml` | `1F035FC715A8FEF9B3DD0CF6A3EC3938EADD31BB4FCE92A8E2D870BAC1F9018D` |
+| `host/config/profile-archive/ws2811-ab-two-node-41-42-immediate-15fps.yaml` | `1F035FC715A8FEF9B3DD0CF6A3EC3938EADD31BB4FCE92A8E2D870BAC1F9018D` |
 
 ## Key Shows
 

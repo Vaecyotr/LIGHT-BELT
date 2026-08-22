@@ -36,7 +36,7 @@ bool validateLanes(
   uint16_t longest = 0;
   for (uint8_t lane = 0; lane < lane_count; ++lane) {
     if (lanes[lane].pixels == nullptr || lanes[lane].group_count == 0 ||
-        lanes[lane].group_count > MAX_PIXELS_PER_OUTPUT) {
+        lanes[lane].group_count > FRAME_PIXEL_CAPACITY) {
       return false;
     }
     if (lanes[lane].group_count > longest) {

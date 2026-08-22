@@ -4,7 +4,7 @@ import colorsys
 
 from light_engine.config import Config
 from light_engine.color import rgb_to_rgbcct
-from light_engine.effects.base import BaseEffect, runtime_param
+from light_engine.effects.base import BaseEffect, apply_common_intensity, runtime_param
 from light_engine.models import (
     DigitalStrip,
     EffectContext,
@@ -84,12 +84,15 @@ class SpectrumEffect(BaseEffect):
                 color=rgb_to_rgbcct(cr * bri, cg * bri, cb * bri),
             ))
 
-        return PixelFrame(
-            timestamp=ctx.timestamp,
-            sequence=ctx.sequence,
-            strips=strips,
-            zones=zones,
-            metadata={"bass": bass, "mid": mid, "treble": treble},
+        return apply_common_intensity(
+            PixelFrame(
+                timestamp=ctx.timestamp,
+                sequence=ctx.sequence,
+                strips=strips,
+                zones=zones,
+                metadata={"bass": bass, "mid": mid, "treble": treble},
+            ),
+            ctx.intensity,
         )
 
     def reset(self) -> None:

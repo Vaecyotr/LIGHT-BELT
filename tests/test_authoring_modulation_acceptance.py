@@ -39,7 +39,12 @@ def test_phase_22_authoring_modulation_acceptance(tmp_path: Path) -> None:
     assert modulation["active"] == pytest.approx({"brightness": 1.4, "speed": 1.3, "intensity": 0.9})
     assert modulation["no_audio"] == {"brightness": 1.0, "speed": 1.0, "intensity": 1.0}
     assert modulation["fixed_effect"] == "static"
-    assert modulation["fixed_sample_pixel"] == pytest.approx([0.56, 0.28, 0.14])
+    # Phase 32 makes static consume the authored common intensity multiplier.
+    # This freezes the new visible contract exactly (0.56/0.28/0.14 * 0.9);
+    # it is a contract update, not a tolerance relaxation.
+    assert modulation["fixed_sample_pixel"] == pytest.approx(
+        [0.504, 0.252, 0.126]
+    )
 
     seam = summary["evidence"]["virtual_path_seam"]
     assert [item["destination"] for item in seam] == [
@@ -54,8 +59,14 @@ def test_phase_22_authoring_modulation_acceptance(tmp_path: Path) -> None:
     assert transition["fade_in_midpoint_weight"] == pytest.approx(0.5)
     assert transition["fade_out_midpoint_weight"] == pytest.approx(0.5)
     assert transition["overlap_base_weight"] == pytest.approx(0.5)
-    assert transition["front_pixel_at_fade_in_midpoint"] == pytest.approx([0.33, 0.165, 0.0825])
-    assert transition["front_pixel_at_fade_out_midpoint"] == pytest.approx([0.38, 0.19, 0.095])
+    # These exact transition samples inherit the same static intensity contract;
+    # fade weights remain frozen above and are not being loosened.
+    assert transition["front_pixel_at_fade_in_midpoint"] == pytest.approx(
+        [0.302, 0.151, 0.0755]
+    )
+    assert transition["front_pixel_at_fade_out_midpoint"] == pytest.approx(
+        [0.352, 0.176, 0.088]
+    )
 
     adaptive = summary["evidence"]["adaptive"]
     assert adaptive["music_state"] == "energetic"

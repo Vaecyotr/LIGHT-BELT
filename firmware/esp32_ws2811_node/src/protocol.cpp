@@ -58,7 +58,7 @@ bool validateOutputDescriptors(
   for (uint8_t index = 0; index < output_count; ++index) {
     const OutputDescriptor &output = outputs[index];
     if (output.output_id == 0 || !isSupportedGpio(output.gpio) ||
-        output.pixel_count == 0 || output.pixel_count > MAX_PIXELS_PER_OUTPUT) {
+        output.pixel_count == 0) {
       return false;
     }
     for (uint8_t previous = 0; previous < index; ++previous) {
@@ -143,7 +143,7 @@ ParseResult parseUdpV3Frame(
     const uint16_t pixel_count = readU16(data + cursor + 2);
     const uint16_t output_len = readU16(data + cursor + 4);
     cursor += UDP_V3_OUTPUT_DESCRIPTOR_LEN;
-    if (output_id == 0 || pixel_count == 0 || pixel_count > MAX_PIXELS_PER_OUTPUT ||
+    if (output_id == 0 || pixel_count == 0 ||
         output_len != pixel_count * 3U || cursor + output_len > payload_end) {
       return ParseResult::BadLengths;
     }
@@ -183,6 +183,120 @@ ParseResult parseUdpV3Frame(
     if (!found) {
       return ParseResult::IncompleteOutputSet;
     }
+  }
+  if (out != nullptr) {
+    *out = parsed;
+  }
+  return ParseResult::Ok;
+}
+
+ParseResult parseUdpV3ChunkFrame(
+    const uint8_t *data,
+    size_t len,
+    uint8_t local_node_id,
+    const OutputDescriptor *configured_outputs,
+    uint8_t configured_output_count,
+    UdpV3ChunkFrame *out) {
+  if (data == nullptr ||
+      len < UDP_V3_HEADER_LEN + UDP_V3_CHUNK_DESCRIPTOR_LEN +
+                UDP_V3_CRC_LEN) {
+    return ParseResult::TooShort;
+  }
+  if (len > UDP_V3_MAX_PACKET_LEN) {
+    return ParseResult::TooLarge;
+  }
+  if (!validateOutputDescriptors(configured_outputs, configured_output_count)) {
+    return ParseResult::BadOutputCount;
+  }
+  if (readU16(data) != UDP_V3_MAGIC) {
+    return ParseResult::BadMagic;
+  }
+  if (data[2] != UDP_V3_VERSION) {
+    return ParseResult::BadVersion;
+  }
+  if (data[3] != UDP_V3_MESSAGE_FRAME_CHUNK) {
+    return ParseResult::BadMessageType;
+  }
+  if (data[4] != local_node_id) {
+    return ParseResult::WrongNode;
+  }
+  if ((data[5] & ~UDP_V3_ALLOWED_FLAGS) != 0) {
+    return ParseResult::BadFlags;
+  }
+
+  const uint8_t chunk_count = data[26];
+  const uint16_t payload_len = readU16(data + 27);
+  if (chunk_count == 0 || chunk_count > MAX_OUTPUTS) {
+    return ParseResult::BadOutputCount;
+  }
+  if (len != UDP_V3_HEADER_LEN + payload_len + UDP_V3_CRC_LEN) {
+    return ParseResult::BadLengths;
+  }
+  const uint32_t expected_crc = readU32(data + len - UDP_V3_CRC_LEN);
+  if (crc32Ethernet(data, len - UDP_V3_CRC_LEN) != expected_crc) {
+    return ParseResult::BadCrc;
+  }
+
+  const uint64_t apply_at_us = readU64(data + 18);
+  const bool scheduled =
+      (data[5] & UDP_V3_FLAG_SCHEDULED_APPLY) != 0;
+  if (scheduled != (apply_at_us != 0)) {
+    return ParseResult::BadSchedule;
+  }
+
+  UdpV3ChunkFrame parsed{};
+  parsed.node_id = data[4];
+  parsed.flags = data[5];
+  parsed.sequence = readU32(data + 6);
+  parsed.media_timestamp_us = readU64(data + 10);
+  parsed.apply_at_us = apply_at_us;
+  parsed.chunk_count = chunk_count;
+  parsed.payload_len = payload_len;
+
+  size_t cursor = UDP_V3_HEADER_LEN;
+  const size_t payload_end = cursor + payload_len;
+  for (uint8_t index = 0; index < chunk_count; ++index) {
+    if (cursor + UDP_V3_CHUNK_DESCRIPTOR_LEN > payload_end) {
+      return ParseResult::BadLengths;
+    }
+    const uint8_t output_id = data[cursor];
+    const uint8_t gpio = data[cursor + 1];
+    const uint16_t total_pixel_count = readU16(data + cursor + 2);
+    const uint16_t chunk_offset = readU16(data + cursor + 4);
+    const uint16_t chunk_pixel_count = readU16(data + cursor + 6);
+    const uint16_t chunk_payload_len = readU16(data + cursor + 8);
+    cursor += UDP_V3_CHUNK_DESCRIPTOR_LEN;
+    if (output_id == 0 || total_pixel_count == 0 ||
+        chunk_pixel_count == 0 ||
+        chunk_payload_len != chunk_pixel_count * 3U ||
+        static_cast<uint32_t>(chunk_offset) + chunk_pixel_count >
+            total_pixel_count ||
+        cursor + chunk_payload_len > payload_end) {
+      return ParseResult::BadRange;
+    }
+    for (uint8_t previous = 0; previous < index; ++previous) {
+      if (parsed.chunks[previous].descriptor.output_id == output_id ||
+          parsed.chunks[previous].descriptor.gpio == gpio) {
+        return ParseResult::DuplicateOutput;
+      }
+    }
+    const OutputDescriptor *configured = findOutput(
+        configured_outputs, configured_output_count, output_id);
+    if (configured == nullptr || configured->gpio != gpio ||
+        configured->pixel_count != total_pixel_count) {
+      return ParseResult::UnknownOutput;
+    }
+    parsed.chunks[index] = {
+        *configured,
+        chunk_offset,
+        chunk_pixel_count,
+        chunk_payload_len,
+        data + cursor,
+    };
+    cursor += chunk_payload_len;
+  }
+  if (cursor != payload_end) {
+    return ParseResult::BadLengths;
   }
   if (out != nullptr) {
     *out = parsed;

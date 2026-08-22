@@ -9,8 +9,7 @@ from typing import Any, Iterable, Mapping
 
 import yaml
 
-from light_engine.effects import list_effects, validate_effect_params
-from light_engine.effects.base import get_effect_parameter_keys
+from light_engine.effects import get_effect_registration, list_effects
 from light_engine.show.audio_modulation import SOURCE_FIELDS
 from light_engine.show.models import (
     AudioControlSpec,
@@ -345,10 +344,22 @@ def _validate_target_ref(
 def _effect(value: Any, path: str, *, version: int = 1) -> EffectSpec:
     effect = _mapping(value, path)
     if version == 2:
-        _unknown(effect, {"mode", "id", "params", "allowed", "fallback"}, path)
+        _unknown(
+            effect,
+            {"mode", "id", "speed", "intensity", "params", "allowed", "fallback"},
+            path,
+        )
     else:
         _unknown(effect, {"mode", "name", "parameters", "allowed", "fallback"}, path)
     mode = _choice(effect.get("mode"), f"{path}.mode", EFFECT_MODES)
+    speed = (
+        _number(effect.get("speed", 1.0), f"{path}.speed", minimum=0.0)
+        if version == 2 else 1.0
+    )
+    intensity = (
+        _number(effect.get("intensity", 1.0), f"{path}.intensity", minimum=0.0)
+        if version == 2 else 1.0
+    )
     if mode == "fixed":
         if "allowed" in effect:
             raise ShowValidationError(f"{path}.allowed", effect["allowed"], "not allowed for fixed effect")
@@ -358,7 +369,13 @@ def _effect(value: Any, path: str, *, version: int = 1) -> EffectSpec:
         params_key = "params" if version == 2 else "parameters"
         effect_id = _effect_name(effect.get(id_key), f"{path}.{id_key}")
         parameters = _parameters(effect.get(params_key, {}), f"{path}.{params_key}", effect_id)
-        return EffectSpec(mode=mode, id=effect_id, params=parameters)
+        return EffectSpec(
+            mode=mode,
+            id=effect_id,
+            speed=speed,
+            intensity=intensity,
+            params=parameters,
+        )
     forbidden_id = "id" if version == 2 else "name"
     forbidden_params = "params" if version == 2 else "parameters"
     if forbidden_id in effect:
@@ -377,7 +394,13 @@ def _effect(value: Any, path: str, *, version: int = 1) -> EffectSpec:
     fallback = _effect_name(effect.get("fallback"), f"{path}.fallback")
     if fallback not in set(resolved.values()):
         raise ShowValidationError(f"{path}.fallback", fallback, "must be one of allowed effects")
-    return EffectSpec(mode=mode, allowed=resolved, fallback=fallback)
+    return EffectSpec(
+        mode=mode,
+        speed=speed,
+        intensity=intensity,
+        allowed=resolved,
+        fallback=fallback,
+    )
 
 
 def _virtual_paths(value: Any, catalog: TargetCatalog) -> tuple[VirtualPathSpec, ...]:
@@ -568,8 +591,8 @@ def _color_spec(value: Any, path: str) -> ColorSpec:
 
 def _parameters(value: Any, path: str, effect_name: str) -> dict[str, Any]:
     params = _mapping(value, path)
-    allowed = get_effect_parameter_keys(effect_name)
-    _unknown(params, allowed, path)
+    registration = get_effect_registration(effect_name)
+    _unknown(params, registration.parameter_keys, path)
     validated: dict[str, Any] = {}
     for key, item in params.items():
         item_path = f"{path}.{key}"
@@ -579,7 +602,7 @@ def _parameters(value: Any, path: str, effect_name: str) -> dict[str, Any]:
             _parameter_value(item, item_path)
             validated[key] = item
     try:
-        return dict(validate_effect_params(effect_name, validated))
+        return dict(registration.validator(validated))
     except (TypeError, ValueError) as exc:
         raise ShowValidationError(path, value, str(exc)) from exc
 

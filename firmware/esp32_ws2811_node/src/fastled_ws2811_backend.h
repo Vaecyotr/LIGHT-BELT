@@ -32,7 +32,7 @@ class FastLedWs2811Backend {
   bool stage(const OwnedNodeFrame &frame, SpiRefreshReport *report);
   SpiRefreshReport showStaged();
 
-  CRGB pixels_[kDrivenOutputCount][MAX_PIXELS_PER_OUTPUT] = {};
+  CRGB pixels_[kDrivenOutputCount][FRAME_PIXEL_CAPACITY] = {};
   OutputDescriptor outputs_[MAX_OUTPUTS] = {};
   bool initialized_ = false;
 };

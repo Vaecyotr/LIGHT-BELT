@@ -17,7 +17,7 @@ from light_engine.show import TargetCatalog, load_show
 
 WLED_PROFILE = Path("config/profiles/rk3588-host-service.yaml")
 UDP_V3_PROFILE = Path("config/profiles/udp-v3-nine-strip-maintenance.yaml")
-SHOW = Path("assets/energy-wakeup/energy-wakeup.yaml")
+SHOW = Path("config/shows/energy-wakeup.yaml")
 EXPECTED = {
     1: ("strip_32", 40), 2: ("strip_41", 10), 3: ("strip_44", 20),
     4: ("strip_12", 40), 5: ("strip_22", 40), 6: ("strip_31", 10),
@@ -39,10 +39,18 @@ def test_default_wled_profile_is_nine_independent_ddp_nodes_without_analog_place
     assert layout["analog_nodes"] == []
     assert layout["digital_output_policy"] == "one_output_wled"
     assert {node["node_id"] for node in layout["digital_nodes"]} == set(EXPECTED)
+    strip_lengths = {
+        strip["id"]: strip["pixel_count"] for strip in layout["strips"]
+    }
     assert {
-        output["node_id"]: (output["strip_id"], output["pixel_count"])
+        output["node_id"]: (
+            output["strip_id"],
+            strip_lengths[output["strip_id"]],
+        )
         for output in layout["digital_outputs"]
     } == EXPECTED
+    assert all("pixel_count" not in node for node in layout["digital_nodes"])
+    assert all("pixel_count" not in output for output in layout["digital_outputs"])
     assert all(output["output_id"] == 1 and output["gpio"] == 16 for output in layout["digital_outputs"])
     assert "zone_32_placeholder" not in str(layout)
 
@@ -101,8 +109,8 @@ def test_ddp_and_udp_v3_maintenance_profiles_share_nine_strip_semantics() -> Non
     assert [item["strip_id"] for item in ddp.get("layout.digital_outputs")] == [
         item["strip_id"] for item in udp_v3.get("layout.digital_outputs")
     ]
-    assert udp_v3.get("outputs.udp_v3.presentation.beacon.port") == 4048
-    assert {node["port"] for node in udp_v3.get("layout.digital_nodes")} == {4048}
+    assert udp_v3.get("outputs.udp_v3.presentation.beacon.port") == 9001
+    assert {node["port"] for node in udp_v3.get("layout.digital_nodes")} == {9001}
 
 
 def test_energy_wakeup_has_only_real_digital_targets() -> None:

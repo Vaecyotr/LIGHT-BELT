@@ -11,8 +11,8 @@ from light_engine.outputs.udp_v3 import FLAG_SAFE_STATE, UdpV3Packet
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
-PROFILE = Path("config/profiles/ws2811-emergency-node2-strip41.yaml")
-SHOW = Path("config/shows/ws2811-emergency-node2-strip41-110s.yaml")
+PROFILE = Path("config/profile-archive/ws2811-emergency-node2-strip41.yaml")
+SHOW = Path("config/shows/archive/ws2811-emergency/ws2811-emergency-node2-strip41-110s.yaml")
 BLACK = (0, 0, 0)
 WARM_LOW = (0x20, 0x08, 0)
 WARM_HIGH = (0x20, 0x10, 0)

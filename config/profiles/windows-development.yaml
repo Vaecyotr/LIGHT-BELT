@@ -2,7 +2,7 @@
 # Uses explicit non-hardware transports. NOT HARDWARE VERIFIED.
 #
 # For the 14-fixture cabin topology, pass
-# config/profiles/cabin-lighting-v3-production.yaml to validation/inspection;
+# config/profile-archive/cabin-lighting-v3-production.yaml to validation/inspection;
 # do not substitute its placeholder endpoints with real values in this file.
 
 outputs:

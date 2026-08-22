@@ -1665,10 +1665,10 @@ Temporary investigation assets currently include:
 - PlatformIO environment `esp32-s3-node-2-fastled-gpio4-immediate-ab`
 - the `LIGHT_BELT_FASTLED_GPIO4_IMMEDIATE_AB`-only branches in the FastLED
   backend, `LedOutput`, and startup identity code
-- `config/profiles/ws2811-ab-node2-strip41-immediate.yaml`
-- `config/profiles/ws2811-ab-node2-strip41-scheduled-robust.yaml`
-- `config/shows/ws2811-ab-strip41-blue-10s.yaml`
-- `config/shows/ws2811-ab-strip41-rgb-static-steps.yaml`
+- `config/profile-archive/ws2811-ab-node2-strip41-immediate.yaml`
+- `config/profile-archive/ws2811-ab-node2-strip41-scheduled-robust.yaml`
+- `config/shows/archive/ws2811-ab-experiments/ws2811-ab-strip41-blue-10s.yaml`
+- `config/shows/archive/ws2811-ab-experiments/ws2811-ab-strip41-rgb-static-steps.yaml`
 - `scripts/monitor_esp32_stats.py`
 - their ignored environment-specific `.pio/build/...` outputs
 

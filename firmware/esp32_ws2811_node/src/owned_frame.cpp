@@ -29,6 +29,9 @@ bool copyUdpV3Frame(
        configured_index < configured_output_count;
        ++configured_index) {
     const OutputDescriptor &configured = configured_outputs[configured_index];
+    if (configured.pixel_count > FRAME_PIXEL_CAPACITY) {
+      return false;
+    }
     const UdpV3OutputView *received = nullptr;
     uint8_t match_count = 0;
     for (uint8_t received_index = 0;

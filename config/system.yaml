@@ -15,6 +15,12 @@ system:
 
   # Audio configuration
   audio:
+    source:
+      kind: disabled
+      multicast_group: 239.0.0.1
+      port: 11988
+      interface_ipv4: 0.0.0.0
+      stale_after_ms: 250
     sample_rate: 44100        # Target sample rate for analysis
     window_size: 0.05         # FFT window size in seconds
     hop_size: 0.025           # Hop size between FFT windows

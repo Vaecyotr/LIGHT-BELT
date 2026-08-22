@@ -24,17 +24,17 @@ from light_engine.outputs.udp_v3 import UdpV3Packet
 from light_engine.show import ShowRuntime, TargetCatalog, black_base_frame, load_show
 
 
-NODE2_PROFILE = Path("config/profiles/node2-effects-demo.yaml")
+NODE2_PROFILE = Path("config/profile-archive/node2-effects-demo.yaml")
 INSTALLED_PROFILE = Path(
-    "config/profiles/ws2811-installed-one-esp-per-strip.yaml"
+    "config/profile-archive/ws2811-installed-one-esp-per-strip.yaml"
 )
-TWO_NODE_PROFILE = Path("config/profiles/ws2811-two-node-41-42.yaml")
-SITE_PROFILE = Path("config/profiles/cabin-lighting-v3-site-local.yaml")
-QIO_STATIC_SHOW = Path("config/shows/ws2811-qio-node2-static-lanes.yaml")
-STAGE1_SHOW = Path("config/shows/ws2811-stage1-strip41-nine-effects.yaml")
-STAGE2_SHOW = Path("config/shows/ws2811-stage2-strip41-to-strip42.yaml")
-STAGE3_SHOW = Path("config/shows/ws2811-stage3-installed-300s.yaml")
-FULL_STAGE3_SHOW = Path("config/shows/ws2811-stage3-full-300s.yaml")
+TWO_NODE_PROFILE = Path("config/profile-archive/ws2811-two-node-41-42.yaml")
+SITE_PROFILE = Path("config/profile-archive/cabin-lighting-v3-site-local.yaml")
+QIO_STATIC_SHOW = Path("config/shows/archive/ws2811-diagnostics/ws2811-qio-node2-static-lanes.yaml")
+STAGE1_SHOW = Path("config/shows/archive/ws2811-commissioning/ws2811-stage1-strip41-nine-effects.yaml")
+STAGE2_SHOW = Path("config/shows/archive/ws2811-commissioning/ws2811-stage2-strip41-to-strip42.yaml")
+STAGE3_SHOW = Path("config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml")
+FULL_STAGE3_SHOW = Path("config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml")
 
 STAGE1_EFFECTS = (
     "static",

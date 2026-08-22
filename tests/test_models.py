@@ -1,6 +1,7 @@
 """Tests for data models."""
 
 import math
+import numpy as np
 import pytest
 from light_engine.models import (
     VideoFeatures,
@@ -86,6 +87,69 @@ class TestAudioFeatures:
     def test_silence(self):
         af = AudioFeatures(timestamp=0.0, rms=0.001)
         assert af.silence
+
+    def test_generic_audio_contract_derives_legacy_fields(self):
+        spectrum = [0.1, 0.2, 0.3] + [0.4] * 7 + [0.9] * 6
+        af = AudioFeatures(
+            timestamp=1.0,
+            raw_level=127.5,
+            loudness=0.75,
+            spectrum=spectrum,
+            peak=True,
+            dominant_frequency=440.0,
+            dominant_magnitude=12.5,
+            silence=False,
+        )
+
+        assert af.raw_level == 127.5
+        assert af.loudness == af.rms == 0.75
+        assert af.spectrum == tuple(spectrum)
+        assert isinstance(af.spectrum, tuple)
+        assert af.bass == pytest.approx(0.2)
+        assert af.mid == pytest.approx(0.4)
+        assert af.treble == pytest.approx(0.9)
+        assert af.peak is af.beat is True
+
+    def test_legacy_audio_contract_populates_generic_aliases(self):
+        af = AudioFeatures(timestamp=1.0, rms=0.4, beat=True)
+
+        assert af.loudness == 0.4
+        assert af.raw_level == 0.0
+        assert af.spectrum == (0.0,) * 16
+        assert af.peak is True
+
+    @pytest.mark.parametrize("field", ["beat", "peak", "silence"])
+    @pytest.mark.parametrize("value", [np.bool_(False), np.bool_(True)])
+    def test_numpy_boolean_fields_are_normalized_to_builtin_bool(self, field, value):
+        af = AudioFeatures(timestamp=1.0, **{field: value})
+
+        assert type(getattr(af, field)) is bool
+        assert getattr(af, field) is bool(value)
+        if field in {"beat", "peak"}:
+            assert type(af.beat) is bool
+            assert type(af.peak) is bool
+            assert af.beat is af.peak is bool(value)
+
+    @pytest.mark.parametrize("field", ["beat", "peak", "silence"])
+    @pytest.mark.parametrize("value", [1, "true"])
+    def test_boolean_fields_reject_ints_and_strings(self, field, value):
+        with pytest.raises(ValueError, match=rf"{field} must be a bool"):
+            AudioFeatures(timestamp=1.0, **{field: value})
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"spectrum": (0.0,) * 15},
+            {"spectrum": (0.0,) * 15 + (float("nan"),)},
+            {"raw_level": -1.0},
+            {"raw_level": float("inf")},
+            {"dominant_frequency": -1.0},
+            {"dominant_magnitude": float("inf")},
+        ],
+    )
+    def test_generic_audio_contract_rejects_invalid_values(self, kwargs):
+        with pytest.raises(ValueError):
+            AudioFeatures(timestamp=0.0, **kwargs)
 
 
 class TestEffectContext:

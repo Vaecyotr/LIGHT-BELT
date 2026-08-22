@@ -105,8 +105,8 @@ scope and its stop boundary.
 
 | Previous path | Current path |
 | --- | --- |
-| `config/show.cabin-v2.yaml` | `config/shows/cabin-show-v2.yaml` |
-| `config/V2_TO_V3.yaml` | `config/shows/cabin-commissioning-show-v2.yaml` |
+| `config/show.cabin-v2.yaml` | `config/shows/archive/cabin-v2/cabin-show-v2.yaml` |
+| `config/V2_TO_V3.yaml` | `config/shows/archive/cabin-v2/cabin-commissioning-show-v2.yaml` |
 | `config/show.cabin-fork-example.yaml` | `config/examples/cabin-show-fork-v2.yaml` |
 | `config/show.example.yaml` | `config/examples/teacher-demo-show-v2.yaml` |
 | `config/show.minimal.example.yaml` | `config/examples/minimal-show-v1.yaml` |
@@ -116,9 +116,9 @@ scope and its stop boundary.
 | `config/show_authoring_modulation_acceptance.yaml` | `config/acceptance/authoring-modulation-v1/show.yaml` |
 | `config/layout_authoring_modulation_acceptance.yaml` | `config/acceptance/authoring-modulation-v1/layout.yaml` |
 | `config/cabin_v3_acceptance.yaml` | `config/acceptance/cabin-lighting-v3/topology.yaml` |
-| `config/profiles/cabin_lighting_v3_production.yaml` | `config/profiles/cabin-lighting-v3-production.yaml` |
-| `config/profiles/cabin_lighting_v3_site_local.yaml` | `config/profiles/cabin-lighting-v3-site-local.yaml` |
-| `config/profiles/rk3588_production.yaml` | `config/profiles/rk3588-production.yaml` |
+| `config/profiles/cabin_lighting_v3_production.yaml` | `config/profile-archive/cabin-lighting-v3-production.yaml` |
+| `config/profiles/cabin_lighting_v3_site_local.yaml` | `config/profile-archive/cabin-lighting-v3-site-local.yaml` |
+| `config/profiles/rk3588_production.yaml` | `config/profile-archive/rk3588-production.yaml` |
 | `config/profiles/windows_dev.yaml` | `config/profiles/windows-development.yaml` |
 
 The four default loader inputs remain at `config/system.yaml`, `layout.yaml`,

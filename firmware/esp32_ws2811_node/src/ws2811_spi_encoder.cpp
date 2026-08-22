@@ -24,7 +24,7 @@ bool validColorOrder(Ws2811ColorOrder color_order) {
 }
 
 size_t frameSizeWithGuard(uint16_t group_count, size_t guard_bytes) {
-  if (group_count == 0 || group_count > MAX_PIXELS_PER_OUTPUT) {
+  if (group_count == 0 || group_count > FRAME_PIXEL_CAPACITY) {
     return 0;
   }
   return 2U * guard_bytes +

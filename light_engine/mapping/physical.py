@@ -75,6 +75,7 @@ class DigitalNodeFrame:
     # ``outputs`` and never joins independent strips into one pixel stream.
     pixels: list[tuple[float, float, float]] = field(default_factory=list)
     outputs: list["DigitalOutputFrame"] = field(default_factory=list)
+    max_udp_payload: int = 4096
 
 
 @dataclass(frozen=True)
@@ -278,8 +279,6 @@ class PhysicalMapping:
                 raise ValueError(
                     f"{locator}: pixel_count must equal logical strip {output.strip_id!r} length"
                 )
-            if output.pixel_count > 100:
-                raise ValueError(f"{locator}: pixel_count must be <= 100 for an ESP32 output")
             try:
                 validate_direction(output.direction, output.strip_id)
             except ValueError as exc:
@@ -311,14 +310,6 @@ class PhysicalMapping:
                 raise ValueError(
                     f"digital node {node_id}: output pixel total {mapped_pixel_count} "
                     f"must equal node pixel_count {node.pixel_count}"
-                )
-            # v3 header + descriptors + payload + CRC; this makes a partial
-            # datagram impossible by rejecting oversized node configurations.
-            encoded_size = 29 + sum(6 + item.pixel_count * 3 for item in node_outputs) + 4
-            if encoded_size > node.max_udp_payload:
-                raise ValueError(
-                    f"digital node {node_id}: UDP v3 datagram {encoded_size} exceeds "
-                    f"max_udp_payload {node.max_udp_payload}"
                 )
 
     def _copy_color(self, color: RGBCCTColor) -> RGBCCTColor:
@@ -393,6 +384,7 @@ class PhysicalMapping:
                     [] if node.protocol_version == 3 else digital_pixels[node.node_id]
                 ),
                 outputs=sorted(outputs_by_node.get(node.node_id, []), key=lambda item: item.output_id),
+                max_udp_payload=node.max_udp_payload,
             )
             for node in sorted(self._digital_nodes, key=lambda item: item.node_id)
         ]

@@ -28,13 +28,13 @@ def test_project_declares_pyserial_for_production_rs485_installation() -> None:
 
 
 def _cabin_v3_data() -> dict:
-    return Config(Path("config/profiles/cabin-lighting-v3-production.yaml")).to_dict()
+    return Config(Path("config/profile-archive/cabin-lighting-v3-production.yaml")).to_dict()
 
 
 PHASE31_PROFILES = (
-    Path("config/profiles/cabin-lighting-v3-production.yaml"),
-    Path("config/profiles/cabin-lighting-v3-site-local.yaml"),
-    Path("config/profiles/ws2811-installed-one-esp-per-strip.yaml"),
+    Path("config/profile-archive/cabin-lighting-v3-production.yaml"),
+    Path("config/profile-archive/cabin-lighting-v3-site-local.yaml"),
+    Path("config/profile-archive/ws2811-installed-one-esp-per-strip.yaml"),
 )
 ALL_PROFILES = tuple(sorted(Path("config/profiles").glob("*.yaml")))
 
@@ -151,7 +151,7 @@ def test_scheduled_presentation_rejects_invalid_beacon_window(
 
 def test_create_outputs_wires_production_schedule_from_profile() -> None:
     Config.reset()
-    config = Config(Path("config/profiles/cabin-lighting-v3-site-local.yaml"))
+    config = Config(Path("config/profile-archive/cabin-lighting-v3-site-local.yaml"))
 
     outputs = create_outputs(config)
     ddp = outputs["ddp"]
@@ -240,13 +240,6 @@ def test_digital_node_port_rejects_values_above_udp_limit() -> None:
         ),
         (lambda data: data["layout"]["digital_nodes"][1].update({"pixel_count": 1}), "output pixel total 10"),
         (lambda data: data["layout"]["digital_outputs"][0].update({"pixel_count": 11}), "exact logical strip"),
-        (
-            lambda data: (
-                data["layout"]["strips"][0].update({"pixel_count": 101}),
-                data["layout"]["digital_outputs"][0].update({"pixel_count": 101}),
-            ),
-            "<= 100",
-        ),
     ],
 )
 def test_cabin_v3_mapping_rejects_incomplete_or_conflicting_outputs(mutate, expected) -> None:
@@ -338,11 +331,11 @@ def test_phase31_profiles_enable_one_output_gpio4_policy(profile: Path) -> None:
     ("profile", "expected_outputs"),
     [
         (
-            Path("config/profiles/node2-effects-demo.yaml"),
+            Path("config/profile-archive/node2-effects-demo.yaml"),
             [(1, 4), (2, 5), (3, 6)],
         ),
         (
-            Path("config/profiles/node2-strip42-gpio4-diagnostic.yaml"),
+            Path("config/profile-archive/node2-strip42-gpio4-diagnostic.yaml"),
             [(1, 4)],
         ),
     ],

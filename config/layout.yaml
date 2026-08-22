@@ -3,7 +3,6 @@
 
 layout:
   # Global strip count
-  total_strips: 6
 
   # Analog RGB+CCT zones (via RS-485/STM32)
   zones:

@@ -13,6 +13,7 @@ from light_engine.color import evaluate_rgb_linear_timeline, rgb_to_rgbcct
 from light_engine.effects.base import BaseEffect, create_effect
 from light_engine.mapping import Layout, ZoneDef
 from light_engine.mapping.virtual import VirtualPath
+from light_engine.motion import CueMotionClock
 from light_engine.models import (
     ColorRGB,
     DigitalStrip,
@@ -329,6 +330,10 @@ def make_scoped_context(
         mode_parameters["blend"] = cue.transition.blend
         mode_parameters["show_time"] = ctx.timestamp
         mode_parameters["cue_local_time"] = ctx.timestamp - cue.start
+        mode_parameters["cue_progress"] = max(
+            0.0,
+            min(1.0, (ctx.timestamp - cue.start) / (cue.end - cue.start)),
+        )
         if cue.color.mode == "solid":
             mode_parameters["color"] = cue.color.color
         elif cue.color.mode == "palette":
@@ -464,6 +469,7 @@ class CueRenderJob:
         effect: BaseEffect | None = None,
         effect_factory: Callable[[str], BaseEffect] = create_effect,
         cue_seed: int = 0,
+        motion_clock: CueMotionClock | None = None,
     ):
         if cue.effect.mode == "fixed" and cue.effect.name is None:
             raise ValueError("fixed effect cue requires an effect name")
@@ -484,6 +490,8 @@ class CueRenderJob:
         self._effect_factory = effect_factory
         self._injected_effect = effect is not None
         self._cue_seed = cue_seed
+        self._motion_clock = motion_clock if motion_clock is not None else CueMotionClock()
+        self._owns_motion_clock = motion_clock is None
         self._selector = (
             AdaptiveEffectSelector(cue) if cue.effect.mode == "adaptive" else None
         )
@@ -504,6 +512,7 @@ class CueRenderJob:
                     resolver,
                     effect_factory=effect_factory,
                     cue_seed=cue_seed + index + 1,
+                    motion_clock=self._motion_clock,
                 ),
             )
             for index, branch in enumerate(cue.branches)
@@ -549,10 +558,25 @@ class CueRenderJob:
                 scoped_params["color_timeline"],
                 local_time,
             )
+        speed = _compose_common_control(
+            speed,
+            self.cue.effect.speed,
+            multipliers.speed,
+        )
+        intensity = _compose_common_control(
+            ctx.intensity,
+            self.cue.effect.intensity,
+            multipliers.intensity,
+        )
+        motion = self._motion_clock.advance(
+            float(scoped_params["cue_local_time"]),
+            speed,
+        )
         scoped = replace(
             scoped,
-            speed=min(10.0, speed * multipliers.speed),
-            intensity=min(10.0, ctx.intensity * multipliers.intensity),
+            speed=speed,
+            intensity=intensity,
+            motion=motion,
             mode_parameters=MappingProxyType(scoped_params),
         )
         frame = effect.process(scoped)
@@ -569,6 +593,8 @@ class CueRenderJob:
         )
 
     def reset(self) -> None:
+        if self._owns_motion_clock:
+            self._motion_clock.reset()
         if self._selector is not None:
             self._selector.reset()
         self._audio_modulator.reset()
@@ -602,6 +628,18 @@ class CueRenderJob:
             return self._effect_factory(name)
         finally:
             random.setstate(state)
+
+
+def _compose_common_control(
+    base: float,
+    authored: float,
+    audio: float,
+) -> float:
+    """Compose one common control and clamp it once for ``EffectContext``."""
+    value = float(base) * float(authored) * float(audio)
+    if not math.isfinite(value):
+        raise ValueError("effect common control composition must be finite")
+    return max(0.0, min(10.0, value))
 
 
 class ShowRuntime:

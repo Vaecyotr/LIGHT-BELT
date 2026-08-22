@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve the nine WLED/DDP nodes through Avahi into a runtime profile.
+"""Resolve configured WLED/DDP nodes through Avahi into a runtime profile.
 
 The tracked template retains the stable logical-strip mDNS names.  This tool
 copies it to an ignored runtime path, replacing resolved names with current
@@ -68,8 +68,10 @@ def resolve_profile(template: Path, output: Path, runner: Runner = run) -> int:
     nodes = profile.get("layout", {}).get("digital_nodes", [])
     outputs = profile.get("layout", {}).get("digital_outputs", [])
     strip_by_node = {item["node_id"]: item["strip_id"] for item in outputs}
-    if len(nodes) != 9 or len(strip_by_node) != 9:
-        raise ValueError("template must contain nine independent digital nodes and outputs")
+    if not nodes or len(strip_by_node) != len(nodes) or len(outputs) != len(nodes):
+        raise ValueError(
+            "template must contain one independent digital output per node"
+        )
 
     resolution_requests: list[tuple[dict, str, str]] = []
     for node in nodes:
@@ -79,7 +81,9 @@ def resolve_profile(template: Path, output: Path, runner: Runner = run) -> int:
         hostname = mdns_name(strip_id)
         resolution_requests.append((node, strip_id, hostname))
 
-    with ThreadPoolExecutor(max_workers=min(9, len(resolution_requests))) as executor:
+    with ThreadPoolExecutor(
+        max_workers=min(32, len(resolution_requests))
+    ) as executor:
         addresses = list(executor.map(lambda item: resolve_avahi(item[2], runner), resolution_requests))
 
     disabled = 0
@@ -149,7 +153,12 @@ def main() -> int:
         return 0
 
     disabled = resolve_profile(args.template, args.out)
-    log(f"wrote {args.out}; disabled {disabled}/9 nodes")
+    node_count = len(
+        yaml.safe_load(args.template.read_text(encoding="utf-8"))["layout"][
+            "digital_nodes"
+        ]
+    )
+    log(f"wrote {args.out}; disabled {disabled}/{node_count} nodes")
     return 0
 
 

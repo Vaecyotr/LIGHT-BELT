@@ -69,6 +69,8 @@ class TestAudioAnalyzer:
             val = getattr(features, field)
             assert not np.isnan(val), f"{field} is NaN"
             assert not np.isinf(val), f"{field} is Inf"
+        assert features.loudness == features.rms
+        assert features.peak == features.beat
 
     def test_short_input(self, analyzer):
         """Input shorter than FFT window should not crash."""

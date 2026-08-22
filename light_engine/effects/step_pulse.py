@@ -1,7 +1,12 @@
 """Two-level pulse with discrete, deterministic state changes."""
 
 from light_engine.color import rgb_to_rgbcct
-from light_engine.effects.base import BaseEffect, runtime_float, runtime_rgb
+from light_engine.effects.base import (
+    BaseEffect,
+    apply_common_intensity,
+    runtime_float,
+    runtime_rgb,
+)
 from light_engine.models import DigitalStrip, EffectContext, PixelFrame, ZoneOutput
 
 
@@ -27,9 +32,12 @@ class StepPulseEffect(BaseEffect):
             ZoneOutput(zone_id=zone["id"], color=rgb_to_rgbcct(*color))
             for zone in ctx.mode_parameters.get("zone_defs", [])
         ]
-        return PixelFrame(
-            timestamp=ctx.timestamp,
-            sequence=ctx.sequence,
-            strips=strips,
-            zones=zones,
+        return apply_common_intensity(
+            PixelFrame(
+                timestamp=ctx.timestamp,
+                sequence=ctx.sequence,
+                strips=strips,
+                zones=zones,
+            ),
+            ctx.intensity,
         )

@@ -13,7 +13,7 @@ static constexpr size_t WS2811_SPI_GUARD_BYTES = 32;
 static constexpr size_t WS2811_SPI_BYTES_PER_GROUP = 12;
 static constexpr size_t WS2811_SPI_MAX_FRAME_BYTES =
     2U * WS2811_SPI_GUARD_BYTES +
-    MAX_PIXELS_PER_OUTPUT * WS2811_SPI_BYTES_PER_GROUP;
+    FRAME_PIXEL_CAPACITY * WS2811_SPI_BYTES_PER_GROUP;
 
 // The fixed-GPIO4 production candidate uses the same 3.2 MHz symbols as the
 // legacy SPI4 diagnostics, but retains a symmetric 500 us reset-low margin.
@@ -21,7 +21,7 @@ static constexpr uint32_t WS2811_FIXED_GPIO4_SPI_RESET_LOW_US = 500;
 static constexpr size_t WS2811_FIXED_GPIO4_SPI_GUARD_BYTES = 200;
 static constexpr size_t WS2811_FIXED_GPIO4_SPI_MAX_FRAME_BYTES =
     2U * WS2811_FIXED_GPIO4_SPI_GUARD_BYTES +
-    MAX_PIXELS_PER_OUTPUT * WS2811_SPI_BYTES_PER_GROUP;
+    FRAME_PIXEL_CAPACITY * WS2811_SPI_BYTES_PER_GROUP;
 
 static_assert(
     static_cast<uint64_t>(WS2811_FIXED_GPIO4_SPI_GUARD_BYTES) * 8U *

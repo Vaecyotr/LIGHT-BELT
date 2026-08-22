@@ -12,6 +12,8 @@ from typing import Any, Optional, Tuple
 
 import numpy as np
 
+from light_engine.motion import MotionInterval
+
 def _validate_float(
     value: float, name: str, min_val: float = 0.0, max_val: float = 1.0
 ) -> float:
@@ -23,6 +25,13 @@ def _validate_float(
             f"{name} must be in [{min_val}, {max_val}], got {value}"
         )
     return value
+
+
+def _validate_bool(value: Any, name: str) -> bool:
+    """Accept native and NumPy booleans, returning a native ``bool``."""
+    if not isinstance(value, (bool, np.bool_)):
+        raise ValueError(f"{name} must be a bool, got {value!r}")
+    return bool(value)
 
 
 def _validate_rgb(r: float, g: float, b: float) -> Tuple[float, float, float]:
@@ -100,6 +109,18 @@ class AudioFeatures:
         beat: Boolean beat detection flag.
         onset: Onset detection strength in [0,1].
         silence: Boolean silence flag.
+        raw_level: Generic non-negative raw input level. This is source data,
+            not a normalized loudness alias.
+        loudness: Generic normalized loudness in [0,1]. When provided, this
+            is also exposed through the legacy ``rms`` field.
+        spectrum: Immutable 16-band normalized spectrum. When provided, the
+            legacy bass/mid/treble values are derived from bins 0-2, 3-9,
+            and 10-15 respectively.
+        peak: Generic peak flag. When provided, this is also exposed through
+            the legacy ``beat`` flag.
+        dominant_frequency: Measured dominant frequency in Hz. Effects decide
+            how, or whether, this audio fact affects a visual parameter.
+        dominant_magnitude: Non-negative dominant-frequency magnitude.
     """
 
     timestamp: float
@@ -111,6 +132,12 @@ class AudioFeatures:
     beat: bool = False
     onset: float = 0.0
     silence: bool = True
+    raw_level: float = 0.0
+    loudness: Optional[float] = None
+    spectrum: Optional[Tuple[float, ...]] = None
+    peak: Optional[bool] = None
+    dominant_frequency: float = 0.0
+    dominant_magnitude: float = 0.0
 
     def __post_init__(self) -> None:
         if math.isnan(self.timestamp) or math.isinf(self.timestamp):
@@ -121,6 +148,50 @@ class AudioFeatures:
         self.treble = _validate_float(self.treble, "treble")
         self.spectral_flux = _validate_float(self.spectral_flux, "spectral_flux")
         self.onset = _validate_float(self.onset, "onset")
+        self.raw_level = _validate_float(
+            self.raw_level,
+            "raw_level",
+            min_val=0.0,
+            max_val=float("inf"),
+        )
+        if self.loudness is None:
+            self.loudness = self.rms
+        else:
+            self.loudness = _validate_float(self.loudness, "loudness")
+            self.rms = self.loudness
+
+        supplied_spectrum = self.spectrum is not None
+        spectrum = (0.0,) * 16 if self.spectrum is None else tuple(self.spectrum)
+        if len(spectrum) != 16:
+            raise ValueError(f"spectrum must contain exactly 16 bands, got {len(spectrum)}")
+        self.spectrum = tuple(
+            _validate_float(value, f"spectrum[{index}]")
+            for index, value in enumerate(spectrum)
+        )
+        if supplied_spectrum:
+            self.bass = sum(self.spectrum[0:3]) / 3.0
+            self.mid = sum(self.spectrum[3:10]) / 7.0
+            self.treble = sum(self.spectrum[10:16]) / 6.0
+
+        self.beat = _validate_bool(self.beat, "beat")
+        self.silence = _validate_bool(self.silence, "silence")
+        if self.peak is None:
+            self.peak = self.beat
+        else:
+            self.peak = _validate_bool(self.peak, "peak")
+            self.beat = self.peak
+        self.dominant_frequency = _validate_float(
+            self.dominant_frequency,
+            "dominant_frequency",
+            min_val=0.0,
+            max_val=float("inf"),
+        )
+        self.dominant_magnitude = _validate_float(
+            self.dominant_magnitude,
+            "dominant_magnitude",
+            min_val=0.0,
+            max_val=float("inf"),
+        )
 
 
 @dataclass(frozen=True)
@@ -188,6 +259,8 @@ class EffectContext:
         audio_features: Latest audio analysis features (may be None).
         speed: Global speed multiplier.
         intensity: Global intensity multiplier.
+        motion: Cue-scoped integrated common-motion interval, when rendered by
+            the Show runtime. This is internal runtime state, not authored data.
         mode_parameters: Effect-specific parameters dict.
     """
 
@@ -200,6 +273,7 @@ class EffectContext:
     speed: float = 1.0
     intensity: float = 1.0
     mode_parameters: dict[str, Any] = field(default_factory=dict)
+    motion: Optional[MotionInterval] = None
 
     def __post_init__(self) -> None:
         if math.isnan(self.timestamp) or math.isinf(self.timestamp):
@@ -212,6 +286,8 @@ class EffectContext:
         self.intensity = _validate_float(
             self.intensity, "intensity", min_val=0.0, max_val=10.0
         )
+        if self.motion is not None and not isinstance(self.motion, MotionInterval):
+            raise TypeError("motion must be a MotionInterval or None")
 
 
 @dataclass

@@ -7,7 +7,14 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping as TypingMapping
 
-from light_engine.models import EffectContext, PixelFrame
+from light_engine.motion import MotionInterval, constant_speed_motion_interval
+from light_engine.models import (
+    DigitalStrip,
+    EffectContext,
+    PixelFrame,
+    RGBCCTColor,
+    ZoneOutput,
+)
 
 
 class BaseEffect(ABC):
@@ -30,65 +37,73 @@ class BaseEffect(ABC):
         return {"name": self.name}
 
 
-# Registry of all effects
-_EFFECT_REGISTRY: dict[str, type[BaseEffect]] = {}
+@dataclass(frozen=True)
+class EffectCapability:
+    """Stable capability metadata for one reusable effect ID."""
+
+    display_name: str
+    common_params: tuple[str, ...] = ()
+
+    @property
+    def common_controls(self) -> frozenset[str]:
+        return frozenset(self.common_params) & frozenset({"speed", "intensity"})
 
 
 @dataclass(frozen=True)
 class EffectRegistration:
-    """Complete authoring/runtime contract for one reusable effect ID."""
+    """Single authoring/runtime contract for one reusable effect ID."""
 
     id: str
-    validator: Callable[[TypingMapping[str, Any]], TypingMapping[str, Any]]
     renderer: type[BaseEffect]
+    factory: Callable[[str], BaseEffect]
+    validator: Callable[[TypingMapping[str, Any]], TypingMapping[str, Any]]
+    parameter_keys: frozenset[str]
+    capability: EffectCapability
 
 
-_EFFECT_CONTRACTS: dict[str, EffectRegistration] = {}
-
-_EFFECT_PARAMETER_KEYS: dict[str, frozenset[str]] = {
-    "static": frozenset({"color", "color_timeline"}),
-    "breath": frozenset({"period", "min_brightness", "color", "color_timeline"}),
-    "color_wave": frozenset({"speed", "width", "hue_cycle_rate"}),
-    "chase": frozenset(
-        {"speed", "width", "gap", "direction", "trail", "color_source", "beat_boost"}
-    ),
-    "comet": frozenset({"speed", "tail_length", "decay"}),
-    "audio_pulse": frozenset({"attack", "release", "color", "color_timeline"}),
-    "bass_pulse": frozenset({"attack", "release", "color", "color_timeline"}),
-    "spectrum": frozenset({"bass_zones", "mid_zones", "treble_zones"}),
-    "video_ambient": frozenset({"smoothing"}),
-    "video_audio_fusion": frozenset(
-        {"video_weight", "audio_weight", "bass_boost", "treble_limit"}
-    ),
-    "calm": frozenset({"period", "color", "color_timeline"}),
-    "color_wipe": frozenset({"speed", "color", "color_timeline"}),
-    "twinkle": frozenset(
-        {"density", "fade_time", "color_source", "color", "color_timeline"}
-    ),
-    "demo": frozenset({"cycle_interval", "effects"}),
-    "step_pulse": frozenset({"period", "low_color", "high_color"}),
-    "single_dot": frozenset({"speed", "direction", "color", "color_timeline"}),
-    "theater_phase": frozenset({"speed", "color", "color_timeline"}),
-}
+# Registry of complete effect contracts. This is the only effect-ID authority.
+_EFFECT_REGISTRY: dict[str, EffectRegistration] = {}
 
 
 def register_effect(
     name: str,
     cls: type[BaseEffect],
     validator: Callable[[TypingMapping[str, Any]], TypingMapping[str, Any]] | None = None,
+    *,
+    parameter_keys: frozenset[str] = frozenset(),
+    display_name: str | None = None,
+    common_params: tuple[str, ...] = (),
+    factory: Callable[[str], BaseEffect] | None = None,
 ) -> None:
-    """Register an ID, parameter validator, and renderer without target coupling."""
-    _EFFECT_REGISTRY[name] = cls
-    if validator is None:
-        allowed = _EFFECT_PARAMETER_KEYS.get(name, frozenset())
+    """Register one complete effect contract and reject duplicate IDs."""
+    if name in _EFFECT_REGISTRY:
+        raise ValueError(f"Effect already registered: {name}")
+    allowed = frozenset(parameter_keys)
+    effect_validator = validator or (lambda values: dict(values))
 
-        def validator(values: TypingMapping[str, Any]) -> TypingMapping[str, Any]:
-            unknown = set(values) - set(allowed)
-            if unknown:
-                raise ValueError(f"unknown effect parameters: {sorted(unknown)}")
-            return dict(values)
+    def validate(values: TypingMapping[str, Any]) -> TypingMapping[str, Any]:
+        unknown = set(values) - set(allowed)
+        if unknown:
+            raise ValueError(f"unknown effect parameters: {sorted(unknown)}")
+        validated = dict(effect_validator(values))
+        unexpected = set(validated) - set(allowed)
+        if unexpected:
+            raise ValueError(
+                f"effect validator returned unknown parameters: {sorted(unexpected)}"
+            )
+        return validated
 
-    _EFFECT_CONTRACTS[name] = EffectRegistration(name, validator, cls)
+    _EFFECT_REGISTRY[name] = EffectRegistration(
+        id=name,
+        renderer=cls,
+        factory=factory or cls,
+        validator=validate,
+        parameter_keys=allowed,
+        capability=EffectCapability(
+            display_name or name.replace("_", " ").title(),
+            tuple(common_params),
+        ),
+    )
 
 
 def create_effect(name: str) -> BaseEffect:
@@ -97,7 +112,7 @@ def create_effect(name: str) -> BaseEffect:
         raise KeyError(
             f"Unknown effect: {name}. Available: {list(_EFFECT_REGISTRY.keys())}"
         )
-    return _EFFECT_REGISTRY[name](name)
+    return _EFFECT_REGISTRY[name].factory(name)
 
 
 def list_effects() -> list[str]:
@@ -105,11 +120,16 @@ def list_effects() -> list[str]:
     return list(_EFFECT_REGISTRY.keys())
 
 
+def list_effect_registrations() -> tuple[EffectRegistration, ...]:
+    """Return complete effect contracts in stable registration order."""
+    return tuple(_EFFECT_REGISTRY.values())
+
+
 def get_effect_registration(name: str) -> EffectRegistration:
     """Return the complete registered contract for an effect ID."""
-    if name not in _EFFECT_CONTRACTS:
+    if name not in _EFFECT_REGISTRY:
         raise KeyError(f"Unknown effect: {name}")
-    return _EFFECT_CONTRACTS[name]
+    return _EFFECT_REGISTRY[name]
 
 
 def validate_effect_params(name: str, values: TypingMapping[str, Any]) -> TypingMapping[str, Any]:
@@ -117,12 +137,49 @@ def validate_effect_params(name: str, values: TypingMapping[str, Any]) -> Typing
 
 
 def get_effect_parameter_keys(name: str) -> frozenset[str]:
-    """Return registered V1 authored-show parameter keys for an effect."""
-    if name not in _EFFECT_REGISTRY:
-        raise KeyError(
-            f"Unknown effect: {name}. Available: {list(_EFFECT_REGISTRY.keys())}"
-        )
-    return _EFFECT_PARAMETER_KEYS.get(name, frozenset())
+    """Return registered authored-show parameter keys for an effect."""
+    return get_effect_registration(name).parameter_keys
+
+
+def apply_common_intensity(frame: PixelFrame, intensity: float) -> PixelFrame:
+    """Apply cue-local effect intensity without touching global brightness.
+
+    Renderers whose own algorithm does not consume ``EffectContext.intensity``
+    use this helper exactly once.  ``OutputTransform`` remains the sole owner
+    of global output brightness.
+    """
+    if intensity == 1.0:
+        return frame
+
+    def scaled(channel: float) -> float:
+        return max(0.0, min(1.0, channel * intensity))
+
+    return PixelFrame(
+        timestamp=frame.timestamp,
+        sequence=frame.sequence,
+        strips=[
+            DigitalStrip(
+                strip_id=strip.strip_id,
+                pixel_count=strip.pixel_count,
+                pixels=[tuple(scaled(channel) for channel in pixel) for pixel in strip.pixels],
+            )
+            for strip in frame.strips
+        ],
+        zones=[
+            ZoneOutput(
+                zone_id=zone.zone_id,
+                color=RGBCCTColor(
+                    r=scaled(zone.color.r),
+                    g=scaled(zone.color.g),
+                    b=scaled(zone.color.b),
+                    warm_white=scaled(zone.color.warm_white),
+                    cool_white=scaled(zone.color.cool_white),
+                ),
+            )
+            for zone in frame.zones
+        ],
+        metadata=dict(frame.metadata),
+    )
 
 
 def runtime_param(ctx: EffectContext, key: str, default: Any) -> Any:
@@ -145,6 +202,30 @@ def runtime_str(ctx: EffectContext, key: str, default: str) -> str:
 
 def runtime_bool(ctx: EffectContext, key: str, default: bool) -> bool:
     return bool(runtime_param(ctx, key, default))
+
+
+def runtime_motion_interval(
+    ctx: EffectContext,
+    legacy_cue_time: float,
+) -> MotionInterval:
+    """Return the single internal motion contract used by moving effects.
+
+    The Show compositor supplies a cue-scoped ``MotionInterval`` whose
+    ``motion_time`` already includes the composed common speed.  Effects are
+    also used directly by focused unit tests and non-Show callers.  For those
+    constant-speed compatibility calls, synthesize the equivalent interval
+    from cue start; dynamic callers must supply the runtime-owned interval.
+    """
+
+    if ctx.motion is not None:
+        return ctx.motion
+    return constant_speed_motion_interval(legacy_cue_time, ctx.speed)
+
+
+def runtime_motion_time(ctx: EffectContext, legacy_cue_time: float) -> float:
+    """Return current integrated motion time from the shared interval API."""
+
+    return runtime_motion_interval(ctx, legacy_cue_time).motion_time
 
 
 def runtime_rgb(

@@ -65,7 +65,7 @@ P1 Scheduled 门禁，不得混入 Immediate/SPI6 输出验收。
 ```powershell
 $Repository = (Get-Location).Path
 if (-not (Test-Path -LiteralPath `
-    (Join-Path $Repository 'config\profiles\ws2811-installed-one-esp-per-strip.yaml'))) {
+    (Join-Path $Repository 'config\profile-archive\ws2811-installed-one-esp-per-strip.yaml'))) {
   throw '当前目录不是包含 Phase 31 改动的仓库 checkout。请先进入正确 worktree 或已集成分支。'
 }
 git branch --show-current
@@ -249,7 +249,7 @@ pio device monitor --port $Port --baud 115200
 
 1. 核对数据线只来自该 ESP32 的 GPIO4，经独立 SN74LVC1T45 到该灯带 DI。
 2. 核对 Host 使用
-   `config/profiles/ws2811-installed-one-esp-per-strip.yaml`。
+   `config/profile-archive/ws2811-installed-one-esp-per-strip.yaml`。
 3. 验证该 Node 的 IP 可达，UDP v3 帧只包含 output 1，groups 与表格一致；
    同时确认 beacon 被接收、`clock_ready=1` 且 scheduled frame 开始提交。
 4. 确认生产帧包含同一 Host-monotonic `apply_at_us`，其值约为发送准备时刻后
@@ -276,7 +276,7 @@ scheduled SPI 失败后不得越过已校验 deadline 盲目重发；应 fail cl
 2. 停止 Host 物理输出并关闭灯光系统电源。
 3. 完成九条数据线的独立连接；每块 ESP32 只连接表中自己的灯带。
 4. Host 一次性选择
-   `config/profiles/ws2811-installed-one-esp-per-strip.yaml`。
+   `config/profile-archive/ws2811-installed-one-esp-per-strip.yaml`。
 5. 上电后先发全黑，再验证逐节点隔离、同时主色、共享 sequence 和
    `apply_at_us`、beacon/clock readiness、超时和恢复。
 6. 按第 7.3 节用逻辑分析仪记录 10/20/40 groups 的发送时长与跨节点锁存偏差。
@@ -293,16 +293,16 @@ scheduled SPI 失败后不得越过已校验 deadline 盲目重发；应 fail cl
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/ws2811-installed-one-esp-per-strip.yaml `
-  validate-show --show config/shows/ws2811-stage3-installed-300s.yaml
+  --config config/profile-archive/ws2811-installed-one-esp-per-strip.yaml `
+  validate-show --show config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/ws2811-installed-one-esp-per-strip.yaml `
-  inspect-topology --show config/shows/ws2811-stage3-installed-300s.yaml
+  --config config/profile-archive/ws2811-installed-one-esp-per-strip.yaml `
+  inspect-topology --show config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/ws2811-installed-one-esp-per-strip.yaml run `
-  --show config/shows/ws2811-stage3-installed-300s.yaml
+  --config config/profile-archive/ws2811-installed-one-esp-per-strip.yaml run `
+  --show config/shows/archive/ws2811-commissioning/ws2811-stage3-installed-300s.yaml
 ```
 
 `inspect-topology` 必须显示九条数字灯带，Node 集合为
@@ -314,16 +314,16 @@ scheduled SPI 失败后不得越过已校验 deadline 盲目重发；应 fail cl
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/cabin-lighting-v3-site-local.yaml `
-  validate-show --show config/shows/ws2811-stage3-full-300s.yaml
+  --config config/profile-archive/cabin-lighting-v3-site-local.yaml `
+  validate-show --show config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/cabin-lighting-v3-site-local.yaml `
-  inspect-topology --show config/shows/ws2811-stage3-full-300s.yaml
+  --config config/profile-archive/cabin-lighting-v3-site-local.yaml `
+  inspect-topology --show config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml
 
 .\.python\Scripts\python.exe -m light_engine `
-  --config config/profiles/cabin-lighting-v3-site-local.yaml run `
-  --show config/shows/ws2811-stage3-full-300s.yaml
+  --config config/profile-archive/cabin-lighting-v3-site-local.yaml run `
+  --show config/shows/archive/ws2811-commissioning/ws2811-stage3-full-300s.yaml
 ```
 
 该组合每个逻辑帧向十三个 ESP32 各发送一个 UDP v3 数据报。两个 site profile 都是

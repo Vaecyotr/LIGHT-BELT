@@ -199,6 +199,10 @@ class AudioAnalyzer:
             if np.isnan(val) or np.isinf(val):
                 setattr(features, field, 0.0)
 
+        # Keep the generic aliases coherent for the legacy file analyzer.
+        features.loudness = features.rms
+        features.peak = features.beat
+
         return features
 
     def reset(self) -> None:

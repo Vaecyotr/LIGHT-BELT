@@ -1,11 +1,12 @@
 # LIGHT-BELT 灯效与参数手册
 
-本文列出当前注册的全部 14 个灯效。名称必须使用代码 ID，例如
+本文列出当前 registry 注册的全部 21 个灯效。名称必须使用代码 ID，例如
 `color_wipe`，不能使用中文名称代替。
 
 ## 通用编排控制
 
-以下控制不属于某一个效果，但可以和每个效果一起使用。
+以下字段属于 Show/compositor，而不是某一个 renderer。Show v2 schema 接受这些字段；某个 renderer
+是否实际消费 color、speed 或 intensity，以 registry capability 和下文的实现说明为准。
 
 - `start` / `end`：cue 在节目时间轴上的开始和结束时间，单位为秒。它们不是像素位置。
 - `origin`：空间起点。取值为 `start`、`end`、`center`、`edges`，分别表示从路径起点、路径末端、中间向外、两端向内。它特别适合配合 `color_wipe` 和 `chase`。
@@ -14,6 +15,34 @@
 - `audio_modulation.speed`：按音乐分析结果乘算效果速度；最终上下文速度范围为 `0.0` 到 `10.0`。
 - `audio_modulation.intensity`：按音乐分析结果乘算音频响应强度；最终上下文强度范围为 `0.0` 到 `10.0`。
 - `global_brightness`：全局输出亮度，范围 `0.0` 到 `1.0`。`0.0` 为全黑，`1.0` 为不做亮度衰减。
+
+Show v2 中 `effect.speed` 与 `effect.intensity` 是通用乘数，默认均为 `1.0`；它们会与运行时基础值和
+`audio_modulation.speed/intensity` 相乘，最后钳在 `EffectContext` 的 `0.0..10.0` 范围。它们不是
+`effect.params` 的成员。相反，`effect.params.speed` 是少数旧效果自己的命名参数，例如
+`chase.params.speed`、`single_dot.params.speed` 和 `theater_phase.params.speed`。效果自己的速度参数先由
+renderer 读取，再乘以通用 `effect.speed`。`flowing_bands` 使用离散推进参数
+`params.steps_per_second`，`onset_ripple` 使用连续波前参数 `params.wave_speed_pps`；不要把这些字段
+互相替换。
+
+Phase 34 起，`effect.speed`、adaptive selector speed 和 `audio_modulation.speed` 的最终组合值是
+**瞬时运动速率倍数**，不是 `cue 时间 × 当前 speed` 公式里的绝对相位倍数。Show runtime 为每个 cue
+维护一个内部积分运动时钟；降速或升速只改变后续斜率，`speed=0` 冻结，恢复后从冻结相位继续。
+同一 cue 的 released branches 共享该相位，adaptive effect 切换不会重置它。常量 speed `S` 仍与
+`cue_local_time × S` 完全兼容。该时钟不是 authored 参数，Show v2 语法没有变化；向后 seek 仍须
+reset 并从头 replay，也不会为缺失的 live audio 补造历史样本。
+
+Phase 33 的 `ScalarSource` 是少量效果可选使用的通用 `[0,1]` 输入选择器。V1 只接受
+`cue_progress`、`audio.rms`、`audio.loudness`、`audio.bass`、`audio.mid`、`audio.treble`、
+`audio.spectral_flux`、`audio.onset`、`audio.peak` 和 `audio.spectrum[0]` 到
+`audio.spectrum[15]`。缺失音频返回 `0`；已有输入若越界或为 NaN/Inf 则显式失败。
+`audio.raw_level`、dominant frequency/magnitude、表达式、Python/eval 和 WLED 字段名都不是 V1
+source。尤其 dominant frequency 没有全局颜色含义。
+
+Registry 是效果 ID、renderer、参数白名单/validator 和 common capability 的唯一运行时权威。当前 ID 为：
+
+`static`, `breath`, `color_wave`, `chase`, `comet`, `audio_pulse`, `bass_pulse`, `spectrum`,
+`video_ambient`, `video_audio_fusion`, `calm`, `color_wipe`, `twinkle`, `demo`, `step_pulse`,
+`single_dot`, `theater_phase`, `flowing_bands`, `onset_ripple`, `heat_fire`, `history_stream`。
 
 文中“安全创作范围”表示在当前 RGB `[0,1]` 输出模型内建议使用的范围。部分旧效果的
 Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值未必会在加载时立即失败，但可能
@@ -135,8 +164,9 @@ Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值
 
 ## 5. `comet`：流星
 
-**用途与效果：** 彩色流星头沿灯带前进并留下衰减尾巴。每条灯带按自己的实际长度计算尾巴，
-绕过末端后改变色相。
+**用途与效果：** 一个或多个彩色 emitter 沿逻辑路径运动并留下可选尾迹。默认单 emitter 的
+wrap 行为保持原有 comet 状态机；多 emitter 与新轨迹由 cue 级积分 motion time 计算，可确定性
+reset/replay，并在动态通用 speed 变化时保持连续。
 
 ### `speed`
 
@@ -148,13 +178,21 @@ Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值
 
 - **含义：** 尾巴长度占当前灯带实际 `pixel_count` 的比例。
 - **范围：** 安全范围 `0.0` 到 `1.0`。
-- **如何使用：** `0.25` 表示尾巴约占四分之一灯带，`0.75` 表示长尾；因此不同长度灯带会得到成比例的尾巴。
+- **如何使用：** `0` 只显示头部；`0.25` 表示尾巴约占四分之一灯带，`0.75` 表示长尾；因此不同长度灯带会得到成比例的尾巴。
 
 ### `decay`
 
 - **含义：** 每帧保留的历史尾迹比例。
 - **范围：** 安全范围 `0.0` 到 `1.0`。
 - **如何使用：** 越接近 `0` 消失越快；`0.85` 为默认；`1.0` 不做逐帧衰减，但仍受尾巴空间渐变影响。
+
+### `count` / `phase_spacing` / `trajectory`
+
+- **含义：** `count` 是 emitter 数量；`phase_spacing` 是相邻 emitter 占完整轨迹周期的归一化偏移；
+  `trajectory` 选择 `wrap`、`bounce` 或 `sine`。
+- **范围：** `count` 为整数 `1..64`；`phase_spacing` 为 finite `0..1`，省略时使用 `1/count`；
+  `trajectory` 默认 `wrap`。
+- **如何使用：** 多 emitter、往返扫描和正弦缓动都属于同一个 comet family，不产生 WLED alias。
 
 ## 6. `audio_pulse`：全频音量脉冲
 
@@ -321,6 +359,14 @@ Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值
 - **范围：** `rgb_linear`；至少 2 个严格递增时间的关键帧；时间 `>= 0`；RGB 通道 `0.0` 到 `1.0`。
 - **如何使用：** 填充推进期间可以同时从一种颜色平滑变为另一种颜色；变化作用于全部已亮区域。
 
+### `progress_source` / `slew_seconds`
+
+- **含义：** `progress_source` 可用一个 `ScalarSource` 直接控制填充比例；省略时使用 cue 级积分
+  motion time 推进。`slew_seconds` 是标量从 0 到 1 满量程变化所需时间。
+- **范围：** source 必须属于上文 V1 列表；`slew_seconds` 为 finite `>=0`，默认 `0` 表示直接跟随。
+- **如何使用：** 外部 progress 的 `0/0.5/1` 分别点亮 `0/50%/100%` 路径。reset、source 切换或
+  向后 seek 会直接重基准；空间方向仍只由公共 `origin` 控制。
+
 ## 13. `twinkle`：随机星光
 
 **用途与效果：** 在每条数字灯带的有效像素范围内随机生成星点，并按时间淡出。生成量使用
@@ -357,6 +403,21 @@ Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值
 - **范围：** `rgb_linear`；至少 2 个严格递增时间的关键帧；时间 `>= 0`；RGB 通道 `0.0` 到 `1.0`。
 - **如何使用：** 可让随机位置的星点在节目进程中逐渐从冷色转为暖色，而不是每颗都随机色。
 
+### `event_width_px` / `blur_radius_px`
+
+- **含义：** 将单像素 event 扩成对称实心宽度，并在外侧增加线性软化半径。
+- **范围：** width 为 finite `0.01..10000`，默认 `1`；blur 为 finite `0..10000`，默认 `0`。
+- **如何使用：** 默认值保持原有单点替换行为；非默认值启用可确定性重放的连续 logical-path
+  event field，跨 virtual-path 接缝后再拆分。
+
+### `event_gate_source` / `birth_gain_source`
+
+- **含义：** 两者均使用同一 `ScalarSource` V1；gate 缩放 event 出生预算，birth gain 缩放新 event
+  的生成颜色，不改变已出生 event 的保存颜色。
+- **范围：** 可省略；source 必须属于上文 V1 列表。
+- **如何使用：** 可用 loudness/onset/peak 等明确驱动出生或亮度，但颜色仍来自 authored
+  `solid`/`palette`/`random`，本阶段没有 audio palette framework。
+
 ## 14. `demo`：自动轮播
 
 **用途与效果：** 按固定时间间隔循环运行一组已注册效果，主要用于演示和快速巡检，不适合需要
@@ -374,10 +435,132 @@ Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值
 - **范围：** 非空字符串列表；应只包含已注册效果 ID，并避免把 `demo` 自身加入列表。
 - **如何使用：** 例如 `[static, breath, color_wipe, twinkle, chase]`。未知 ID 会被跳过；若全部无效则回退到 `static`。
 
+## 15. `step_pulse`：两级阶跃脉冲
+
+在 cue 本地时间的前半周期输出 `low_color`，后半周期输出 `high_color`，不做插值。`period` 默认
+`4.0` 秒且运行时最小按 `0.001` 秒处理；`low_color` 和 `high_color` 都是三个有限 `0..1` RGB
+通道。通用 `effect.intensity` 在 renderer 输出后按 cue 局部效果强度缩放并钳制 RGB；默认 `1.0`
+仍保留两组 authored RGB 的精确值，且不会替代全局 `OutputTransform` brightness。
+
+## 16. `single_dot`：离散单点
+
+每条逻辑路径只点亮一个像素且没有尾迹。`params.speed` 默认 `5.0` 像素/秒，
+`direction` 为 `forward`、`reverse` 或 `bounce`，`color` 为 RGB。位置由 cue 级积分 motion time 计算。
+最终位置速率为 `params.speed ×` 最终通用 speed；两者可同时存在。通用 `effect.intensity` 缩放最终
+authored RGB，但不修改位置或 `params.speed`。
+
+## 17. `theater_phase`：三相剧院遮罩
+
+按 `index % 3` 选择一个离散相位。`params.speed` 默认 `2.5` 相位/秒，`color` 默认为低亮蓝色；
+相位按 cue 级积分 motion time 确定，推进速率为 `params.speed ×` 最终通用 speed。通用 `effect.intensity` 缩放
+最终 authored RGB，不改变离散三相遮罩。
+
+## 18. `flowing_bands`：固定间隔、离散高亮
+
+基础 pattern 固定为 `A B A B A B`：A 是 authored color 的低亮段，B 是严格的全黑段，C 是与
+A 同色但 gain 更高的状态。空间 pattern 本身不平移；离散步进只改变“当前哪个 A 变成 C”。当
+`band_width_px=1`、`gap_width_px=1` 且没有 phase offset 时，黄金序列为
+`ABABAB → CBABAB → ABCBAB → ABABCB`，随后从第一个 A 循环。`direction` 只改变高亮遍历顺序，
+不会反转或移动 A/B 底纹。
+
+效果自身不保存独立相位积分器：步数由 cue 级积分 motion time、`steps_per_second` 和
+`phase_offset_steps` 确定，因此同一输入可直接重放。`virtual_path` 会先作为一条完整逻辑路径渲染，
+再拆回成员 strip；A/B pattern 和 C 的移动都不会在实体 strip 接缝处重启。`origin` 仍由 compositor
+统一处理。
+
+| 参数 | 范围与默认值 | 语义 |
+| --- | --- | --- |
+| `band_width_px` | integer `1..10000`，默认 `1` | 每个 A 段的宽度；被选中时整段变为 C |
+| `gap_width_px` | integer `1..10000`，默认 `1` | 每个 B 段的宽度；输出始终为 `(0, 0, 0)` |
+| `base_gain` | finite `0..1`，默认 `0.125` | A 的低亮 gain |
+| `highlight_gain` | finite `base_gain..1`，默认 `0.625` | C 的高亮 gain |
+| `steps_per_second` | finite `0..1000`，默认 `1` | 每秒跨过的 A 段数；再乘通用 `effect.speed` |
+| `direction` | `forward` / `reverse`，默认 `forward` | C 遍历 A 段的方向 |
+| `phase_offset_steps` | integer `0..10000`，默认 `0` | 在 cue 时间步数上增加的离散偏移 |
+| `color` | 三个 finite `0..1` RGB 通道，默认白色 | A 与 C 共享的 authored color |
+| `color_timeline` | Show v2 `rgb_linear` 时间线 | compositor 按 cue 本地时间解析为当前 authored color |
+
+最终 RGB 还乘以通用 `effect.intensity`；这不是设备 brightness，`OutputTransform` 仍是全局亮度的
+唯一应用点。
+
+## 19. `onset_ripple`：起音涟漪
+
+该效果只读取通用 `AudioFeatures`，不读取 WLED 字段名。peak 的上升沿或 onset 从阈值下方越过阈值
+时出生一条波；持续高值不会逐帧重触发。每条波保存真实 cue 出生时间、motion 出生时间、强度、低频、高频和响度，最多保留
+16 条，超限淘汰最旧波。silence 或 stale 音频不产生新 wave，但不会隐藏已经出生的 wave；已有 wave
+按 motion age 计算传播距离，按真实 cue age 计算指数 decay，直至自然衰减并在真实年龄超过
+`decay_seconds × 8` 后淘汰。改变通用 speed 不会缩短或延长 `decay_seconds`。
+效果从逻辑 start 坐标向外渲染；center/edges/end 仍由 compositor 做确定性重映射。
+
+| 参数 | 范围与默认值 | 语义 |
+| --- | --- | --- |
+| `onset_threshold` | finite `0..1`，默认 `0.35` | onset 上升沿门槛 |
+| `wave_speed_pps` | finite `0..1000`，默认 `18` | 波前像素/秒；再乘通用 speed |
+| `wave_width_px` | finite `0.1..1000`，默认 `2` | 三角形软波前宽度 |
+| `decay_seconds` | finite `0.01..60`，默认 `1.5` | 指数衰减时间常数 |
+| `floor_gain` | finite `0..1`，默认 `0` | 无波位置底光 |
+| `event_origin` | `fixed` / `random`，默认 `fixed` | 每个事件从逻辑起点或 cue-local seeded 归一化随机相对坐标出生 |
+| `propagation` | `one_way` / `bidirectional`，默认 `one_way` | 单向或同时向两侧传播 |
+| `wrap` | boolean，默认 `false` | 波前是否在有限逻辑路径首尾环绕 |
+| `color` / `color_timeline` | RGB / Show v2 时间线 | 波形基础颜色 |
+
+低频来自 16-band 的 0..2 bins 与 legacy `bass` 的较大值，高频来自 10..15 bins 与 legacy
+`treble` 的较大值；因此文件/合成旧特征与 16-band live adapter 都能驱动效果。通用 intensity 作用于
+最终 RGB。一次调用命中多条独立逻辑路径时，同一 random event 保存一个 `[0,1)` 相对位置，再按每条
+路径自己的 `pixel_count` 映射，因此不同长度路径的起点始终有效；等长路径保持同位置。`virtual_path`
+仍先作为一条连续逻辑路径映射一次，不会在成员 strip 接缝重启。
+
+## 20. `heat_fire`：固定步进热火焰
+
+每条逻辑 strip 持有独立 heat 数组，以私有 60 Hz 步长执行冷却、向上扩散和底部火花注入。
+随机数由 cue 创建时捕获的 seed、strip ID 和 tick 共同确定，不依赖输出帧率；目标 tick 来自 cue 级
+积分 motion time，相同 seed 和 motion schedule 下 30/60 fps 得到相同状态。向后时间仍要求 reset/replay；显式 `reset()` 产生相同重放。
+长度变化时按新长度从 tick 0 重建，且不包含节点、GPIO 或传输知识。
+
+| 参数 | 范围与默认值 | 语义 |
+| --- | --- | --- |
+| `cooling_per_second` | finite `0..60`，默认 `0.8` | 每秒随机冷却上界 |
+| `spark_rate` | finite `0..60`，默认 `8` | 每秒火花概率率 |
+| `spark_strength` | finite `0..1`，默认 `0.9` | 火花热量增量 |
+| `diffusion` | finite `0..1`，默认 `0.35` | 每 tick 向上混合比例 |
+| `spark_zone_px` | integer `1..10000`，默认 `3` | 允许注入火花的底部像素数 |
+| `color` | 三个 finite `0..1` RGB 通道，默认 `[1.0, 0.32, 0.04]` | heat 强度缩放的 authored color |
+| `color_timeline` | Show v2 `rgb_linear` 时间线 | compositor 按 cue 本地时间解析为当前 authored color |
+
+以上七个 authored keys 与 registry 白名单完全一致；五个模拟参数及 `color` 的 validator 范围与表中
+一致，`color_timeline` 由 Show loader/compositor 校验和解析。renderer 读取五个模拟参数和解析后的
+color，每个像素输出 `authored color × min(1, heat × effect.intensity)`；当 intensity 为默认 `1.0` 时
+就是 authored color × heat。当前实现没有 thermal palette、热度到多段颜色梯度或 WLED palette ID
+语义，不应把单色 heat 缩放描述成调色板取色。
+
+通用 speed 改变固定 60 Hz 模拟 tick 的未来推进速率，通用 intensity 缩放最终 RGB。该实现是 RK3588-native clean-room 算法，
+不是 WLED Fire2012 数值兼容实现。
+
+## 21. `history_stream`：时间样本空间历史
+
+每个固定 sampling step 把当前 authored RGB 样本插入一条有界 logical-path history，旧样本向空间
+内部推进。t=0 立即插入 step 0；forward 的最新样本在逻辑首端，reverse 的最新样本在末端。
+它是通用 time-to-space primitive，不是 comet 尾迹、ripple 历史、WLED Stream compatibility 或
+ESP32 缓冲区。`virtual_path` 始终先作为一条连续路径推进，再拆回成员 strip。
+
+| 参数 | 范围与默认值 | 语义 |
+| --- | --- | --- |
+| `steps_per_second` | finite `0.001..1000`，默认 `10` | 固定采样步率；再乘通用 `effect.speed` |
+| `direction` | `forward` / `reverse`，默认 `forward` | 新样本进入路径的端点与旧样本推进方向 |
+| `sample_gain_source` | 可选 ScalarSource V1 | 当前 sample RGB 的 gain；缺失音频为 0 |
+| `color` | 三个 finite `0..1` RGB 通道，默认白色 | 当前 authored sample color |
+| `color_timeline` | Show v2 `rgb_linear` 时间线 | 在每个精确 fixed-step 时间取色并保存为空间历史 |
+
+跨过多个未渲染 motion step 时，renderer 从 motion 区间插值每个边界实际跨越的 cue 墙钟时间，并在
+该时间采 authored color timeline；只计算路径容量内仍可见的末尾样本。实时 audio gain 只使用当前
+可观察值，不伪造过去音频。向后 seek 仍须 reset 并从头 replay；常量 sample 与 authored timeline
+均有 30/60 FPS 等价覆盖。最终 RGB 再乘通用
+`effect.intensity`，全局 brightness 仍只属于 `OutputTransform`。
+
 ## 长度与位置规则
 
 - 实际数字灯带长度来自布局中的 `pixel_count`，当前舱体灯带分别为 10、20 或 40 个 WS2811 像素段，均为 `NOT HARDWARE VERIFIED` 且保持可配置。
-- `color_wipe`、`chase`、`comet` 和 `twinkle` 不使用旧测试代码中的固定 `NUM_LEDS = 60`。
-- `color_wipe` 的完成时间随实际长度变化；`twinkle` 的生成量按实际长度成比例变化；`comet.tail_length` 按实际长度的比例变化。
+- 所有 21 个效果都使用运行时逻辑 `pixel_count`；新效果没有固定 60-pixel 假设。
+- `color_wipe` 的完成时间随实际长度变化；`twinkle` 的生成量按实际长度成比例变化；`comet.tail_length` 按实际长度的比例变化；`history_stream` 的 buffer 容量严格等于当前逻辑路径长度。
 - `origin` 改变逻辑效果的空间展开方式；物理接线方向仍由布局/映射层处理，效果代码不包含 GPIO、节点 ID 或物理端口。
-- 本文描述的软件行为已经由自动化测试覆盖，但灯带长度、方向、颜色顺序和视觉观感仍为 `NOT HARDWARE VERIFIED`。
+- 本文描述的软件行为已经由自动化测试覆盖，但灯带长度、方向、颜色顺序、跨板接缝、功耗和视觉观感仍为 `NOT HARDWARE VERIFIED`。
