@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "scope": "Phase 34 hidden pre_roll software capacity",
+  "hardware_verified": false,
+  "environment": {
+    "platform": "Windows-10-10.0.26200-SP0",
+    "python": "3.11.9"
+  },
+  "workload": {
+    "strip_count": 9,
+    "strip_pixel_counts": [
+      22,
+      22,
+      22,
+      22,
+      22,
+      22,
+      22,
+      22,
+      24
+    ],
+    "total_pixels_per_effect_instance": 200,
+    "parent_cues": 1,
+    "hidden_branch_counts": [
+      0,
+      1,
+      3,
+      5
+    ],
+    "effects": [
+      {
+        "class": "cheap",
+        "id": "chase"
+      },
+      {
+        "class": "stateful",
+        "id": "history_stream"
+      },
+      {
+        "class": "heavy",
+        "id": "heat_fire"
+      }
+    ],
+    "warmup_frames": 30,
+    "measured_frames": 120,
+    "memory_frames": 3
+  },
+  "cases": [
+    {
+      "effect_class": "cheap",
+      "effect_id": "chase",
+      "hidden_branch_count": 0,
+      "frames": 120,
+      "fps": 832.879,
+      "mean_ms": 1.201,
+      "p95_ms": 1.31,
+      "relative_mean_overhead_percent": 0.0,
+      "tracemalloc_retained_kib": 138.7,
+      "tracemalloc_peak_kib": 164.9
+    },
+    {
+      "effect_class": "cheap",
+      "effect_id": "chase",
+      "hidden_branch_count": 1,
+      "frames": 120,
+      "fps": 548.219,
+      "mean_ms": 1.824,
+      "p95_ms": 2.117,
+      "relative_mean_overhead_percent": 51.9,
+      "tracemalloc_retained_kib": 168.3,
+      "tracemalloc_peak_kib": 207.0
+    },
+    {
+      "effect_class": "cheap",
+      "effect_id": "chase",
+      "hidden_branch_count": 3,
+      "frames": 120,
+      "fps": 324.382,
+      "mean_ms": 3.083,
+      "p95_ms": 3.376,
+      "relative_mean_overhead_percent": 156.8,
+      "tracemalloc_retained_kib": 175.5,
+      "tracemalloc_peak_kib": 255.2
+    },
+    {
+      "effect_class": "cheap",
+      "effect_id": "chase",
+      "hidden_branch_count": 5,
+      "frames": 120,
+      "fps": 224.523,
+      "mean_ms": 4.454,
+      "p95_ms": 5.495,
+      "relative_mean_overhead_percent": 271.0,
+      "tracemalloc_retained_kib": 178.8,
+      "tracemalloc_peak_kib": 258.8
+    },
+    {
+      "effect_class": "stateful",
+      "effect_id": "history_stream",
+      "hidden_branch_count": 0,
+      "frames": 120,
+      "fps": 908.058,
+      "mean_ms": 1.101,
+      "p95_ms": 1.177,
+      "relative_mean_overhead_percent": 0.0,
+      "tracemalloc_retained_kib": 135.4,
+      "tracemalloc_peak_kib": 158.3
+    },
+    {
+      "effect_class": "stateful",
+      "effect_id": "history_stream",
+      "hidden_branch_count": 1,
+      "frames": 120,
+      "fps": 594.051,
+      "mean_ms": 1.683,
+      "p95_ms": 1.848,
+      "relative_mean_overhead_percent": 52.9,
+      "tracemalloc_retained_kib": 168.8,
+      "tracemalloc_peak_kib": 206.2
+    },
+    {
+      "effect_class": "stateful",
+      "effect_id": "history_stream",
+      "hidden_branch_count": 3,
+      "frames": 120,
+      "fps": 329.57,
+      "mean_ms": 3.034,
+      "p95_ms": 3.877,
+      "relative_mean_overhead_percent": 175.5,
+      "tracemalloc_retained_kib": 181.0,
+      "tracemalloc_peak_kib": 249.7
+    },
+    {
+      "effect_class": "stateful",
+      "effect_id": "history_stream",
+      "hidden_branch_count": 5,
+      "frames": 120,
+      "fps": 252.653,
+      "mean_ms": 3.958,
+      "p95_ms": 4.539,
+      "relative_mean_overhead_percent": 259.4,
+      "tracemalloc_retained_kib": 191.0,
+      "tracemalloc_peak_kib": 259.7
+    },
+    {
+      "effect_class": "heavy",
+      "effect_id": "heat_fire",
+      "hidden_branch_count": 0,
+      "frames": 120,
+      "fps": 727.416,
+      "mean_ms": 1.375,
+      "p95_ms": 1.642,
+      "relative_mean_overhead_percent": 0.0,
+      "tracemalloc_retained_kib": 163.5,
+      "tracemalloc_peak_kib": 186.5
+    },
+    {
+      "effect_class": "heavy",
+      "effect_id": "heat_fire",
+      "hidden_branch_count": 1,
+      "frames": 120,
+      "fps": 435.938,
+      "mean_ms": 2.294,
+      "p95_ms": 2.528,
+      "relative_mean_overhead_percent": 66.9,
+      "tracemalloc_retained_kib": 176.1,
+      "tracemalloc_peak_kib": 239.5
+    },
+    {
+      "effect_class": "heavy",
+      "effect_id": "heat_fire",
+      "hidden_branch_count": 3,
+      "frames": 120,
+      "fps": 228.105,
+      "mean_ms": 4.384,
+      "p95_ms": 4.981,
+      "relative_mean_overhead_percent": 218.9,
+      "tracemalloc_retained_kib": 197.0,
+      "tracemalloc_peak_kib": 276.5
+    },
+    {
+      "effect_class": "heavy",
+      "effect_id": "heat_fire",
+      "hidden_branch_count": 5,
+      "frames": 120,
+      "fps": 161.906,
+      "mean_ms": 6.176,
+      "p95_ms": 7.283,
+      "relative_mean_overhead_percent": 349.3,
+      "tracemalloc_retained_kib": 215.0,
+      "tracemalloc_peak_kib": 295.0
+    }
+  ],
+  "five_hidden_branch_gate": {
+    "minimum_required_fps": 30.0,
+    "minimum_observed_fps": 161.906,
+    "passed": true,
+    "basis": "minimum across cheap, stateful, and heavy representative effects"
+  },
+  "limitations": [
+    "Current Windows/Python development-machine measurement only.",
+    "tracemalloc retained/peak values are Python allocation indicators, not process RSS.",
+    "No transport, protocol, firmware, physical timing, or RK3588 behavior is measured.",
+    "NOT HARDWARE VERIFIED."
+  ]
+}

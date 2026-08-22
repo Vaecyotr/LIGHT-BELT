@@ -1,16 +1,70 @@
 # Current Implementation Plan
 
-Status: **Phase 34 integrated common motion clock software acceptance completed
-on 2026-08-22; physical acceptance remains NOT HARDWARE VERIFIED; stop boundary
-reached**.
+Status: **Phase 34 explicit branch lifecycle and pre-roll continuity closeout
+software-accepted on 2026-08-22; physical acceptance remains NOT HARDWARE
+VERIFIED**.
 
 Product implementation Phases 0-29 are complete. Their original approved plan
 is preserved at
 `docs/history/implementation/implementation-plan-phases-0-29.md` and is no
 longer an active instruction source. Phases 30 and 31 are complete historical
-work. Phase 32 and Phase 33 software closeout are accepted. Phase 34 is the
-only currently approved implementation phase; no Phase 35 or later work is
-approved.
+work. Phase 32, Phase 33, and Phase 34 software closeouts are accepted. No
+Phase 35 or later work is approved.
+
+## Current Phase 34 closeout: Explicit branch lifecycle and pre-roll continuity
+
+Phase 34 closed with one optional Show v2 branch field:
+
+`lifecycle: start_on_release | pre_roll`
+
+The default is `start_on_release`, preserving every existing branch-bearing
+Show and the historical fresh-start release behavior. `pre_roll` is explicit
+opt-in: its independent branch effect instance processes live cue inputs from
+cue activation while its PixelFrame is discarded, then the already-current
+state is revealed on the existing `after` release frame without reset,
+reseed, or a second same-frame process call.
+
+Completed closeout scope:
+
+1. Extend the branch model and loader with the optional lifecycle field,
+   strict validation, and no Show version bump.
+2. Add cue-runtime scheduling that advances hidden pre-roll branches exactly
+   once per active engine frame, shares the parent cue motion interval, keeps
+   the existing independent deterministic branch seed, and leaves the release
+   predicate unchanged.
+3. Discard hidden branch contributions before composition and output so they
+   cannot affect logical pixels, sequences, DDP/transport, ESP32 output, or
+   release feedback.
+4. Prove backward-compatible omitted/default behavior, pre-roll continuity for
+   representative stateful effects, actual authored timeline and live-audio
+   history, reset/replay, same-frame reveal, multiple/mixed branches, and
+   unchanged virtual-path semantics.
+5. Characterize current-development-machine software cost at approximately
+   nine strips / 200 logical groups / 30 FPS for zero, one, three, and five
+   hidden pre-roll branches. This is not RK3588 hardware evidence.
+6. Document visibility (`after`) separately from simulation start
+   (`lifecycle`) and record closeout acceptance evidence.
+
+Closeout boundaries:
+
+- Do not change existing YAML that omits lifecycle, rewrite archived Shows,
+  replace virtual paths with pre-roll, synchronize branch randomness to the
+  parent, synthesize historical audio/video, or expose hidden frames to output.
+- Do not add effect IDs, Show v3, `coherent_noise_field`, generic arbitrary
+  modulation, parameter type redesign, Audio Reactive Palette, WLED aliases,
+  2D, particles, topology/DDP/ESP32 firmware changes, or Phase 35 work.
+- Preserve `assets/energy-wakeup/energy-wakeup.yaml` byte-for-byte. Repository-
+  wide pytest is explicitly user-waived for runtime cost; focused and
+  cross-module integration tests remain mandatory and the waiver must be
+  recorded as an omission, never a pass.
+
+Closeout evidence includes all six acceptance goldens, output isolation, a
+161.906 FPS conservative minimum for the five-hidden-branch synthetic workload,
+the unchanged 21-effect inventory and immutable asset hash, 403 passing final
+focused tests plus the bounded Host subset, authoring documentation, and
+explicit **NOT HARDWARE VERIFIED** status. Repository-wide pytest remains
+explicitly user-waived. Stop after Phase 34 closeout; Phase 35 remains
+unapproved.
 
 ## Current Phase 34: Integrated common motion clock
 

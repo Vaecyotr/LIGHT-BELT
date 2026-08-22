@@ -53,6 +53,9 @@ class CueBranchSpec:
     after_target_id: str
     target: TargetSelector
     origin: str = "start"
+    # ``start_on_release`` preserves the historical fresh-start branch
+    # behavior. ``pre_roll`` is an explicit opt-in for runtime scheduling.
+    lifecycle: str = "start_on_release"
 
 
 @dataclass(frozen=True, init=False)

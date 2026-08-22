@@ -61,6 +61,7 @@ AUDIO_STATES = frozenset(
 )
 MODULATION_CHANNELS = frozenset({"brightness", "speed", "intensity"})
 BRIGHTNESS_INTERPOLATIONS = frozenset({"linear", "step"})
+BRANCH_LIFECYCLES = frozenset({"start_on_release", "pre_roll"})
 
 
 class ShowValidationError(ValueError):
@@ -549,7 +550,7 @@ def _branches(value: Any, path: str, catalog: TargetCatalog) -> tuple[CueBranchS
     for index, raw in enumerate(_list(value, path)):
         item_path = f"{path}[{index}]"
         item = _mapping(raw, item_path)
-        _unknown(item, {"after", "target", "origin"}, item_path)
+        _unknown(item, {"after", "target", "origin", "lifecycle"}, item_path)
         after = _mapping(item.get("after"), f"{item_path}.after")
         _unknown(after, {"virtual_path", "target"}, f"{item_path}.after")
         path_id = _nonempty_str(after.get("virtual_path"), f"{item_path}.after.virtual_path")
@@ -560,6 +561,11 @@ def _branches(value: Any, path: str, catalog: TargetCatalog) -> tuple[CueBranchS
             after_target_id=_nonempty_str(after.get("target"), f"{item_path}.after.target"),
             target=_target(item.get("target"), f"{item_path}.target", catalog, version=2),
             origin=_choice(item.get("origin", "start"), f"{item_path}.origin", ORIGINS),
+            lifecycle=_choice(
+                item.get("lifecycle", "start_on_release"),
+                f"{item_path}.lifecycle",
+                BRANCH_LIFECYCLES,
+            ),
         ))
     return tuple(branches)
 

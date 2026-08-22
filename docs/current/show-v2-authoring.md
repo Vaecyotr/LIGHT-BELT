@@ -31,6 +31,43 @@ then compared to normalized cue/path progress. It does not inspect or detect a
 renderer's visible wavefront. All IDs in the set are rendered using the same
 logical frame timestamp and sequence. This is not a general graph/DAG API.
 
+Each branch may select when its independent effect instance starts processing:
+
+- omitted `lifecycle`, or `lifecycle: start_on_release`, preserves the original
+  behavior. The branch does no work while hidden, and its release frame is its
+  first processed frame.
+- `lifecycle: pre_roll` processes the branch from cue activation with the same
+  live cue time, motion interval, authored timeline, scalar sources, and
+  audio/video inputs as the parent cue. Its frames are discarded until the
+  existing `after` predicate releases it. The release frame continues that
+  one instance exactly once; it is not reset, reseeded, or processed twice.
+
+```yaml
+branches:
+  # Omitted lifecycle is equivalent to start_on_release.
+  - after: {virtual_path: screen_to_wall, target: strip_41}
+    target: {type: digital_set, ids: [strip_42]}
+    origin: start
+
+  # Stateful motion/audio history is already current when it becomes visible.
+  - after: {virtual_path: screen_to_wall, target: strip_41}
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    origin: edges
+    lifecycle: pre_roll
+```
+
+`pre_roll` changes simulation start, not visibility or release timing. Hidden
+contributions never enter composition or a transport and therefore never
+consume a logical output sequence; they do consume host CPU and effect state.
+No missing live-input history is synthesized. Each branch keeps its own
+deterministic effect instance and seed, so reset plus replay from cue start is
+repeatable without sharing randomness with its parent or sibling branches.
+
+`virtual_path` remains a separate spatial concept: it defines ordered logical
+coordinates and the bounded `after` calculation. It neither enables pre-roll
+nor changes lifecycle. Conversely, lifecycle does not change path mapping,
+origin transforms, or which target set is released.
+
 ## Target brightness tracks
 
 Optional `brightness_tracks` independently automate the logical output level

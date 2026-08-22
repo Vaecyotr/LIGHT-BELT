@@ -4,28 +4,82 @@ Date: 2026-08-22
 
 Baseline HEAD: `320dd90d638fddc63a5cc6a2cfd0cca46f0b4d3e`
 
+Branch-lifecycle closeout baseline HEAD:
+`0962d74e7b29f0874843a8b4870933308ee0bbb7`
+
 Worktree: `A:\BaiduNetdiskDownload\LIGHT-BELT\.agent-worktrees\WT04-github-main-reference`
 
 ## Decision and scope
 
-Phase 34 software acceptance is complete at its approved stop boundary. One
-cue-scoped `CueMotionClock` integrates the final composed common speed and
-publishes an immutable `MotionInterval` to renderers. Released branches share
-the parent cue clock. Common speed is now an instantaneous motion-rate
-multiplier: dynamic changes affect future slope only, zero pauses, and resume
-continues from the frozen phase. Constant speed remains equivalent to
-`cue_local_time × speed`.
+Phase 34 software acceptance, including the explicit branch-lifecycle
+closeout, is complete at its approved stop boundary. One cue-scoped
+`CueMotionClock` integrates the final composed common speed and publishes an
+immutable `MotionInterval` to renderers. Branches share the parent cue clock.
+Common speed is an instantaneous motion-rate multiplier: dynamic changes
+affect future slope only, zero pauses, and resume continues from the frozen
+phase. Constant speed remains equivalent to `cue_local_time × speed`.
 
-The migrated set is `single_dot`, `theater_phase`, `flowing_bands`, default
+The original migrated set is `single_dot`, `theater_phase`, `flowing_bands`, default
 time-driven `color_wipe`, `history_stream`, `heat_fire`, `onset_ripple`, and
 the stateless/multi-emitter comet branch. External `color_wipe` ScalarSource
-progress and the legacy single-emitter comet branch are unchanged. No effect
-ID, authored parameter, Show v2 syntax, topology, DDP, protocol, or ESP32
-firmware behavior was added or changed.
+progress and the legacy single-emitter comet branch remain unchanged. The
+closeout adds only optional Show v2 branch field `lifecycle`; it does not bump
+the Show version. No effect ID, effect parameter, topology, DDP, protocol, or
+ESP32 firmware behavior was added or changed.
 
 The user explicitly directed this run to omit repository-wide pytest because
 of its runtime cost. Accordingly, no full-suite pass is claimed. Validation
 used the Phase-focused and adjacent regression suites below.
+
+## Branch lifecycle closeout semantics
+
+Branch visibility and branch simulation start are independent decisions:
+
+- The existing `after` path-member predicate still controls the first visible
+  frame. Its path-progress calculation is unchanged.
+- Omitted `lifecycle` defaults to `start_on_release`. This preserves old YAML:
+  the branch does not process while hidden, and release is its first process.
+- Explicit `lifecycle: pre_roll` processes the branch exactly once on every
+  observed active cue frame, starting at cue activation. Contributions are
+  discarded before composition until release. The release frame uses that
+  frame's single already-current update without reset, reseed, or replay.
+- A hidden pre-roll branch receives live cue time, the shared motion interval,
+  common speed, audio/video features, authored color timeline, ScalarSource,
+  and existing effect-specific inputs. Missing historical live input is never
+  synthesized; backward seek still requires reset plus replay.
+- Parent and branches remain independent effect instances with their existing
+  deterministic seeds. Pre-roll does not force their random state to match.
+- `virtual_path` remains the spatial-continuity mechanism. Lifecycle neither
+  joins paths nor changes path mapping, origin, targets, or release progress.
+- Hidden rendering has only host CPU/state cost. It does not enter the final
+  composite, allocate a logical output sequence, trigger a transport send, or
+  reach an ESP32.
+
+The software goldens prove omitted/default equivalence, fresh-on-release,
+same-frame single processing, reset/replay, chase and six other state models,
+changing authored `history_stream` colors, actual time-varying audio history,
+multiple/mixed branches, never-released branches, virtual-path orthogonality,
+and output/sequence isolation.
+
+## Branch lifecycle performance evidence
+
+The reproducible fixture uses nine logical strips with
+`22,22,22,22,22,22,22,22,24` groups (200 total), one visible parent, and
+`0/1/3/5` unreleased pre-roll branches. Timing excludes the separate short
+`tracemalloc` sample. The five-hidden-branch results are:
+
+The full 12-case report is
+`artifacts/baselines/phase34-branch-lifecycle/benchmark.json`.
+
+| Representative effect | FPS | Mean | P95 | Mean overhead vs 0 branches | Peak allocation indicator |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `chase` (cheap) | 224.523 | 4.454 ms | 5.495 ms | 271.0% | 258.8 KiB |
+| `history_stream` (stateful) | 252.653 | 3.958 ms | 4.539 ms | 259.4% | 259.7 KiB |
+| `heat_fire` (heavy) | 161.906 | 6.176 ms | 7.283 ms | 349.3% | 295.0 KiB |
+
+The conservative minimum is **161.906 FPS**, so the current-development-machine
+30 FPS software gate passes. This is not an RK3588 measurement and is **NOT
+HARDWARE VERIFIED**.
 
 ## Authoritative runtime semantics
 
@@ -48,6 +102,16 @@ used the Phase-focused and adjacent regression suites below.
 
 | Check | Command | RC | Result |
 | --- | --- | ---: | --- |
+| Closeout focused baseline | `.\.python\Scripts\python.exe -m pytest -q tests\test_show_v2.py tests\test_common_motion_clock_phase34.py tests\test_virtual_paths.py tests\test_compositor.py tests\test_show_config.py` | 0 | 91 passed, 1.32s |
+| Closeout Wave 1 gate | Lifecycle schema/runtime/compatibility plus Show, motion, virtual-path, compositor and config focused files | 0 | 108 passed, 1.45s |
+| Closeout Wave 2 gate | All lifecycle files plus adjacent motion/state, virtual-path, compositor, Show runtime files | 0 | 165 passed, 4.58s |
+| Closeout final focused suite | 26 explicitly selected lifecycle, Phase 34, adjacent Phase 32/33, Show, virtual-path, registry and immutable-Show files | 0 | **403 passed, 7.97s** |
+| Closeout Host integration | `.\.python\Scripts\python.exe -m pytest -q tests\test_host_service_api.py -k "capabilities or effects_set_with_color or shows_listed"` | 0 | 3 passed, 71 deselected, 3 warnings, 1.37s |
+| Branch lifecycle benchmark | `.\.python\Scripts\python.exe scripts\branch_lifecycle_benchmark.py --warmup-frames 30 --measured-frames 120 --memory-frames 3 --minimum-five-branch-fps 30 --output artifacts\baselines\phase34-branch-lifecycle\benchmark.json` | 0 | Five-branch minimum 161.906 FPS; gate passed |
+| Immutable Show after closeout | `Get-FileHash -Algorithm SHA256 assets\energy-wakeup\energy-wakeup.yaml` | 0 | `627D23A4C73E66F1913C7B5CBB15CF1B16926E6772289237165535A2278C142D`, unchanged |
+| Closeout effect inventory | Bundled-Python `list_effects()` assertion | 0 | 21 existing IDs; no `coherent_noise_field` |
+| Closeout tracked whitespace | `git diff --check` | 0 | No whitespace error; LF/CRLF conversion warnings only |
+| Closeout new-file whitespace | PowerShell trailing-whitespace scan over eight new files | 0 | `NEW_CLOSEOUT_FILES_WHITESPACE_OK` |
 | Bundled Python | `.\.python\Scripts\python.exe -c "...AGENTS.md interpreter assertion..."` | 0 | `PROJECT_PYTHON_OK`; package loaded from this worktree |
 | Wave 1 isolated clock | `.\.python\Scripts\python.exe -m pytest -q tests\test_common_motion_clock_phase34.py` | 0 | 19 passed, 0.58s |
 | Primary Wave 1 gate | `.\.python\Scripts\python.exe -m pytest -q tests\test_common_motion_clock_phase34.py tests\test_show_common_effect_controls.py tests\test_show_engine_audio_modulation.py tests\test_adaptive_selector.py tests\test_show_v2.py tests\test_models.py tests\test_virtual_paths.py` | 0 | 140 passed, 1.28s |
@@ -74,9 +138,20 @@ after its unrelated full Host API portion proved slow; it is not counted as
 passing evidence. The relevant Host endpoints were rerun explicitly as shown
 above.
 
+During the lifecycle closeout, the first continuity-matrix revisions returned
+RC 1 because of test-harness `delta_time` and nested-approximation errors; no
+production defect was involved, and the corrected file passed 8 tests. An
+initial performance fixture mistakenly used 1,800 total logical groups and
+returned RC 1 with a 20.044 FPS minimum; a still heavier 30-frame memory sample
+was stopped safely. Both were rejected as out of scope when the authoritative
+requirement was reread. The corrected nine-strip, 200-total-group benchmark is
+the passing evidence recorded above.
+
 ## Compatibility and limitations
 
-- The immutable approved Show source is unchanged byte-for-byte.
+- The immutable approved Show source and archived branch-bearing Show are
+  unchanged byte-for-byte; the archived Show loads with the omitted lifecycle
+  default and retains fresh-on-release behavior.
 - No new effect ID exists; all origin transforms remain compositor-owned and
   virtual paths remain continuous logical paths.
 - Existing delta-time integrations in chase, color wave, and legacy comet were
@@ -90,11 +165,8 @@ above.
   HARDWARE VERIFIED**.
 - No ESP32 build was required or run because Phase 34 did not change firmware.
 
-The final whole-worktree tracked `git diff --stat` was `161 files changed,
-3912 insertions(+), 11113 deletions(-)`. This includes the large uncommitted
-Phase 31–33/governance baseline present before Phase 34 and excludes untracked
-files, so it is not a Phase 34-only size claim. Final status remained dirty and
-the branch remained 41 commits ahead of `origin/main`; no file was staged,
-committed, pushed, or reverted.
+The Phase 34 branch-lifecycle closeout staged diff at commit review was **14
+files changed, 1,899 insertions, 38 deletions**. The unrelated untracked
+`.codex/` directory was deliberately excluded.
 
 Stop after Phase 34. Phase 35 is not approved or prepared.

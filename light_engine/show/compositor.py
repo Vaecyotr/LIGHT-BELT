@@ -81,6 +81,15 @@ class FrameContribution:
 
 
 @dataclass(frozen=True)
+class _BranchRenderJob:
+    """One bounded branch plus its visibility and simulation policy."""
+
+    release_progress: float
+    lifecycle: str
+    job: "CueRenderJob"
+
+
+@dataclass(frozen=True)
 class ResolvedBrightnessTrack:
     """One brightness track expanded to concrete logical target IDs."""
 
@@ -497,10 +506,13 @@ class CueRenderJob:
         )
         self._audio_modulator = CueAudioModulator(cue.audio_modulation)
         self.effect = effect if effect is not None else self._create_effect()
-        self._branch_jobs: tuple[tuple[float, CueRenderJob], ...] = tuple(
-            (
-                resolver.release_progress(branch.path_id, branch.after_target_id),
-                CueRenderJob(
+        self._branch_jobs: tuple[_BranchRenderJob, ...] = tuple(
+            _BranchRenderJob(
+                release_progress=resolver.release_progress(
+                    branch.path_id, branch.after_target_id
+                ),
+                lifecycle=branch.lifecycle,
+                job=CueRenderJob(
                     replace(
                         cue,
                         id=f"{cue.id}:branch:{index}",
@@ -602,20 +614,33 @@ class CueRenderJob:
             self.effect.reset()
         else:
             self.effect = self._create_effect()
-        for _progress, job in self._branch_jobs:
-            job.reset()
+        for branch in self._branch_jobs:
+            branch.job.reset()
 
     def render_branches(self, ctx: EffectContext) -> tuple[FrameContribution, ...]:
-        """Render bounded releases; every member of a digital_set shares this frame."""
+        """Advance bounded branches and return only those released this frame.
+
+        ``pre_roll`` jobs render once on every active cue frame so they receive
+        the same live inputs and cue motion interval as the parent.  Their
+        contributions are intentionally discarded until the existing release
+        predicate becomes true.  ``start_on_release`` retains the historical
+        behavior and does not render while hidden.
+        """
         duration = self.cue.end - self.cue.start
         progress = (ctx.timestamp - self.cue.start) / duration
-        return tuple(
-            job.render(ctx)
-            for release_progress, job in self._branch_jobs
-            if progress > release_progress or math.isclose(
-                progress, release_progress, rel_tol=0.0, abs_tol=1e-12
+        visible: list[FrameContribution] = []
+        for branch in self._branch_jobs:
+            released = progress > branch.release_progress or math.isclose(
+                progress,
+                branch.release_progress,
+                rel_tol=0.0,
+                abs_tol=1e-12,
             )
-        )
+            if branch.lifecycle == "pre_roll" or released:
+                contribution = branch.job.render(ctx)
+                if released:
+                    visible.append(contribution)
+        return tuple(visible)
 
     def _create_effect(self, name: str | None = None) -> BaseEffect | None:
         if name is None:
