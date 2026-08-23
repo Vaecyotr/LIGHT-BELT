@@ -38,15 +38,14 @@ _ENERGY_WAKEUP_SHA256 = (
 )
 
 
-def test_history_stream_is_the_only_phase33_effect_id() -> None:
+def test_phase35_adds_only_coherent_noise_field_after_phase33() -> None:
     current = set(list_effects())
-    assert current - _PHASE32_EFFECTS == {"history_stream"}
+    assert current - _PHASE32_EFFECTS == {"history_stream", "coherent_noise_field"}
     assert _PHASE32_EFFECTS <= current
 
 
 def test_phase33_does_not_register_forbidden_frameworks_or_wled_aliases() -> None:
     forbidden = {
-        "coherent_noise_field",
         "audio_reactive_palette",
         "multi_comet",
         "juggle",

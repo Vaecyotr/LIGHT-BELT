@@ -80,6 +80,7 @@ class TwinkleEffect(BaseEffect):
         self._color = (float(color[0]), float(color[1]), float(color[2]))
         self._pixels: dict[str, list[tuple[float, float, float]]] = {}
         self._spawn_remainders: dict[str, float] = {}
+        self._color_event_indices: dict[str, int] = {}
         # The historical default deliberately continues to use the module RNG
         # below.  Event-field controls use this separate, resettable stream so
         # replay is deterministic without changing the legacy random-call
@@ -118,8 +119,13 @@ class TwinkleEffect(BaseEffect):
         color_source: str,
         solid: tuple[float, float, float],
         rng: random.Random,
+        event_identity: object | None = None,
     ) -> tuple[float, float, float]:
         """Select an authored twinkle color from the replayable event stream."""
+
+        sampler = ctx.mode_parameters.get("color_sampler")
+        if sampler is not None:
+            return sampler.sample_event(ctx, event_identity)
 
         if color_source == "random":
             return self._event_random_color(rng)
@@ -196,6 +202,7 @@ class TwinkleEffect(BaseEffect):
         blur_radius = runtime_float(ctx, "blur_radius_px", 0.0)
         event_gate_source = runtime_param(ctx, "event_gate_source", None)
         birth_gain_source = runtime_param(ctx, "birth_gain_source", None)
+        sampler = ctx.mode_parameters.get("color_sampler")
         validate_twinkle_params(
             {
                 "density": density,
@@ -213,6 +220,7 @@ class TwinkleEffect(BaseEffect):
             or blur_radius != 0.0
             or event_gate_source is not None
             or birth_gain_source is not None
+            or sampler is not None
         )
         event_gate = (
             1.0
@@ -237,6 +245,7 @@ class TwinkleEffect(BaseEffect):
             if current is None or len(current) != pixel_count:
                 current = [(0.0, 0.0, 0.0)] * pixel_count
                 self._spawn_remainders[strip_id] = 0.0
+                self._color_event_indices[strip_id] = 0
             current = [
                 (
                     (r * decay, g * decay, b * decay)
@@ -256,6 +265,8 @@ class TwinkleEffect(BaseEffect):
                 if event_field:
                     assert event_rng is not None
                     position = event_rng.randrange(pixel_count)
+                    event_index = self._color_event_indices.get(strip_id, 0)
+                    self._color_event_indices[strip_id] = event_index + 1
                     self._add_event_field(
                         current,
                         position=position,
@@ -264,6 +275,7 @@ class TwinkleEffect(BaseEffect):
                             color_source,
                             solid,
                             event_rng,
+                            (strip_id, event_index),
                         ),
                         width=event_width,
                         blur_radius=blur_radius,
@@ -287,6 +299,7 @@ class TwinkleEffect(BaseEffect):
         for stale_id in set(self._pixels) - active_ids:
             self._pixels.pop(stale_id, None)
             self._spawn_remainders.pop(stale_id, None)
+            self._color_event_indices.pop(stale_id, None)
 
         self._last_cue_time = cue_time
 
@@ -307,6 +320,7 @@ class TwinkleEffect(BaseEffect):
     def reset(self) -> None:
         self._pixels.clear()
         self._spawn_remainders.clear()
+        self._color_event_indices.clear()
         self._event_rng = None
         self._event_rng_cue_id = None
         self._last_cue_time = None

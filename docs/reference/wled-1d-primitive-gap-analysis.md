@@ -9,6 +9,9 @@
 >
 > 所有灯带观感、组播、跨板接缝和真实输出均 **NOT HARDWARE VERIFIED**。
 
+> **Historical Phase 32 analysis.** Phase 36 的最终复审与关闭结论见
+> `docs/reference/wled-1d-closure-phase36.md`；本文件保留当时的原始 25-family 研究口径，不再代表当前缺口。
+
 ## 1. 结论先行
 
 WLED mode ID 不是 LIGHT-BELT visual primitive。按状态模型、空间几何和时间推进去掉方向、速度、颜色、

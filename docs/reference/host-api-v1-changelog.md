@@ -19,20 +19,22 @@ Host API V1.0 基于 Candidate validation / mapping 审计结果整理，Candida
 - 将 `effect_params` 固定为 effect 专用参数对象。
 - 将 `transition_ms` 固定为 Host Service 层过渡语义，用于 `lights/set` 和 `effects/set`。
 
-## V1.0 固定的 target alias
+## V1.0 固定的 target alias（历史归档 / 已被 strip_* 体系取代）
 
-| target_id | V1.0 语义 |
+> **说明**：下表为早期 Candidate / 审计阶段固定记录。当前正式 APP target contract 已全面切换为基于 Profile 动态派生的 `strip_<label>`（如 `strip_11`、`strip_21`、`strip_31`、`strip_41`）以及 `all`、`starry_sky` 体系。下表仅保留作为历史记录，当前示例与接口均以 `strip_*` 为准。
+
+| target_id | V1.0 语义（历史） |
 |---|---|
 | `all` | 全部区域 |
-| `ceiling_left` | 左侧顶部区域 |
-| `ceiling_right` | 右侧顶部区域 |
-| `wall_left` | 左墙区域 |
-| `wall_right` | 右墙区域 |
-| `front` | 前方区域 |
-| `rear` | 后方区域 |
-| `screen` | 屏幕区域 |
-| `screen_surround` | 屏幕环绕区域 |
-| `virtual_path.screen_to_wall` | 屏幕到墙面的连续路径 |
+| `ceiling_left` | 左侧顶部区域（superseded） |
+| `ceiling_right` | 右侧顶部区域（superseded） |
+| `wall_left` | 左墙区域（superseded） |
+| `wall_right` | 右墙区域（superseded） |
+| `front` | 前方区域（superseded） |
+| `rear` | 后方区域（superseded） |
+| `screen` | 屏幕区域（superseded） |
+| `screen_surround` | 屏幕环绕区域（superseded） |
+| `virtual_path.screen_to_wall` | 屏幕到墙面的连续路径（superseded） |
 
 ## V1.0 固定的 Host Service 层语义
 
@@ -81,3 +83,23 @@ Host API V1.0 基于 Candidate validation / mapping 审计结果整理，Candida
 - 明确当前文档用于 APP 开发、Mock 和接口冻结。
 - 将 Certificate Fingerprint 说明为预生成证书指纹。
 - 明确实际联调以部署到 RK3588 的 Host Service 使用的证书为准。
+
+## Phase 40 最终文档与 APP V1 基线收口（2026-08-23）
+
+- **APP V1 历史兼容基线锁定**：
+  - Source Repo: `https://github.com/zxlzzz/LIGHT-BELT`
+  - Source Commit: `0380e4e1ecb926148d9afc07b7f95f6ad0aa4c6b` (`0380e4e`)
+  - Source Date: `2026-08-19`
+  - Reason: Phase 32 之前的已知稳定集成状态（APP + Host + Show 播放均可正常配合工作）。
+- **APP 职责与系统边界**：
+  - APP 负责：Show 选择、播放、暂停、继续、停止、seek/进度、总体灯光亮度（`brightness_scale`）、音量、静音、状态显示。
+  - APP 不负责：指定某条灯带用什么 effect、编辑 effect 参数、参数调制（`parameter_modulation`）、颜色源（`ColorSource`）、连续虚拟路径（`virtual_path`）、分支生命周期、运动时钟等。
+  - Phase 35-40 的所有高级灯效能力完全封装在 Show YAML 与 RK3588 `light_engine` 内部。
+- **清理旧 target alias 文档残留**：
+  - 明确早期固定区域别名（`ceiling_left`、`ceiling_right`、`wall_left`、`wall_right`、`front`、`rear`、`screen`、`screen_surround`、`virtual_path.screen_to_wall` 等）已被当前 profile/layout 动态派生的 `strip_*`、`all`、`starry_sky` 取代。
+  - `docs/reference/host-api-v1.md` 中的示例已全部更新为当前的 `strip_*` 示例。
+- **API 版本稳定性**：
+  - 维持 Host API V1 规范不变，不升级为 V2。
+  - 内部 EffectRegistry 扩张（22 种灯效、111 个参数、ColorSource）不向 APP 暴露，APP 无需任何修改。
+- **测试追溯与回归保障**：
+  - 新增历史基线 fixture `tests/fixtures/app_v1/pre_phase32_0380e4e.json`，确保 APP V1 compatibility facade 严格匹配历史稳定公开合同。

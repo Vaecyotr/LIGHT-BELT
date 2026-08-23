@@ -93,7 +93,7 @@ def test_duplicate_effect_registration_is_rejected_without_replacing_contract() 
         register_effect(
             "static",
             original.renderer,
-            parameter_keys=original.parameter_keys,
+            parameter_specs=original.parameter_specs,
         )
 
     assert get_effect_registration("static") is original

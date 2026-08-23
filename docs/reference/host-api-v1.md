@@ -2,6 +2,17 @@
 
 本文档面向 APP 开发人员，说明 APP 如何通过 HTTPS REST JSON 与 WSS WebSocket JSON 接入 RK3588 Host Service。RK3588 IP 已确定为 `192.168.31.236`；当前 LIGHT-BELT Host Service 尚未部署到 RK3588，本文档用于 APP 开发、Mock 和接口冻结。
 
+### APP V1 基线与职责边界说明
+
+- **已知稳定基线（Known-good baseline）**：
+  - 源码仓库：`https://github.com/zxlzzz/LIGHT-BELT`
+  - 提交版本：`0380e4e1ecb926148d9afc07b7f95f6ad0aa4c6b` (`0380e4e`)
+  - 提交日期：`2026-08-19`
+  - 说明：此提交为 Phase 32 之前的已知稳定集成状态（APP + Host + Show 播放均可正常配合工作）。当前 APP-facing V1 接口保持与该历史基线客户端的完全兼容。
+- **APP 职责范围**：APP 是外包的播放与控制客户端，主要负责 Show 选择、播放/暂停/继续/停止、播放进度 Seek、总体灯光亮度（`brightness_scale`）、音量调节、静音控制与状态显示。
+- **内部高级功能边界**：APP 不负责指定单条灯带灯效、编辑灯效参数、动态参数调制、动态色彩源取样、连续虚拟路径、分支生命周期、运动时钟或相干场等高级编排。这些高级能力完全封装在 Show YAML 与 RK3588 引擎内部。
+- **API 稳定性**：公开接口保持 Host API V1 规范，不升级为 V2，内部 EffectRegistry 的扩展不会自动暴露给 APP，APP 亦无需任何修改。
+
 ## 1. 快速接入
 
 RK3588 部署后联调信息：
@@ -406,6 +417,7 @@ Response JSON 示例：
     "position_ms": 126000,
     "duration_ms": 300000,
     "brightness": 0.8,
+    "brightness_scale": 0.5,
     "color_temperature": 4200,
     "volume": 0.8,
     "muted": false,
@@ -579,7 +591,8 @@ Response JSON 示例：
         "playback.progress",
         "device.status",
         "error.event",
-        "heartbeat"
+        "heartbeat",
+        "scene.applied"
       ]
     },
     "supports": {
@@ -590,7 +603,10 @@ Response JSON 示例：
       "effects": true,
       "color_temperature": true,
       "transitions": true,
-      "websocket": true
+      "websocket": true,
+      "audio": true,
+      "scenes": true,
+      "brightness_scale": true
     }
   }
 }
@@ -606,9 +622,9 @@ Response 字段解释：
 | `effects` | 是 | object[] | 可用灯效列表。 |
 | `effects[].effect_type` | 是 | string | APP 调用时使用的灯效类型。 |
 | `effects[].name` | 是 | string | APP 展示名称。 |
-| `effects[].params` | 是 | string[] | 通用参数名列表。 |
-| `effects[].effect_params` | 是 | string[] | 灯效专用参数名列表。 |
-| `websocket.message_types` | 是 | string[] | 可订阅 WebSocket 消息类型。 |
+| `effects[].params` | 是 | string[] | 固定 V1 通用参数名列表。 |
+| `effects[].effect_params` | 是 | string[] | 固定 V1 灯效专用参数名列表；不反映当前引擎 Registry。 |
+| `websocket.message_types` | 是 | string[] | 可订阅 WebSocket 消息类型；V1 固定为 `session.connected`、`runtime.state`、`playback.progress`、`device.status`、`error.event`、`heartbeat`、`scene.applied`。 |
 | `supports` | 是 | object | Host Service 功能能力。 |
 
 可能的 `error.code`：
@@ -1007,7 +1023,7 @@ Request JSON 示例：
 
 ```json
 {
-  "target_id": "screen_surround",
+  "target_id": "strip_11",
   "brightness": 0.72,
   "color_temperature": 4200,
   "transition_ms": 800
@@ -1030,7 +1046,7 @@ Response JSON 示例：
   "ok": true,
   "request_id": "req-lights-001",
   "data": {
-    "target_id": "screen_surround",
+    "target_id": "strip_11",
     "brightness": 0.72,
     "color_temperature": 4200,
     "transition_ms": 800,
@@ -1069,11 +1085,11 @@ Response 字段解释：
 | Method | `POST` |
 | Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
 
-Request JSON 示例一：为连续路径设置追逐灯效。
+Request JSON 示例一：为单条灯带设置追逐灯效。
 
 ```json
 {
-  "target_id": "virtual_path.screen_to_wall",
+  "target_id": "strip_21",
   "effect_type": "chase",
   "params": {
     "speed": 0.65,
@@ -1088,11 +1104,11 @@ Request JSON 示例一：为连续路径设置追逐灯效。
 }
 ```
 
-Request JSON 示例二：为屏幕环绕区域设置静态颜色。
+Request JSON 示例二：为单条灯带设置静态颜色。
 
 ```json
 {
-  "target_id": "screen_surround",
+  "target_id": "strip_11",
   "effect_type": "static",
   "params": {
     "color": {
@@ -1128,7 +1144,7 @@ Response JSON 示例：
   "ok": true,
   "request_id": "req-effects-001",
   "data": {
-    "target_id": "virtual_path.screen_to_wall",
+    "target_id": "strip_21",
     "effect_type": "chase",
     "transition_ms": 500,
     "accepted": true
@@ -1662,6 +1678,7 @@ JSON 示例：
     "playback_state": "playing",
     "show_id": "teacher-demo-v1",
     "brightness": 0.8,
+    "brightness_scale": 0.5,
     "color_temperature": 4200,
     "audio_available": true,
     "video_available": true,
@@ -1679,6 +1696,7 @@ data 字段解释：
 | `playback_state` | 是 | string | 播放状态。 |
 | `show_id` | 是 | string 或 null | 当前节目 ID。 |
 | `brightness` | 是 | number | 当前亮度。 |
+| `brightness_scale` | 是 | number | 当前亮度乘数。 |
 | `color_temperature` | 是 | number | 当前色温。 |
 | `audio_available` | 是 | boolean | 音频输入是否可用。 |
 | `video_available` | 是 | boolean | 视频输入是否可用。 |
@@ -1728,8 +1746,8 @@ JSON 示例：
   "data": {
     "devices": [
       {
-        "device_id": "analog.ceiling_left",
-        "device_type": "light_zone",
+        "device_id": "node_1",
+        "device_type": "wled_board",
         "status": "online",
         "last_output_ms": 1720000000290,
         "last_seen_ms": 1720000000288,
@@ -1737,7 +1755,7 @@ JSON 示例：
         "error_code": null,
         "debug": {
           "node_id": 1,
-          "node_type": "analog_rgbcct"
+          "node_type": "ws2811_digital"
         }
       }
     ]
@@ -1773,9 +1791,9 @@ JSON 示例：
   "sequence": 5,
   "data": {
     "error_code": "DEVICE_OFFLINE",
-    "message": "Device digital.screen_to_wall is offline",
+    "message": "Device node_1 is offline",
     "details": {
-      "device_id": "digital.screen_to_wall"
+      "device_id": "node_1"
     }
   }
 }
@@ -1811,6 +1829,9 @@ data 字段解释：
 | 字段 | 必填 | 类型 | 说明 |
 |---|---:|---|---|
 | `session_id` | 是 | string | 当前 WebSocket 会话 ID。 |
+### scene.applied
+
+这是保留的 V1 订阅词表。当前 Host Service 不会自主发送此事件；APP 不应将其作为场景应用完成的确认依据。未来若实现推送，仍将使用已冻结的 `type: "scene.applied"` 信封名称。
 
 ## 8. 字段字典
 
@@ -1897,30 +1918,15 @@ data 字段解释：
 
 这些值是 Host Service 暴露给 APP 的逻辑目标，不是文件路径，也不是硬件节点地址。
 **实际可用的 `target_id` 列表由引擎配置文件（`ENGINE_PROFILE_PATH`）中的布局在启动时动态生成，
-通过 `GET /capabilities` 的 `targets` 数组获取。** 固定项如下：
+通过 `GET /capabilities` 的 `targets` 数组获取。** 当前稳定体系项如下：
 
 | 值 | 说明 |
 |---|---|
 | `all` | 全部数字灯带（广播目标）。 |
-| `strip_<label>` | 单条数字灯带，label 为物理标签，例如 `strip_11`、`strip_22`。具体列表从布局文件派生。 |
-| `starry_sky` | 星空灯（UDP 拨动设备，192.168.31.205:3333）。独立目标，不属于数字灯带。 |
+| `strip_<label>` | 单条数字灯带，label 为物理标签，例如 `strip_11`、`strip_21`、`strip_31`、`strip_41`。具体列表从布局与 Profile 派生。 |
+| `starry_sky` | 星空灯（UDP 拨动设备）。独立目标，不属于数字灯带。 |
 
-`starry_sky` 支持的 `effect_type`：
-
-| `effect_type` | 说明 |
-|---|---|
-| `twinkle` | 开启星空灯（闪烁效果）。 |
-| 其他值 | 关闭星空灯。 |
-
-`starry_sky` 的 `GET /capabilities` 响应格式：
-
-```json
-{
-  "target_id": "starry_sky",
-  "name": "星空灯",
-  "supported_effects": ["twinkle"]
-}
-```
+> **历史 target alias 说明**：早期 Candidate / 历史文档中曾出现的固定区域别名（如 `ceiling_left`、`ceiling_right`、`wall_left`、`wall_right`、`front`、`rear`、`screen`、`screen_surround` 等）已被当前基于 Profile 动态派生的 `strip_*` 及 `all`、`starry_sky` 体系正式取代（superseded），不再属于当前正式 APP target contract。
 
 ### effect_type
 
@@ -1964,6 +1970,7 @@ data 字段解释：
 | `device.status` | 设备状态。 |
 | `error.event` | 错误事件。 |
 | `heartbeat` | 心跳。 |
+| `scene.applied` | 场景已应用。 |
 
 ## 10. 错误码表
 

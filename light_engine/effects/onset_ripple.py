@@ -69,6 +69,7 @@ class _Wave:
     bass: float
     high: float
     loudness: float
+    color: tuple[float, float, float]
 
 
 class OnsetRippleEffect(BaseEffect):
@@ -179,6 +180,8 @@ class OnsetRippleEffect(BaseEffect):
         if type(wrap) is not bool:
             raise ValueError("wrap must be a boolean")
         color = runtime_rgb(ctx, "color", (1.0, 0.35, 0.08))
+        sampler = ctx.mode_parameters.get("color_sampler")
+        floor_color = color if sampler is None else sampler.sample_current(ctx)
         audio = ctx.audio_features
         silent = audio is None or audio.silence
         if audio is None:
@@ -198,8 +201,22 @@ class OnsetRippleEffect(BaseEffect):
             strength = min(1.0, event * (0.35 + 0.35 * loudness + 0.2 * bass + 0.1 * high))
             self._event_index += 1
             origin = self._event_origin(ctx, self._event_index)
+            event_color = (
+                color
+                if sampler is None
+                else sampler.sample_event(ctx, ("onset_ripple", self._event_index))
+            )
             self._waves.append(
-                _Wave(cue_time, motion_time, strength, origin, bass, high, loudness)
+                _Wave(
+                    cue_time,
+                    motion_time,
+                    strength,
+                    origin,
+                    bass,
+                    high,
+                    loudness,
+                    event_color,
+                )
             )
             del self._waves[:-self.MAX_WAVES]
         self._previous_peak = peak
@@ -209,7 +226,7 @@ class OnsetRippleEffect(BaseEffect):
         for strip_def in ctx.mode_parameters.get("strip_defs", ()):
             pixels = []
             for index in range(strip_def["pixel_count"]):
-                value = [channel * floor for channel in color]
+                value = [channel * floor for channel in floor_color]
                 x = index + 0.5
                 for wave in self._waves:
                     # ``wave.origin`` is a shared normalized event location.
@@ -237,7 +254,7 @@ class OnsetRippleEffect(BaseEffect):
                         0.5 + 0.5 * wave.high,
                     )
                     for channel in range(3):
-                        value[channel] += color[channel] * wave.strength * shape * fade * gains[channel]
+                        value[channel] += wave.color[channel] * wave.strength * shape * fade * gains[channel]
                 pixels.append(tuple(min(1.0, channel * ctx.intensity) for channel in value))
             strips.append(DigitalStrip(strip_def["id"], strip_def["pixel_count"], pixels))
         zones = [ZoneOutput(zone["id"], RGBCCTColor()) for zone in ctx.mode_parameters.get("zone_defs", ())]

@@ -5,7 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping as TypingMapping
+import math
+from typing import Any, Callable, Literal, Mapping as TypingMapping
 
 from light_engine.motion import MotionInterval, constant_speed_motion_interval
 from light_engine.models import (
@@ -49,6 +50,85 @@ class EffectCapability:
         return frozenset(self.common_params) & frozenset({"speed", "intensity"})
 
 
+ParameterKind = Literal[
+    "float",
+    "integer",
+    "boolean",
+    "enum",
+    "rgb",
+    "scalar_source",
+    "color_timeline",
+    "id_list",
+    "object",
+]
+ColorSourceSupport = Literal["GLOBAL", "POSITIONAL", "EVENT", "NOT_APPLICABLE"]
+
+_PARAMETER_KINDS = frozenset(
+    {
+        "float",
+        "integer",
+        "boolean",
+        "enum",
+        "rgb",
+        "scalar_source",
+        "color_timeline",
+        "id_list",
+        "object",
+    }
+)
+_COMMON_MODULATION_OWNERS = frozenset({"brightness", "speed", "intensity"})
+_COLOR_SOURCE_SUPPORT_VALUES = frozenset(
+    {"GLOBAL", "POSITIONAL", "EVENT", "NOT_APPLICABLE"}
+)
+
+
+@dataclass(frozen=True)
+class ParameterSpec:
+    """Immutable internal authoring semantics for one effect parameter.
+
+    This is deliberately registry-only metadata.  It is neither a Host API
+    model nor a second source for renderer defaults: existing validators and
+    renderer/config defaults remain the authority for behaviors not expressed
+    here.
+    """
+
+    name: str
+    kind: ParameterKind
+    minimum: float | None = None
+    maximum: float | None = None
+    choices: tuple[str, ...] = ()
+    unit: str | None = None
+    runtime_mutable: bool = False
+    modulatable: bool = False
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("parameter spec name must be non-empty")
+        if self.kind not in _PARAMETER_KINDS:
+            raise ValueError(f"unsupported parameter kind: {self.kind!r}")
+        for label, value in (("minimum", self.minimum), ("maximum", self.maximum)):
+            if value is not None and not math.isfinite(value):
+                raise ValueError(f"parameter spec {label} must be finite")
+        if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
+            raise ValueError("parameter spec minimum cannot exceed maximum")
+        if self.kind == "enum" and not self.choices:
+            raise ValueError("enum parameter specs require choices")
+        if self.kind != "enum" and self.choices:
+            raise ValueError("only enum parameter specs may define choices")
+        if len(set(self.choices)) != len(self.choices):
+            raise ValueError("parameter spec choices must be unique")
+        if self.modulatable:
+            if not self.runtime_mutable:
+                raise ValueError("modulatable parameters must be runtime-mutable")
+            if self.kind != "float":
+                raise ValueError("only float parameters may be modulatable")
+            if self.name in _COMMON_MODULATION_OWNERS:
+                raise ValueError(
+                    f"{self.name} is owned by common modulation and cannot be generic-modulatable"
+                )
+
+
 @dataclass(frozen=True)
 class EffectRegistration:
     """Single authoring/runtime contract for one reusable effect ID."""
@@ -57,8 +137,15 @@ class EffectRegistration:
     renderer: type[BaseEffect]
     factory: Callable[[str], BaseEffect]
     validator: Callable[[TypingMapping[str, Any]], TypingMapping[str, Any]]
-    parameter_keys: frozenset[str]
+    parameter_specs: tuple[ParameterSpec, ...]
     capability: EffectCapability
+    color_source_support: ColorSourceSupport = "NOT_APPLICABLE"
+
+    @property
+    def parameter_keys(self) -> frozenset[str]:
+        """Derived compatibility view; specs are the sole parameter authority."""
+
+        return frozenset(spec.name for spec in self.parameter_specs)
 
 
 # Registry of complete effect contracts. This is the only effect-ID authority.
@@ -70,21 +157,33 @@ def register_effect(
     cls: type[BaseEffect],
     validator: Callable[[TypingMapping[str, Any]], TypingMapping[str, Any]] | None = None,
     *,
-    parameter_keys: frozenset[str] = frozenset(),
+    parameter_specs: tuple[ParameterSpec, ...] = (),
     display_name: str | None = None,
     common_params: tuple[str, ...] = (),
     factory: Callable[[str], BaseEffect] | None = None,
+    color_source_support: ColorSourceSupport = "NOT_APPLICABLE",
 ) -> None:
     """Register one complete effect contract and reject duplicate IDs."""
     if name in _EFFECT_REGISTRY:
         raise ValueError(f"Effect already registered: {name}")
-    allowed = frozenset(parameter_keys)
+    specs = tuple(parameter_specs)
+    if color_source_support not in _COLOR_SOURCE_SUPPORT_VALUES:
+        raise ValueError(
+            f"effect {name!r} has invalid ColorSource support {color_source_support!r}"
+        )
+    names = tuple(spec.name for spec in specs)
+    if len(set(names)) != len(names):
+        raise ValueError(f"effect {name!r} has duplicate parameter spec names")
+    allowed = frozenset(names)
     effect_validator = validator or (lambda values: dict(values))
 
     def validate(values: TypingMapping[str, Any]) -> TypingMapping[str, Any]:
         unknown = set(values) - set(allowed)
         if unknown:
             raise ValueError(f"unknown effect parameters: {sorted(unknown)}")
+        for spec in specs:
+            if spec.name in values:
+                _validate_parameter_value(spec, values[spec.name])
         validated = dict(effect_validator(values))
         unexpected = set(validated) - set(allowed)
         if unexpected:
@@ -98,12 +197,88 @@ def register_effect(
         renderer=cls,
         factory=factory or cls,
         validator=validate,
-        parameter_keys=allowed,
+        parameter_specs=specs,
         capability=EffectCapability(
             display_name or name.replace("_", " ").title(),
             tuple(common_params),
         ),
+        color_source_support=color_source_support,
     )
+
+
+def _validate_parameter_value(spec: ParameterSpec, value: Any) -> None:
+    """Apply the type/range portion of the single registry contract.
+
+    Effect-specific validators still own relational rules (for example
+    ``highlight_gain >= base_gain``) and domain checks that cannot be stated by
+    one spec.  This shared layer keeps their public scalar/enum boundaries from
+    silently diverging from exported metadata.
+    """
+
+    if spec.kind == "float":
+        if type(value) not in {int, float} or not math.isfinite(float(value)):
+            raise ValueError(f"{spec.name} must be a finite number")
+        number = float(value)
+        if spec.minimum is not None and number < spec.minimum:
+            if spec.maximum is not None:
+                raise ValueError(f"{spec.name} must be in [{spec.minimum}, {spec.maximum}]")
+            raise ValueError(f"{spec.name} must be >= {spec.minimum}")
+        if spec.maximum is not None and number > spec.maximum:
+            if spec.minimum is not None:
+                raise ValueError(f"{spec.name} must be in [{spec.minimum}, {spec.maximum}]")
+            raise ValueError(f"{spec.name} must be <= {spec.maximum}")
+        return
+    if spec.kind == "integer":
+        if type(value) is not int:
+            raise ValueError(f"{spec.name} must be an integer")
+        if spec.minimum is not None and value < spec.minimum:
+            if spec.maximum is not None:
+                raise ValueError(f"{spec.name} must be in [{spec.minimum}, {spec.maximum}]")
+            raise ValueError(f"{spec.name} must be >= {spec.minimum}")
+        if spec.maximum is not None and value > spec.maximum:
+            if spec.minimum is not None:
+                raise ValueError(f"{spec.name} must be in [{spec.minimum}, {spec.maximum}]")
+            raise ValueError(f"{spec.name} must be <= {spec.maximum}")
+        return
+    if spec.kind == "boolean":
+        if type(value) is not bool:
+            raise ValueError(f"{spec.name} must be a boolean")
+        return
+    if spec.kind == "enum":
+        if not isinstance(value, str) or value not in spec.choices:
+            raise ValueError(f"{spec.name} must be one of {list(spec.choices)}")
+        return
+    if spec.kind == "rgb":
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) != 3:
+            raise ValueError(f"{spec.name} must contain exactly 3 RGB channels")
+        if any(
+            type(channel) not in {int, float}
+            or not math.isfinite(float(channel))
+            or not 0.0 <= float(channel) <= 1.0
+            for channel in value
+        ):
+            raise ValueError(f"{spec.name} channels must be finite numbers in [0, 1]")
+        return
+    if spec.kind == "scalar_source":
+        # Existing Show validators deliberately treat an explicit ``null`` as
+        # the same optional no-source state as an omitted field.
+        if value is None:
+            return
+        if not isinstance(value, str):
+            raise ValueError(f"{spec.name} must be a scalar source name")
+        return
+    if spec.kind == "color_timeline":
+        if not isinstance(value, Mapping):
+            raise ValueError(f"{spec.name} must be a color timeline object")
+        return
+    if spec.kind == "id_list":
+        if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or not all(
+            isinstance(item, str) for item in value
+        ):
+            raise ValueError(f"{spec.name} must be a list of IDs")
+        return
+    if spec.kind == "object" and not isinstance(value, Mapping):
+        raise ValueError(f"{spec.name} must be an object")
 
 
 def create_effect(name: str) -> BaseEffect:
@@ -139,6 +314,12 @@ def validate_effect_params(name: str, values: TypingMapping[str, Any]) -> Typing
 def get_effect_parameter_keys(name: str) -> frozenset[str]:
     """Return registered authored-show parameter keys for an effect."""
     return get_effect_registration(name).parameter_keys
+
+
+def get_effect_parameter_specs(name: str) -> tuple[ParameterSpec, ...]:
+    """Return authoritative internal metadata for one registered effect."""
+
+    return get_effect_registration(name).parameter_specs
 
 
 def apply_common_intensity(frame: PixelFrame, intensity: float) -> PixelFrame:

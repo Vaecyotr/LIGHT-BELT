@@ -37,7 +37,7 @@ def levels(frame):
 
 
 def test_phase32_effects_remain_registered_after_phase33_catalog_extension():
-    assert len(list_effects()) == 21
+    assert len(list_effects()) == 22
     assert {"flowing_bands", "onset_ripple", "heat_fire"} <= set(list_effects())
     assert "history_stream" in list_effects()
     for effect_id in ("flowing_bands", "onset_ripple", "heat_fire"):

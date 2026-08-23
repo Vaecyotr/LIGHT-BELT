@@ -229,9 +229,10 @@ paths:
                   video_available: true
                   audio_link_enabled: true
                   video_link_enabled: true
+                  brightness_scale: 0.5
                   devices:
-                    - device_id: analog.ceiling_left
-                      device_type: light_zone
+                    - device_id: node_1
+                      device_type: wled_board
                       status: online
                       last_output_ms: 1720000000123
                       last_seen_ms: 1720000000120
@@ -281,8 +282,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/CapabilitiesResponse"
               example:
-                # Representative excerpt. Runtime returns every layout target
-                # and all 20 registry effects.
+                # Representative excerpt of the frozen APP V1 capabilities projection.
+                # Target discovery is layout-derived; effect catalogue and message types are frozen.
                 ok: true
                 request_id: req-capabilities-001
                 data:
@@ -297,22 +298,16 @@ paths:
                       params:
                         - color
                         - intensity
-                      effect_params:
-                        - color
-                        - color_timeline
+                      effect_params: []
                     - effect_type: chase
                       name: Chase
                       params:
                         - speed
                         - intensity
                       effect_params:
-                        - beat_boost
-                        - color_source
-                        - direction
-                        - gap
-                        - speed
-                        - trail
                         - width
+                        - gap
+                        - direction
                   websocket:
                     message_types:
                       - session.connected
@@ -520,6 +515,68 @@ paths:
         "401":
           $ref: "#/components/responses/ErrorResponse"
         "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /playback/state:
+    get:
+      tags: [Playback]
+      summary: 获取实时播放状态
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      responses:
+        "200":
+          description: 播放状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackStateResponse"
+              example:
+                ok: true
+                request_id: req-pstate-001
+                data:
+                  playback_state: playing
+                  show:
+                    show_id: teacher-demo-v1
+                    name: Teacher Demo
+                    duration_ms: 300000
+                    description: Main demonstration show
+                  position_ms: 126000
+                  duration_ms: 300000
+                  brightness_scale: 0.5
+                  audio:
+                    volume: 0.8
+                    muted: false
+                    available: true
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /playback/reset:
+    post:
+      tags: [Playback]
+      summary: 重置当前节目灯光引擎
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      responses:
+        "200":
+          description: 重置结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackResponse"
+              example:
+                ok: true
+                request_id: req-preset-001
+                data:
+                  playback_state: playing
+                  show_id: teacher-demo-v1
+                  position_ms: 126000
+                  duration_ms: 300000
+                  reset: true
+        "401":
           $ref: "#/components/responses/ErrorResponse"
         "409":
           $ref: "#/components/responses/ErrorResponse"
@@ -847,6 +904,61 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
+  /brightness:
+    get:
+      tags: [Brightness]
+      summary: 获取当前全局亮度乘数
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      responses:
+        "200":
+          description: 当前亮度乘数
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrightnessResponse"
+              example:
+                ok: true
+                request_id: req-bright-001
+                data:
+                  brightness_scale: 0.5
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
+  /brightness/set:
+    post:
+      tags: [Brightness]
+      summary: 设置全局亮度乘数
+      parameters:
+        - $ref: "#/components/parameters/XRequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrightnessSetRequest"
+            example:
+              brightness_scale: 0.8
+      responses:
+        "200":
+          description: 设置结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrightnessSetResponse"
+              example:
+                ok: true
+                request_id: req-bright-set-001
+                data:
+                  brightness_scale: 0.8
+                  accepted: true
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -965,8 +1077,8 @@ components:
       enum:
         - static
         - breath
-        - color_wave
         - chase
+        - color_wave
         - comet
         - audio_pulse
         - bass_pulse
@@ -974,101 +1086,8 @@ components:
         - video_ambient
         - video_audio_fusion
         - calm
-        - color_wipe
-        - twinkle
         - demo
-        - step_pulse
-        - single_dot
-        - theater_phase
-        - flowing_bands
-        - onset_ripple
-        - heat_fire
-        - history_stream
-      x-effect-registry:
-        - effect_type: static
-          name: Static
-          params: [color, intensity]
-          effect_params: [color, color_timeline]
-        - effect_type: breath
-          name: Breath
-          params: [color, intensity]
-          effect_params: [color, color_timeline, min_brightness, period]
-        - effect_type: color_wave
-          name: Color Wave
-          params: [speed, intensity]
-          effect_params: [hue_cycle_rate, speed, width]
-        - effect_type: chase
-          name: Chase
-          params: [speed, intensity]
-          effect_params: [beat_boost, color_source, direction, gap, speed, trail, width]
-        - effect_type: comet
-          name: Comet
-          params: [speed, intensity]
-          effect_params: [count, decay, phase_spacing, speed, tail_length, trajectory]
-        - effect_type: audio_pulse
-          name: Audio Pulse
-          params: [color, intensity]
-          effect_params: [attack, color, color_timeline, release]
-        - effect_type: bass_pulse
-          name: Bass Pulse
-          params: [color, intensity]
-          effect_params: [attack, color, color_timeline, release]
-        - effect_type: spectrum
-          name: Spectrum
-          params: [intensity]
-          effect_params: [bass_zones, mid_zones, treble_zones]
-        - effect_type: video_ambient
-          name: Video Ambient
-          params: [intensity]
-          effect_params: [smoothing]
-        - effect_type: video_audio_fusion
-          name: Video Audio Fusion
-          params: [intensity]
-          effect_params: [audio_weight, bass_boost, treble_limit, video_weight]
-        - effect_type: calm
-          name: Calm
-          params: [color, intensity]
-          effect_params: [color, color_timeline, period]
-        - effect_type: color_wipe
-          name: Color Wipe
-          params: [color, speed, intensity]
-          effect_params: [color, color_timeline, progress_source, slew_seconds, speed]
-        - effect_type: twinkle
-          name: Twinkle
-          params: [color, intensity]
-          effect_params: [birth_gain_source, blur_radius_px, color, color_source, color_timeline, density, event_gate_source, event_width_px, fade_time]
-        - effect_type: demo
-          name: Demo
-          params: []
-          effect_params: [cycle_interval, effects]
-        - effect_type: step_pulse
-          name: Step Pulse
-          params: [intensity]
-          effect_params: [high_color, low_color, period]
-        - effect_type: single_dot
-          name: Single Dot
-          params: [color, speed, intensity]
-          effect_params: [color, color_timeline, direction, speed]
-        - effect_type: theater_phase
-          name: Theater Phase
-          params: [color, speed, intensity]
-          effect_params: [color, color_timeline, speed]
-        - effect_type: flowing_bands
-          name: Flowing Bands
-          params: [color, speed, intensity]
-          effect_params: [band_width_px, base_gain, color, color_timeline, direction, gap_width_px, highlight_gain, phase_offset_steps, steps_per_second]
-        - effect_type: onset_ripple
-          name: Onset Ripple
-          params: [color, speed, intensity]
-          effect_params: [color, color_timeline, decay_seconds, event_origin, floor_gain, onset_threshold, propagation, wave_speed_pps, wave_width_px, wrap]
-        - effect_type: heat_fire
-          name: Heat Fire
-          params: [color, speed, intensity]
-          effect_params: [color, color_timeline, cooling_per_second, diffusion, spark_rate, spark_strength, spark_zone_px]
-        - effect_type: history_stream
-          name: History Stream
-          params: [color, speed, intensity]
-          effect_params: [color, color_timeline, direction, sample_gain_source, steps_per_second]
+        - twinkle
     DeviceType:
       type: string
       enum: [wled_board]
@@ -1084,6 +1103,7 @@ components:
         - device.status
         - error.event
         - heartbeat
+        - scene.applied
     StatusData:
       type: object
       required: [service, host_id, api_version, version, time_ms]
@@ -1198,7 +1218,7 @@ components:
       properties:
         device_id:
           type: string
-          example: analog.ceiling_left
+          example: node_1
         device_type:
           $ref: "#/components/schemas/DeviceType"
         status:
@@ -1231,6 +1251,7 @@ components:
         - position_ms
         - duration_ms
         - brightness
+        - brightness_scale
         - color_temperature
         - volume
         - muted
@@ -1255,6 +1276,10 @@ components:
           type: number
           minimum: 0
         brightness:
+          type: number
+          minimum: 0
+          maximum: 1
+        brightness_scale:
           type: number
           minimum: 0
           maximum: 1
@@ -1329,7 +1354,7 @@ components:
         supported_effects:
           type: array
           items:
-            $ref: "#/components/schemas/EffectType"
+            type: string
           description: 该目标支持的灯效类型列表（仅特殊设备如 starry_sky 携带此字段）。
     CapabilityEffect:
       type: object
@@ -1347,7 +1372,7 @@ components:
           type: array
           items:
             type: string
-          description: Registry-declared effect.params keys; common params with the same name remain distinct.
+          description: Fixed APP V1 effect parameter names; not live Registry metadata.
     CapabilityWebSocket:
       type: object
       required: [message_types]
@@ -1455,12 +1480,94 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/PlaybackData"
+    PlaybackStateData:
+      type: object
+      required: [playback_state, show, position_ms, duration_ms, brightness_scale, audio]
+      properties:
+        playback_state:
+          $ref: "#/components/schemas/PlaybackState"
+        show:
+          nullable: true
+          $ref: "#/components/schemas/ShowItem"
+        position_ms:
+          type: number
+          minimum: 0
+        duration_ms:
+          type: number
+          minimum: 0
+        brightness_scale:
+          type: number
+          minimum: 0
+          maximum: 1
+        audio:
+          type: object
+          required: [volume, muted]
+          properties:
+            volume:
+              type: number
+              minimum: 0
+              maximum: 1
+            muted:
+              type: boolean
+    PlaybackStateResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PlaybackStateData"
+    BrightnessSetRequest:
+      type: object
+      required: [brightness_scale]
+      properties:
+        brightness_scale:
+          type: number
+          minimum: 0
+          maximum: 1
+        transition_ms:
+          type: number
+          minimum: 0
+          default: 0
+    BrightnessData:
+      type: object
+      required: [brightness_scale]
+      properties:
+        brightness_scale:
+          type: number
+          minimum: 0
+          maximum: 1
+    BrightnessSetData:
+      allOf:
+        - $ref: "#/components/schemas/BrightnessData"
+        - type: object
+          required: [transition_ms, accepted]
+          properties:
+            transition_ms:
+              type: number
+              minimum: 0
+            accepted:
+              type: boolean
+    BrightnessResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/BrightnessData"
+    BrightnessSetResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/BrightnessSetData"
     LightsSetRequest:
       type: object
       required: [target_id]
       anyOf:
         - required: [brightness]
         - required: [color_temperature]
+        - required: [color]
       properties:
         target_id:
           $ref: "#/components/schemas/TargetId"
@@ -1472,6 +1579,8 @@ components:
           type: number
           minimum: 2700
           maximum: 6500
+        color:
+          $ref: "#/components/schemas/RGB255"
         transition_ms:
           type: number
           minimum: 0
@@ -1490,6 +1599,8 @@ components:
           type: number
           minimum: 2700
           maximum: 6500
+        color:
+          $ref: "#/components/schemas/RGB255"
         transition_ms:
           type: number
           minimum: 0
@@ -1617,6 +1728,7 @@ components:
                 - playback_state
                 - show_id
                 - brightness
+                - brightness_scale
                 - color_temperature
                 - audio_available
                 - video_available
@@ -1631,6 +1743,10 @@ components:
                   nullable: true
                   type: string
                 brightness:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                brightness_scale:
                   type: number
                   minimum: 0
                   maximum: 1

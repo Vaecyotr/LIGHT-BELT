@@ -49,6 +49,20 @@ def validate_color_wipe_params(values: Mapping[str, Any]) -> Mapping[str, Any]:
             raise ValueError("slew_seconds must be a finite number")
         if float(slew_seconds) < 0.0:
             raise ValueError("slew_seconds must be >= 0")
+    edge_softness = values.get("edge_softness_px")
+    if edge_softness is not None:
+        if type(edge_softness) not in {int, float} or not math.isfinite(
+            float(edge_softness)
+        ):
+            raise ValueError("edge_softness_px must be a finite number")
+        if not 0.0 <= float(edge_softness) <= 10000.0:
+            raise ValueError("edge_softness_px must be in [0, 10000]")
+    progress_curve = values.get("progress_curve")
+    if progress_curve is not None and (
+        not isinstance(progress_curve, str)
+        or progress_curve not in {"linear", "smoothstep"}
+    ):
+        raise ValueError("progress_curve must be one of: linear, smoothstep")
     return dict(values)
 
 
@@ -80,6 +94,8 @@ class ColorWipeEffect(BaseEffect):
             if progress_source is None
             else self._sample_external_progress(ctx, progress_source)
         )
+        edge_softness = runtime_float(ctx, "edge_softness_px", 0.0)
+        progress_curve = str(runtime_param(ctx, "progress_curve", "linear"))
 
         strips = []
         for strip_def in ctx.mode_parameters.get("strip_defs", []):
@@ -92,16 +108,42 @@ class ColorWipeEffect(BaseEffect):
                     pixel_count,
                     max(0, int(elapsed * speed) + 1),
                 )
+                front_px = min(pixel_count, max(0.0, elapsed * speed + 1.0))
             else:
+                curved_progress = _apply_progress_curve(
+                    external_progress,
+                    progress_curve,
+                )
                 lit_count = min(
                     pixel_count,
                     max(
                         0,
-                        math.floor(external_progress * pixel_count + 1e-12),
+                        math.floor(curved_progress * pixel_count + 1e-12),
                     ),
                 )
-            pixels = [(r, g, b)] * lit_count
-            pixels.extend([(0.0, 0.0, 0.0)] * (pixel_count - lit_count))
+                front_px = curved_progress * pixel_count
+            if external_progress is None and progress_curve == "smoothstep":
+                normalized = front_px / max(1, pixel_count)
+                front_px = _apply_progress_curve(normalized, progress_curve) * pixel_count
+                lit_count = min(pixel_count, max(0, math.floor(front_px + 1e-12)))
+            if edge_softness == 0.0:
+                # Exact legacy behavior for the default hard edge.
+                pixels = [(r, g, b)] * lit_count
+                pixels.extend([(0.0, 0.0, 0.0)] * (pixel_count - lit_count))
+            elif front_px >= pixel_count:
+                pixels = [(r, g, b)] * pixel_count
+            else:
+                pixels = [
+                    (
+                        r * gain,
+                        g * gain,
+                        b * gain,
+                    )
+                    for index in range(pixel_count)
+                    for gain in (
+                        max(0.0, min(1.0, (front_px - index) / edge_softness)),
+                    )
+                ]
             strips.append(
                 DigitalStrip(
                     strip_id=strip_def["id"],
@@ -170,3 +212,10 @@ class ColorWipeEffect(BaseEffect):
         self._external_source_name = source_name
         self._last_time_marker = marker
         return progress
+
+
+def _apply_progress_curve(progress: float, curve: str) -> float:
+    bounded = max(0.0, min(1.0, progress))
+    if curve == "smoothstep":
+        return bounded * bounded * (3.0 - 2.0 * bounded)
+    return bounded

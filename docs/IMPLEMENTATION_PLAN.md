@@ -1,17 +1,71 @@
 # Current Implementation Plan
 
-Status: **Phase 34 explicit branch lifecycle and pre-roll continuity closeout
-software-accepted on 2026-08-22; physical acceptance remains NOT HARDWARE
-VERIFIED**.
+Status: **Phase 40 lighting-language software-contract closure accepted on
+2026-08-23; physical acceptance remains NOT HARDWARE VERIFIED**.
 
 Product implementation Phases 0-29 are complete. Their original approved plan
 is preserved at
 `docs/history/implementation/implementation-plan-phases-0-29.md` and is no
-longer an active instruction source. Phases 30 and 31 are complete historical
-work. Phase 32, Phase 33, and Phase 34 software closeouts are accepted. No
-Phase 35 or later work is approved.
+longer an active instruction source. Phases 30-40 are complete software work.
+The RK3588-native 1D lighting authoring language is now **CLOSED/FROZEN**:
+bug fixes and compatibility-required additions remain allowed, but proactive
+primitive/effect migration and casual Show-contract redesign do not. This is a
+software authoring-contract boundary, not hardware or product-release
+acceptance. Do not begin or prepare Phase 41 without new user approval.
 
-## Current Phase 34 closeout: Explicit branch lifecycle and pre-roll continuity
+## Current Phase 40 closeout: Lighting Language Pro-Max
+
+The Phase 35-40 campaign completed the approved strict-superset contract while
+preserving the released APP playback/control facade, old Shows, old effect
+defaults, the Energy Wakeup Show, virtual-path behavior, and branch lifecycle.
+
+Completed closeout scope:
+
+1. Gate 0 froze Host APP API V1 behind an explicit compatibility projection;
+   growth of the internal registry no longer changes the advertised APP effect
+   vocabulary.
+2. Phase 35 added the clean-room RK3588-native `coherent_noise_field`, bringing
+   the internal registry to exactly 22 effects.
+3. Phase 36 closed product-relevant WLED 1D portability research with zero new
+   primitive gaps and added only the approved bounded parameter extensions.
+4. Phase 37 made immutable typed `ParameterSpec` metadata the registry's single
+   parameter authority and added a live machine-readable exporter.
+5. Phase 38 added explicit Show v2 `parameter_modulation` for only approved
+   float/runtime-mutable/modulatable effect parameters. Existing common
+   `audio_modulation` remains separate and unchanged.
+6. Phase 39 added an explicit cue-level `color_source` block with timeline,
+   spatial palette, video average/dominant, audio-spectrum palette, and
+   author-bounded dominant-frequency palette sources. Existing `ColorSpec`
+   modes remain unchanged and frequency has no global color meaning.
+7. Phase 40 froze the final internal authoring contract, its navigation index,
+   and the Antigravity manual-authoring work instruction without exposing
+   internal authoring metadata through APP V1.
+
+Current authoring sources are indexed by
+`docs/current/show-authoring-source-index.md`. The canonical Show overview is
+`docs/current/show-v2-authoring.md`; the live effect contract is exported with
+`scripts/export_authoring_contract.py`; effect details, parameter modulation,
+and ColorSource are documented under `docs/reference/`.
+
+Closeout boundaries:
+
+- Advanced lighting behavior belongs to Show YAML plus the RK3588 runtime. The
+  APP remains a playback/control client and requires no modification.
+- No Phase 35-40 work changes ESP32 firmware, physical topology, DDP behavior,
+  or the rule that final brightness is applied exactly once in
+  `OutputTransform`.
+- `assets/energy-wakeup/energy-wakeup.yaml` remains byte-for-byte immutable.
+- Repository-wide pytest is explicitly user-waived for runtime cost. Focused
+  and cross-module integration suites are the acceptance evidence; the waiver
+  is an omission, never a full-suite pass.
+- Hardware, installed wiring, visible output, timing, and RK3588 performance
+  remain **NOT HARDWARE VERIFIED**.
+
+The completed-phase records below preserve their original scope and evidence.
+Their historical “stop after this phase” wording applied when each phase was
+accepted and is superseded by the current Phase 40 closeout above.
+
+## Completed Phase 34 closeout: Explicit branch lifecycle and pre-roll continuity
 
 Phase 34 closed with one optional Show v2 branch field:
 

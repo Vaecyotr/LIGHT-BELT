@@ -1,6 +1,6 @@
 # LIGHT-BELT 灯效与参数手册
 
-本文列出当前 registry 注册的全部 21 个灯效。名称必须使用代码 ID，例如
+本文列出当前 internal registry 注册的全部 22 个灯效。名称必须使用代码 ID，例如
 `color_wipe`，不能使用中文名称代替。
 
 ## 通用编排控制
@@ -11,9 +11,13 @@
 - `start` / `end`：cue 在节目时间轴上的开始和结束时间，单位为秒。它们不是像素位置。
 - `origin`：空间起点。取值为 `start`、`end`、`center`、`edges`，分别表示从路径起点、路径末端、中间向外、两端向内。它特别适合配合 `color_wipe` 和 `chase`。
 - `color.mode`：Show v2 颜色策略。`effect_default` 使用效果默认颜色；`solid` 使用一个 RGB 颜色；`palette` 使用 RGB 调色板。
+- `color_source`：Show v2 cue 级显式动态颜色源，与旧 `ColorSpec` 及 chase/twinkle 的同名 effect 参数互相独立。六种 source、fallback、效果支持分类与 virtual-path 规则见 [color-source.md](color-source.md)；它不进入 APP V1。
 - `audio_modulation.brightness`：按音乐分析结果调制 cue 亮度。最终全局亮度仍只在 `OutputTransform` 应用一次。
 - `audio_modulation.speed`：按音乐分析结果乘算效果速度；最终上下文速度范围为 `0.0` 到 `10.0`。
 - `audio_modulation.intensity`：按音乐分析结果乘算音频响应强度；最终上下文强度范围为 `0.0` 到 `10.0`。
+- `parameter_modulation`：Show v2 内部的显式效果参数绑定。它只允许 Registry 中标记为
+  `float + runtime_mutable + modulatable` 的 effect-specific 参数；语法、source、fallback、平滑和
+  校验顺序见 [parameter-modulation.md](parameter-modulation.md)。它不替代 `audio_modulation`，也不进入 APP V1。
 - `global_brightness`：全局输出亮度，范围 `0.0` 到 `1.0`。`0.0` 为全黑，`1.0` 为不做亮度衰减。
 
 Show v2 中 `effect.speed` 与 `effect.intensity` 是通用乘数，默认均为 `1.0`；它们会与运行时基础值和
@@ -38,11 +42,17 @@ Phase 33 的 `ScalarSource` 是少量效果可选使用的通用 `[0,1]` 输入�
 `audio.raw_level`、dominant frequency/magnitude、表达式、Python/eval 和 WLED 字段名都不是 V1
 source。尤其 dominant frequency 没有全局颜色含义。
 
-Registry 是效果 ID、renderer、参数白名单/validator 和 common capability 的唯一运行时权威。当前 ID 为：
+Registry 是效果 ID、renderer、不可变 `ParameterSpec`、参数校验和 common capability 的唯一运行时权威。
+`parameter_keys` 是从 `ParameterSpec` 派生的兼容视图，不能另行维护。内部类型、边界、枚举、
+运行时可变性与可调制性可通过
+`./.python/Scripts/python.exe scripts/export_authoring_contract.py` 导出为 JSON；该导出不是 Host API，
+也不会改变 APP V1 公开能力表。完整内部约定见
+`docs/reference/effect-parameter-metadata.md`。
 
 `static`, `breath`, `color_wave`, `chase`, `comet`, `audio_pulse`, `bass_pulse`, `spectrum`,
 `video_ambient`, `video_audio_fusion`, `calm`, `color_wipe`, `twinkle`, `demo`, `step_pulse`,
-`single_dot`, `theater_phase`, `flowing_bands`, `onset_ripple`, `heat_fire`, `history_stream`。
+`single_dot`, `theater_phase`, `flowing_bands`, `onset_ripple`, `heat_fire`, `history_stream`,
+`coherent_noise_field`。
 
 文中“安全创作范围”表示在当前 RGB `[0,1]` 输出模型内建议使用的范围。部分旧效果的
 Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值未必会在加载时立即失败，但可能
@@ -67,7 +77,7 @@ Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值
 
 ## 2. `breath`：呼吸灯
 
-**用途与效果：** 所有目标像素以正弦曲线同步变亮和变暗。适合平静氛围、待机状态和慢节奏段落。
+**用途与效果：** 所有目标像素以同一周期波形同步变亮和变暗。适合平静氛围、待机状态和慢节奏段落。
 
 ### `period`
 
@@ -80,6 +90,12 @@ Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值
 - **含义：** 呼吸波谷时相对于基础颜色保留的最低亮度。
 - **范围：** 安全范围 `0.0` 到 `1.0`。
 - **如何使用：** `0.0` 会降到全黑；`0.05` 保留微光；`0.5` 只在半亮到全亮之间呼吸。
+
+### `waveform`
+
+- **含义：** 周期亮度包络形状。
+- **范围：** `sine`、`triangle`、`smoothstep`；默认 `sine` 严格保留历史输出。
+- **如何使用：** `triangle` 产生匀速上升/下降，`smoothstep` 在同一三角周期上柔化峰谷附近的变化。
 
 ### `color`
 
@@ -114,6 +130,14 @@ Show 参数校验目前只拒绝非有限数值，因此超出安全范围的值
 - **含义：** 随相位旋转整体色相的速率。
 - **范围：** 当前接受任意有限数；`0` 不额外旋转色相，负数反向旋转。建议 `-2.0` 到 `2.0`。
 - **如何使用：** `0.1` 是默认缓慢变色；提高后整条波的颜色轮换会更快。
+
+### `waveform` / `hue_span_degrees`
+
+- **含义：** `waveform` 控制空间坐标如何映射为色相偏移；`hue_span_degrees` 控制偏移跨度。
+- **范围：** waveform 为 `linear`、`sine`、`triangle`、`saw`；hue span 为 finite `0..360`。默认
+  `linear` / `120` 精确保留历史算法。
+- **如何使用：** `linear` 是连续色相坡度；周期型 waveform 适合重复波包。减小 hue span 可获得更窄的
+  同色系变化，`0` 仅保留整体 hue cycle。
 
 ## 4. `chase`：追逐灯
 
@@ -367,6 +391,15 @@ reset/replay，并在动态通用 speed 变化时保持连续。
 - **如何使用：** 外部 progress 的 `0/0.5/1` 分别点亮 `0/50%/100%` 路径。reset、source 切换或
   向后 seek 会直接重基准；空间方向仍只由公共 `origin` 控制。
 
+### `edge_softness_px` / `progress_curve`
+
+- **含义：** softness 以逻辑像素数控制推进前沿后方的线性亮度过渡；curve 控制 normalized progress
+  到实际前沿位置的映射。
+- **范围：** softness 为 finite `0..10000`；curve 为 `linear` 或 `smoothstep`。默认 `0` / `linear`
+  保持原来的硬边和逐像素推进结果。
+- **如何使用：** softness 大于零可消除短灯带上的跳变；`smoothstep` 让填充在开头和结尾较慢、中段较快。
+  `origin` 与 `virtual_path` 语义不变。
+
 ## 13. `twinkle`：随机星光
 
 **用途与效果：** 在每条数字灯带的有效像素范围内随机生成星点，并按时间淡出。生成量使用
@@ -437,7 +470,9 @@ reset/replay，并在动态通用 speed 变化时保持连续。
 
 ## 15. `step_pulse`：两级阶跃脉冲
 
-在 cue 本地时间的前半周期输出 `low_color`，后半周期输出 `high_color`，不做插值。`period` 默认
+每个周期保持历史的 low-first 相位：先输出 `low_color`，再输出 `high_color`，不做插值。
+`duty_cycle` 表示 HIGH 状态占周期的比例，为 finite `0..1`；`0` 始终 low，`1` 始终 high，默认
+`0.5` 精确保留历史前半 low / 后半 high 行为。`period` 默认
 `4.0` 秒且运行时最小按 `0.001` 秒处理；`low_color` 和 `high_color` 都是三个有限 `0..1` RGB
 通道。通用 `effect.intensity` 在 renderer 输出后按 cue 局部效果强度缩放并钳制 RGB；默认 `1.0`
 仍保留两组 authored RGB 的精确值，且不会替代全局 `OutputTransform` brightness。
@@ -557,10 +592,32 @@ ESP32 缓冲区。`virtual_path` 始终先作为一条连续路径推进，再�
 均有 30/60 FPS 等价覆盖。最终 RGB 再乘通用
 `effect.intensity`，全局 brightness 仍只属于 `OutputTransform`。
 
+## 22. `coherent_noise_field`：连续噪声亮度场
+
+这是一个 RK3588-native、clean-room 的一维亮度纹理：相邻 lattice 值以平滑插值连接，
+因此空间和时间采样都连续，不依赖随机全局状态、WLED 模式、调色板或固定设备长度。每个 cue
+按稳定的 cue ID 派生私有 seed；reset/replay 会重建同一图样。时间坐标严格为 cue 级积分
+motion time × `drift_rate`，所以通用 speed 为零时冻结，恢复或动态调速只改变未来斜率。
+
+| 参数 | 范围与默认值 | 语义 |
+| --- | --- | --- |
+| `feature_size_px` | finite `0.01..10000`，默认 `8` | 一个空间特征的近似宽度（逻辑像素） |
+| `drift_rate` | finite `0..1000`，默认 `0.25` | 每个积分 motion-time 单位移动的噪声坐标 |
+| `contrast` | finite `0..4`，默认 `1` | 以 0.5 为中心的噪声对比度；`0` 得到中性常量场 |
+| `floor_gain` | finite `0..1`，默认 `0.10` | 亮度场下界 |
+| `ceiling_gain` | finite `floor_gain..1`，默认 `0.85` | 亮度场上界 |
+| `color` / `color_timeline` | RGB / Show v2 时间线 | 当前 authored RGB；时间线仍由 compositor 在 cue wall time 解析 |
+
+数字路径先完整渲染，再按既有 `virtual_path` 规则拆回成员灯带，因此纹理不会在接缝重启；
+`origin` 仍只由 compositor 在完整逻辑帧上做 start/end/center/edges 重映射。模拟 RGB+CCT
+区域没有离散像素坐标，统一取逻辑坐标 `0.5` 的当前样本，形成确定性、默认非黑的回退颜色。
+该采样不包含物理节点、端口、GPIO 或安装坐标。最终 RGB 只乘 cue-local `effect.intensity`；
+全局 brightness 仍仅属于 `OutputTransform`。APP V1 capability vocabulary 不公开此 internal ID。
+
 ## 长度与位置规则
 
 - 实际数字灯带长度来自布局中的 `pixel_count`，当前舱体灯带分别为 10、20 或 40 个 WS2811 像素段，均为 `NOT HARDWARE VERIFIED` 且保持可配置。
-- 所有 21 个效果都使用运行时逻辑 `pixel_count`；新效果没有固定 60-pixel 假设。
+- 所有 22 个效果都使用运行时逻辑 `pixel_count`；新效果没有固定 60-pixel 假设。
 - `color_wipe` 的完成时间随实际长度变化；`twinkle` 的生成量按实际长度成比例变化；`comet.tail_length` 按实际长度的比例变化；`history_stream` 的 buffer 容量严格等于当前逻辑路径长度。
 - `origin` 改变逻辑效果的空间展开方式；物理接线方向仍由布局/映射层处理，效果代码不包含 GPIO、节点 ID 或物理端口。
 - 本文描述的软件行为已经由自动化测试覆盖，但灯带长度、方向、颜色顺序、跨板接缝、功耗和视觉观感仍为 `NOT HARDWARE VERIFIED`。

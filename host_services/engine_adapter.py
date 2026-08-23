@@ -465,31 +465,12 @@ def get_shows() -> list[dict]:
 # ══════════════════════════════════════════════
 
 def get_capabilities() -> dict:
-    effects = [
-        {
-            "effect_type": registration.id,
-            "name": registration.capability.display_name,
-            "params": list(registration.capability.common_params),
-            "effect_params": sorted(registration.parameter_keys),
-        }
-        for registration in list_effect_registrations()
-    ]
-    ws_types = [
-        "session.connected", "runtime.state", "playback.progress",
-        "device.status", "error.event", "heartbeat", "scene.applied",
-    ]
-    supports = {
-        "playback": True, "resume": True, "seek": True,
-        "lights": True, "effects": True, "color_temperature": True,
-        "transitions": True, "websocket": True,
-        "audio": True, "scenes": True, "brightness_scale": True,
-    }
-    return {
-        "targets": _capability_targets,
-        "effects": effects,
-        "websocket": {"message_types": ws_types},
-        "supports": supports,
-    }
+    # Targets remain the existing layout-derived V1 discovery surface. Effects
+    # and event vocabulary are an APP compatibility projection and must not
+    # reveal the engine's effect-registration metadata.
+    from .app_v1 import capabilities
+
+    return capabilities(_capability_targets)
 
 
 # ══════════════════════════════════════════════

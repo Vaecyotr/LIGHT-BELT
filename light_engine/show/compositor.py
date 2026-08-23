@@ -10,7 +10,7 @@ from types import MappingProxyType
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from light_engine.color import evaluate_rgb_linear_timeline, rgb_to_rgbcct
-from light_engine.effects.base import BaseEffect, create_effect
+from light_engine.effects.base import BaseEffect, create_effect, get_effect_registration
 from light_engine.mapping import Layout, ZoneDef
 from light_engine.mapping.virtual import VirtualPath
 from light_engine.motion import CueMotionClock
@@ -24,6 +24,8 @@ from light_engine.models import (
 )
 from light_engine.show.adaptive_selector import AdaptiveEffectSelector, fixed_decision
 from light_engine.show.audio_modulation import CueAudioModulator
+from light_engine.show.color_source import ColorSampler
+from light_engine.show.parameter_modulation import CueParameterModulator
 from light_engine.show.models import (
     BrightnessTrackSpec,
     Cue,
@@ -505,6 +507,31 @@ class CueRenderJob:
             AdaptiveEffectSelector(cue) if cue.effect.mode == "adaptive" else None
         )
         self._audio_modulator = CueAudioModulator(cue.audio_modulation)
+        if cue.effect.mode != "fixed" and cue.parameter_modulation is not None:
+            raise ValueError("parameter modulation requires a fixed effect")
+        if cue.effect.mode != "fixed" and cue.color_source is not None:
+            raise ValueError("ColorSource requires a fixed effect")
+        parameter_effect_id = cue.effect.id or cue.effect.fallback
+        if parameter_effect_id is None:
+            raise ValueError("cue requires an effect ID for parameter modulation")
+        self._parameter_modulator = CueParameterModulator(
+            parameter_effect_id,
+            cue.effect.params,
+            cue.parameter_modulation,
+        )
+        self._color_sampler = (
+            None
+            if cue.color_source is None
+            else ColorSampler(cue.color_source, cue_seed=cue_seed)
+        )
+        if (
+            cue.color_source is not None
+            and get_effect_registration(parameter_effect_id).color_source_support
+            == "NOT_APPLICABLE"
+        ):
+            raise ValueError(
+                f"effect {parameter_effect_id!r} does not have meaningful ColorSource semantics"
+            )
         self.effect = effect if effect is not None else self._create_effect()
         self._branch_jobs: tuple[_BranchRenderJob, ...] = tuple(
             _BranchRenderJob(
@@ -564,12 +591,29 @@ class CueRenderJob:
                 "audio_modulation_multipliers": multipliers,
             }
         )
+        if self._color_sampler is not None:
+            # Private runtime hand-off for EVENT renderers.  This deliberately
+            # does not use the existing effect parameter key ``color_source``.
+            scoped_params["color_sampler"] = self._color_sampler
         if "color_timeline" in scoped_params:
             local_time = float(scoped_params["cue_local_time"])
             scoped_params["color"] = evaluate_rgb_linear_timeline(
                 scoped_params["color_timeline"],
                 local_time,
             )
+        if (
+            self.cue.parameter_modulation is not None
+            and self.cue.effect.mode == "fixed"
+            and self.cue.effect.id is not None
+        ):
+            registration = get_effect_registration(self.cue.effect.id)
+            effect_params = {
+                key: scoped_params[key]
+                for key in registration.parameter_keys
+                if key in scoped_params
+            }
+            parameter_result = self._parameter_modulator.apply(scoped, effect_params)
+            scoped_params.update(parameter_result.values)
         speed = _compose_common_control(
             speed,
             self.cue.effect.speed,
@@ -592,6 +636,12 @@ class CueRenderJob:
             mode_parameters=MappingProxyType(scoped_params),
         )
         frame = effect.process(scoped)
+        if self._color_sampler is not None:
+            frame = self._color_sampler.apply_to_frame(
+                scoped,
+                frame,
+                get_effect_registration(effect.name).color_source_support,
+            )
         frame = _apply_origin(frame, self.origin)
         frame = _scale_frame_brightness(frame, multipliers.brightness)
         return frame_to_contribution(
@@ -610,6 +660,7 @@ class CueRenderJob:
         if self._selector is not None:
             self._selector.reset()
         self._audio_modulator.reset()
+        self._parameter_modulator.reset()
         if self._injected_effect:
             self.effect.reset()
         else:

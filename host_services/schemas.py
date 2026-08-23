@@ -5,8 +5,6 @@
 
 from typing import Any, Optional
 from pydantic import BaseModel, Field
-from light_engine.effects import list_effects
-
 # ────────────────── 枚举常量 ──────────────────
 
 VALID_CLIENT_TYPES = {"tablet", "phone", "debug"}
@@ -66,7 +64,9 @@ class EffectCommonParams(BaseModel):
 
 class EffectsSetRequest(BaseModel):
     target_id: str
-    effect_type: str = Field(json_schema_extra={"enum": list_effects()})
+    # Keep command input permissive. Runtime validation remains registry-based,
+    # but the generated service schema must not publish that internal registry.
+    effect_type: str
     params: Optional[EffectCommonParams] = None
     effect_params: Optional[dict[str, Any]] = None
     transition_ms: Optional[float] = Field(default=0, ge=0)
@@ -90,10 +90,7 @@ class SceneEntry(BaseModel):
     brightness: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     color_temperature: Optional[int] = Field(default=None, ge=2700, le=6500)
     # effects/set 字段
-    effect_type: Optional[str] = Field(
-        default=None,
-        json_schema_extra={"enum": list_effects()},
-    )
+    effect_type: Optional[str] = None
     params: Optional[EffectCommonParams] = None
     effect_params: Optional[dict[str, Any]] = None
     transition_ms: Optional[float] = Field(default=0, ge=0)

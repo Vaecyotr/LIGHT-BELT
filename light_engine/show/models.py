@@ -37,6 +37,97 @@ class ColorSpec:
 
 
 @dataclass(frozen=True)
+class ColorSourceKeyframe:
+    """One cue-local keyframe for an opt-in ColorSource timeline."""
+
+    time: float
+    color: tuple[float, float, float]
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.time) or self.time < 0.0:
+            raise ValueError("ColorSource keyframe time must be finite and >= 0")
+        _validate_color_source_rgb(self.color, "ColorSource keyframe color")
+
+
+@dataclass(frozen=True)
+class ColorSourceSpec:
+    """Explicit dynamic color input, separate from compatibility ColorSpec."""
+
+    type: str
+    palette: tuple[tuple[float, float, float], ...] = ()
+    keyframes: tuple[ColorSourceKeyframe, ...] = ()
+    interpolation: str = "rgb_linear"
+    fallback: tuple[float, float, float] | None = None
+    frequency_min_hz: float | None = None
+    frequency_max_hz: float | None = None
+
+    def __post_init__(self) -> None:
+        source_types = {
+            "timeline",
+            "spatial_palette",
+            "video_average",
+            "video_dominant",
+            "audio_spectrum_palette",
+            "dominant_frequency_palette",
+        }
+        if self.type not in source_types:
+            raise ValueError(f"unsupported ColorSource type {self.type!r}")
+        for index, color in enumerate(self.palette):
+            _validate_color_source_rgb(color, f"ColorSource palette[{index}]")
+        if self.fallback is not None:
+            _validate_color_source_rgb(self.fallback, "ColorSource fallback")
+        if self.interpolation != "rgb_linear":
+            raise ValueError("ColorSource timeline interpolation must be rgb_linear")
+        if self.type == "timeline":
+            if len(self.keyframes) < 2:
+                raise ValueError("timeline ColorSource requires at least two keyframes")
+            if any(
+                current.time <= previous.time
+                for previous, current in zip(self.keyframes, self.keyframes[1:])
+            ):
+                raise ValueError("timeline ColorSource keyframe times must increase")
+        if self.type in {
+            "spatial_palette",
+            "audio_spectrum_palette",
+            "dominant_frequency_palette",
+        } and not self.palette:
+            raise ValueError(f"{self.type} ColorSource requires a palette")
+        if self.type in {
+            "video_average",
+            "video_dominant",
+            "audio_spectrum_palette",
+            "dominant_frequency_palette",
+        } and self.fallback is None:
+            raise ValueError(f"{self.type} ColorSource requires a fallback RGB color")
+        if self.type == "dominant_frequency_palette":
+            lower = self.frequency_min_hz
+            upper = self.frequency_max_hz
+            if (
+                lower is None
+                or upper is None
+                or not math.isfinite(lower)
+                or not math.isfinite(upper)
+                or lower < 0.0
+                or upper <= lower
+            ):
+                raise ValueError(
+                    "dominant_frequency_palette requires finite 0 <= frequency_min_hz < frequency_max_hz"
+                )
+
+
+def _validate_color_source_rgb(value: object, name: str) -> None:
+    if not isinstance(value, (tuple, list)) or len(value) != 3:
+        raise ValueError(f"{name} must contain exactly 3 RGB channels")
+    if any(
+        type(channel) not in {int, float}
+        or not math.isfinite(float(channel))
+        or not 0.0 <= float(channel) <= 1.0
+        for channel in value
+    ):
+        raise ValueError(f"{name} channels must be finite numbers in [0, 1]")
+
+
+@dataclass(frozen=True)
 class VirtualPathSpec:
     """A hardware-agnostic ordered path through logical targets."""
 
@@ -152,6 +243,28 @@ class AudioModulationSpec:
 
 
 @dataclass(frozen=True)
+class ParameterModulationBindingSpec:
+    """One explicit source-to-effect-parameter binding."""
+
+    target: str
+    mode: str
+    source: str
+    output_min: float
+    output_max: float
+    smoothing_seconds: float = 0.0
+    input_min: float | None = None
+    input_max: float | None = None
+    fallback: float | None = None
+
+
+@dataclass(frozen=True)
+class ParameterModulationSpec:
+    """Cue-local effect-parameter modulation bindings."""
+
+    bindings: tuple[ParameterModulationBindingSpec, ...]
+
+
+@dataclass(frozen=True)
 class BrightnessKeyframe:
     """One show-time brightness value in a target-level automation track."""
 
@@ -187,6 +300,8 @@ class Cue:
     transition: TransitionSpec = field(default_factory=TransitionSpec)
     audio_control: AudioControlSpec | None = None
     audio_modulation: AudioModulationSpec | None = None
+    parameter_modulation: ParameterModulationSpec | None = None
+    color_source: ColorSourceSpec | None = None
 
 
 @dataclass(frozen=True)

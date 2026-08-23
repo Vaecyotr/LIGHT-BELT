@@ -10,12 +10,48 @@ Targets use exactly one shape: `analog_zone + id`, `digital_strip + id`,
 entry. Neither contains controller, GPIO, host, port, packet offset, or other
 physical topology.
 
-An effect registration binds three things: a stable ID, a parameter validator,
-and a renderer class. Adding an effect therefore consists of implementing its
-renderer, registering that triple, and testing its parameters. Target dispatch
-does not change. Cue color is a separate `ColorSpec`: `effect_default` leaves
-the renderer default intact, `solid` supplies one RGB color, and `palette`
-selects authored RGB entries deterministically from cue-local time.
+An effect registration binds its stable ID, renderer/factory, immutable typed
+`ParameterSpec` metadata, validation, common capabilities, and ColorSource
+support classification. The live registry is the single parameter authority;
+use `scripts/export_authoring_contract.py` for machine-readable discovery.
+Target dispatch does not change. Cue color is a separate compatibility
+`ColorSpec`: `effect_default` leaves the renderer default intact, `solid`
+supplies one RGB color, and `palette` selects authored RGB entries
+deterministically from cue-local time.
+
+Show v2 also has an independent, explicit cue-level `color_source` block for
+dynamic colors. It never reinterprets the three `ColorSpec` modes or the old
+`chase`/`twinkle` effect parameter also named `color_source`. The supported
+source types are `timeline`, `spatial_palette`, `video_average`,
+`video_dominant`, `audio_spectrum_palette`, and
+`dominant_frequency_palette`; exact syntax, fallback, effect-support, and
+virtual-path semantics are in
+[`docs/reference/color-source.md`](../reference/color-source.md). Note that
+`color_source` replaces the color sampling strategy while the base effect
+renderer retains its spatial/temporal brightness envelope (e.g., chase tail decay,
+breath amplitude wave, comet fade); authored full-brightness colors will be
+modulated by the underlying renderer's intensity curve.
+
+## Common controls and modulation
+
+`effect.speed` and `effect.intensity` are cue-level common multipliers, not
+members of `effect.params`. The integrated cue motion clock interprets final
+common speed as an instantaneous future rate: zero freezes motion, and resume
+continues without a phase teleport. Renderer-specific speed fields retain the
+units documented in the effect reference.
+
+Existing `audio_modulation` continues to own only common brightness, speed, and
+intensity modulation. New opt-in `parameter_modulation` owns only effect-local
+parameters marked `float + runtime_mutable + modulatable` in the live registry;
+it does not replace the common mechanism. Raw dominant-frequency/magnitude and
+raw-level inputs require authored normalization bounds. Exact source,
+`modulate`/`drive`, fallback, smoothing, validation, and pre-roll behavior are
+in [`docs/reference/parameter-modulation.md`](../reference/parameter-modulation.md).
+
+The Phase 33 `ScalarSource` remains the smaller normalized-input selector used
+by specific effect parameters. Its accepted values and the final 22-effect
+catalog are documented in
+[`docs/reference/effect-reference.md`](../reference/effect-reference.md).
 
 Logical virtual paths may contain ordered analog and digital targets. Their
 origin is one of `start`, `end`, `center`, or `edges`; the same modes are valid
@@ -123,8 +159,19 @@ strip_92` share the same first ten logical coordinates. With identical start,
 end, priority, origin, chase parameters, and static color, their contributions
 on `strip_11` are identical; the next coordinate lands on the first pixel of
 all three destination strips in the same logical frame. See
-`config/examples/cabin-show-fork-v2.yaml`. Keep `color_source: static`; rainbow or
-video coloring can differ across paths of different total lengths and is not
-covered by this fork contract.
+`config/examples/cabin-show-fork-v2.yaml`. Keep the historical chase parameter
+`effect.params.color_source: static`; rainbow or video coloring can differ
+across paths of different total lengths and is not covered by this fork
+contract. This sentence refers to the chase parameter, not the new cue-level
+Phase 39 `color_source` block.
 
 The cabin layout, run lengths, and wiring remain `NOT HARDWARE VERIFIED`.
+
+## Phase 40 contract state
+
+The RK3588 1D lighting authoring language is **CLOSED/FROZEN**. Bug fixes and
+compatibility-required additions remain allowed; proactive new primitive/effect
+migration and casual Show-contract redesign do not. This declaration does not
+claim hardware verification, installed-product acceptance, or completion of
+any future product phase. The authoritative navigation map is
+[`show-authoring-source-index.md`](show-authoring-source-index.md).

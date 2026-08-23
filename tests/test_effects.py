@@ -28,9 +28,9 @@ def _assert_sequence(frame, ctx):
 
 
 class TestEffectRegistry:
-    def test_all_21_effects_registered(self):
+    def test_all_22_effects_registered(self):
         effects = list_effects()
-        assert len(effects) == 21
+        assert len(effects) == 22
         required = [
             "static", "breath", "color_wave", "chase", "comet",
             "audio_pulse", "bass_pulse", "spectrum",
@@ -38,6 +38,7 @@ class TestEffectRegistry:
             "color_wipe", "twinkle", "demo", "step_pulse", "single_dot",
             "theater_phase",
             "flowing_bands", "onset_ripple", "heat_fire", "history_stream",
+            "coherent_noise_field",
         ]
         for name in required:
             assert name in effects, f"Missing effect: {name}"

@@ -1,6 +1,10 @@
 """BREATH effect - slow periodic brightness oscillation."""
 
+from __future__ import annotations
+
 import math
+from collections.abc import Mapping
+from typing import Any
 
 from light_engine.config import Config
 from light_engine.color import rgb_to_rgbcct
@@ -9,6 +13,7 @@ from light_engine.effects.base import (
     apply_common_intensity,
     runtime_float,
     runtime_rgb,
+    runtime_str,
 )
 from light_engine.models import (
     DigitalStrip,
@@ -38,11 +43,18 @@ class BreathEffect(BaseEffect):
     def process(self, ctx: EffectContext) -> PixelFrame:
         period = max(0.001, runtime_float(ctx, "period", self._period))
         minimum = runtime_float(ctx, "min_brightness", self._min)
+        waveform = runtime_str(ctx, "waveform", "sine")
         r, g, b = runtime_rgb(ctx, "color", self._color)
 
         self._phase += ctx.delta_time
         phase = float(ctx.mode_parameters.get("cue_local_time", self._phase))
-        t = (math.sin(2 * math.pi * phase / period) + 1) / 2
+        cycle = (phase / period) % 1.0
+        if waveform == "sine":
+            # Keep the historical phase and arithmetic exactly for the default.
+            t = (math.sin(2 * math.pi * phase / period) + 1) / 2
+        else:
+            triangle = 1.0 - abs(2.0 * ((cycle + 0.25) % 1.0) - 1.0)
+            t = triangle if waveform == "triangle" else triangle * triangle * (3.0 - 2.0 * triangle)
         brightness = minimum + (1.0 - minimum) * t
 
         r, g, b = r * brightness, g * brightness, b * brightness
@@ -70,3 +82,13 @@ class BreathEffect(BaseEffect):
 
     def reset(self) -> None:
         self._phase = 0.0
+
+
+def validate_breath_params(values: Mapping[str, Any]) -> Mapping[str, Any]:
+    waveform = values.get("waveform")
+    if waveform is not None and (
+        not isinstance(waveform, str)
+        or waveform not in {"sine", "triangle", "smoothstep"}
+    ):
+        raise ValueError("waveform must be one of: sine, triangle, smoothstep")
+    return dict(values)

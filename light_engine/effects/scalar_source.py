@@ -42,6 +42,12 @@ class ScalarSource:
     def sample(self, ctx: EffectContext) -> float:
         """Read one normalized sample; unavailable runtime input is zero."""
 
+        value = self.sample_optional(ctx)
+        return 0.0 if value is None else value
+
+    def sample_optional(self, ctx: EffectContext) -> float | None:
+        """Read one sample while preserving unavailable-input information."""
+
         kind, index = _parse_source_name(self.name)
         if kind == "cue_progress":
             return _normalized_value(
@@ -51,11 +57,11 @@ class ScalarSource:
 
         audio = ctx.audio_features
         if audio is None:
-            return 0.0
+            return None
         if kind == "spectrum":
             spectrum = audio.spectrum
             if spectrum is None:
-                return 0.0
+                return None
             if index is None or index >= len(spectrum):
                 raise ValueError(
                     f"{self.name} is unavailable in a {len(spectrum)}-bin spectrum"
@@ -64,14 +70,14 @@ class ScalarSource:
         if kind == "peak":
             peak = audio.peak
             if peak is None:
-                return 0.0
+                return None
             if type(peak) is not bool:
                 raise ValueError(f"{self.name} must be a bool, got {peak!r}")
             return 1.0 if peak else 0.0
 
         value = getattr(audio, kind)
         if value is None:
-            return 0.0
+            return None
         return _normalized_value(value, self.name)
 
 

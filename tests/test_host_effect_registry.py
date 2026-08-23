@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,8 +10,9 @@ from pydantic import ValidationError
 import yaml
 
 from host_services import engine_adapter
+from host_services.app_v1 import APP_V1_EFFECTS, APP_V1_EFFECT_TYPES
 from host_services.schemas import EffectCommonParams
-from light_engine.effects import list_effect_registrations, list_effects
+from light_engine.effects import list_effects
 
 
 _OPENAPI_PATH = Path("docs/reference/host-api-v1.openapi.yaml")
@@ -47,64 +47,36 @@ class _RecordingAdapter:
         self.commands.append(states)
 
 
-def _runtime_effect_capabilities() -> list[dict]:
-    return [
-        {
-            "effect_type": registration.id,
-            "name": registration.capability.display_name,
-            "params": list(registration.capability.common_params),
-            "effect_params": sorted(registration.parameter_keys),
-        }
-        for registration in list_effect_registrations()
-    ]
-
-
-def test_host_capabilities_are_derived_from_every_registry_entry() -> None:
+def test_host_capabilities_use_the_frozen_app_projection() -> None:
     effects = engine_adapter.get_capabilities()["effects"]
 
-    assert effects == _runtime_effect_capabilities()
-    assert [effect["effect_type"] for effect in effects] == list_effects()
+    assert effects == list(APP_V1_EFFECTS)
+    assert set(list_effects()) > {effect["effect_type"] for effect in effects}
 
 
-def test_static_openapi_effect_contract_cannot_drift_from_registry() -> None:
+def test_static_openapi_effect_contract_uses_the_frozen_app_v1_list() -> None:
     document = yaml.safe_load(_OPENAPI_PATH.read_text(encoding="utf-8"))
     schema = document["components"]["schemas"]["EffectType"]
 
-    assert schema["enum"] == list_effects()
-    assert schema["x-effect-registry"] == _runtime_effect_capabilities()
+    assert schema["enum"] == list(APP_V1_EFFECT_TYPES)
+    assert "x-effect-registry" not in schema
 
 
-def test_pydantic_request_enums_are_derived_from_registry() -> None:
+def test_pydantic_request_schema_does_not_publish_the_internal_registry() -> None:
     pytest.importorskip("pydantic")
     from host_services.schemas import EffectsSetRequest, SceneEntry
 
     effects_schema = EffectsSetRequest.model_json_schema()
     scene_schema = SceneEntry.model_json_schema()
 
-    assert effects_schema["properties"]["effect_type"]["enum"] == list_effects()
-    assert scene_schema["properties"]["effect_type"]["enum"] == list_effects()
+    assert "enum" not in effects_schema["properties"]["effect_type"]
+    assert "enum" not in scene_schema["properties"]["effect_type"]
 
 
-def test_host_schema_source_has_no_independent_effect_id_list() -> None:
+def test_host_schema_source_has_no_effect_id_list_or_registry_schema_export() -> None:
     source = Path("host_services/schemas.py").read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    derived_fields = set()
-    for class_node in (node for node in tree.body if isinstance(node, ast.ClassDef)):
-        for node in class_node.body:
-            if not isinstance(node, ast.AnnAssign):
-                continue
-            if not isinstance(node.target, ast.Name) or node.target.id != "effect_type":
-                continue
-            if any(
-                isinstance(child, ast.Call)
-                and isinstance(child.func, ast.Name)
-                and child.func.id == "list_effects"
-                for child in ast.walk(node)
-            ):
-                derived_fields.add(class_node.name)
-
     assert "VALID_EFFECT_TYPES" not in source
-    assert derived_fields == {"EffectsSetRequest", "SceneEntry"}
+    assert "list_effects" not in source
 
 
 def test_host_accepts_every_registered_effect_and_rejects_unknown_ids(

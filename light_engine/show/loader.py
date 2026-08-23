@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from itertools import product
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -10,6 +11,7 @@ from typing import Any, Iterable, Mapping
 import yaml
 
 from light_engine.effects import get_effect_registration, list_effects
+from light_engine.effects.scalar_source import ScalarSource
 from light_engine.show.audio_modulation import SOURCE_FIELDS
 from light_engine.show.models import (
     AudioControlSpec,
@@ -18,14 +20,20 @@ from light_engine.show.models import (
     BrightnessKeyframe,
     BrightnessTrackSpec,
     ColorSpec,
+    ColorSourceKeyframe,
+    ColorSourceSpec,
     Cue,
     CueBranchSpec,
     EffectSpec,
+    ParameterModulationBindingSpec,
+    ParameterModulationSpec,
     ShowDefinition,
     TargetSelector,
     TransitionSpec,
     VirtualPathSpec,
 )
+from light_engine.show.parameter_modulation import RAW_AUDIO_SOURCES
+from light_engine.show.color_source import color_source_support
 
 
 TARGET_KINDS = frozenset(
@@ -45,6 +53,16 @@ V2_TARGET_KINDS = frozenset(
 )
 ORIGINS = frozenset({"start", "end", "center", "edges"})
 COLOR_MODES = frozenset({"effect_default", "solid", "palette"})
+COLOR_SOURCE_TYPES = frozenset(
+    {
+        "timeline",
+        "spatial_palette",
+        "video_average",
+        "video_dominant",
+        "audio_spectrum_palette",
+        "dominant_frequency_palette",
+    }
+)
 BLEND_MODES = frozenset({"replace", "add"})
 EFFECT_MODES = frozenset({"fixed", "adaptive"})
 AUDIO_STATES = frozenset(
@@ -223,7 +241,9 @@ def _cues(
             "audio_control", "audio_modulation",
         }
         if version == 2:
-            allowed_cue.update({"color", "origin", "branches"})
+            allowed_cue.update(
+                {"color", "color_source", "origin", "branches", "parameter_modulation"}
+            )
         _unknown(
             cue,
             allowed_cue,
@@ -238,6 +258,25 @@ def _cues(
         if end > duration:
             raise ShowValidationError(f"{path}.end", end, f"must be <= duration {duration}")
         priority = _int(cue.get("priority", 0), f"{path}.priority", minimum=0)
+        effect_spec = _effect(cue.get("effect"), f"{path}.effect", version=version)
+        parameter_modulation = (
+            None
+            if "parameter_modulation" not in cue
+            else _parameter_modulation(
+                cue["parameter_modulation"],
+                f"{path}.parameter_modulation",
+                effect_spec,
+            )
+        )
+        color_source = (
+            None
+            if "color_source" not in cue
+            else _color_source(
+                cue["color_source"],
+                f"{path}.color_source",
+                effect_spec,
+            )
+        )
         cues.append(
             Cue(
                 id=cue_id,
@@ -245,7 +284,7 @@ def _cues(
                 end=end,
                 priority=priority,
                 target=_target(cue.get("target"), f"{path}.target", target_catalog, version=version),
-                effect=_effect(cue.get("effect"), f"{path}.effect", version=version),
+                effect=effect_spec,
                 color=(
                     _color_spec(cue.get("color", {"mode": "effect_default"}), f"{path}.color")
                     if version == 2 else ColorSpec()
@@ -274,6 +313,8 @@ def _cues(
                         cue["audio_modulation"], f"{path}.audio_modulation"
                     )
                 ),
+                parameter_modulation=parameter_modulation,
+                color_source=color_source,
             )
         )
     return cues
@@ -595,6 +636,87 @@ def _color_spec(value: Any, path: str) -> ColorSpec:
     return ColorSpec(mode=mode, palette=colors)
 
 
+def _color_source(value: Any, path: str, effect: EffectSpec) -> ColorSourceSpec:
+    """Validate the explicit ColorSource block without touching ColorSpec."""
+
+    item = _mapping(value, path)
+    source_type = _choice(item.get("type"), f"{path}.type", COLOR_SOURCE_TYPES)
+    if effect.mode != "fixed" or effect.id is None:
+        raise ShowValidationError(path, value, "ColorSource requires a fixed effect")
+    support = color_source_support(effect.id)
+    if support == "NOT_APPLICABLE":
+        raise ShowValidationError(
+            path,
+            value,
+            f"effect {effect.id!r} does not have meaningful ColorSource semantics",
+        )
+
+    if source_type == "timeline":
+        _unknown(item, {"type", "interpolation", "keyframes"}, path)
+        timeline = _color_timeline(
+            {key: item[key] for key in ("interpolation", "keyframes") if key in item},
+            path,
+        )
+        return ColorSourceSpec(
+            type=source_type,
+            interpolation=timeline["interpolation"],
+            keyframes=tuple(
+                ColorSourceKeyframe(frame["time"], frame["color"])
+                for frame in timeline["keyframes"]
+            ),
+        )
+
+    if source_type == "spatial_palette":
+        _unknown(item, {"type", "palette"}, path)
+        return ColorSourceSpec(type=source_type, palette=_color_source_palette(item, path))
+
+    if source_type in {"video_average", "video_dominant"}:
+        _unknown(item, {"type", "fallback"}, path)
+        return ColorSourceSpec(
+            type=source_type,
+            fallback=_rgb_color(item.get("fallback"), f"{path}.fallback"),
+        )
+
+    if source_type == "audio_spectrum_palette":
+        _unknown(item, {"type", "palette", "fallback"}, path)
+        return ColorSourceSpec(
+            type=source_type,
+            palette=_color_source_palette(item, path),
+            fallback=_rgb_color(item.get("fallback"), f"{path}.fallback"),
+        )
+
+    _unknown(
+        item,
+        {"type", "frequency_min_hz", "frequency_max_hz", "palette", "fallback"},
+        path,
+    )
+    lower = _number(item.get("frequency_min_hz"), f"{path}.frequency_min_hz", minimum=0.0)
+    upper = _number(
+        item.get("frequency_max_hz"),
+        f"{path}.frequency_max_hz",
+        min_exclusive=lower,
+    )
+    return ColorSourceSpec(
+        type=source_type,
+        palette=_color_source_palette(item, path),
+        fallback=_rgb_color(item.get("fallback"), f"{path}.fallback"),
+        frequency_min_hz=lower,
+        frequency_max_hz=upper,
+    )
+
+
+def _color_source_palette(
+    item: Mapping[str, Any], path: str
+) -> tuple[tuple[float, float, float], ...]:
+    raw_palette = _list(item.get("palette"), f"{path}.palette")
+    if not raw_palette:
+        raise ShowValidationError(f"{path}.palette", raw_palette, "must be non-empty")
+    return tuple(
+        _rgb_color(raw, f"{path}.palette[{index}]")
+        for index, raw in enumerate(raw_palette)
+    )
+
+
 def _parameters(value: Any, path: str, effect_name: str) -> dict[str, Any]:
     params = _mapping(value, path)
     registration = get_effect_registration(effect_name)
@@ -787,6 +909,177 @@ def _audio_modulation_channel(value: Any, path: str) -> AudioModulationChannelSp
             minimum=0.0,
         ),
     )
+
+
+def _parameter_modulation(
+    value: Any,
+    path: str,
+    effect: EffectSpec,
+) -> ParameterModulationSpec:
+    if effect.mode != "fixed" or effect.id is None:
+        raise ShowValidationError(path, value, "requires a fixed effect")
+    bindings_value = _list(value, path)
+    if not bindings_value:
+        raise ShowValidationError(path, value, "must contain at least one binding")
+    registration = get_effect_registration(effect.id)
+    specs = {spec.name: spec for spec in registration.parameter_specs}
+    seen: set[str] = set()
+    bindings: list[ParameterModulationBindingSpec] = []
+    for index, raw in enumerate(bindings_value):
+        item_path = f"{path}[{index}]"
+        item = _mapping(raw, item_path)
+        _unknown(
+            item,
+            {
+                "target", "mode", "source", "output_min", "output_max",
+                "input_min", "input_max", "fallback", "smoothing_seconds",
+            },
+            item_path,
+        )
+        for field_name in ("target", "mode", "source", "output_min", "output_max"):
+            if field_name not in item:
+                raise ShowValidationError(f"{item_path}.{field_name}", None, "is required")
+        target = _nonempty_str(item["target"], f"{item_path}.target")
+        if target in {"brightness", "speed", "intensity"}:
+            raise ShowValidationError(
+                f"{item_path}.target", target,
+                "common brightness/speed/intensity remain owned by audio_modulation",
+            )
+        parameter = specs.get(target)
+        if parameter is None:
+            raise ShowValidationError(f"{item_path}.target", target, "unknown effect parameter")
+        if not (
+            parameter.kind == "float"
+            and parameter.runtime_mutable
+            and parameter.modulatable
+        ):
+            raise ShowValidationError(
+                f"{item_path}.target", target,
+                "must be a float runtime-mutable modulatable ParameterSpec",
+            )
+        if target in seen:
+            raise ShowValidationError(f"{item_path}.target", target, "duplicate target binding")
+        seen.add(target)
+        mode = _choice(item["mode"], f"{item_path}.mode", {"modulate", "drive"})
+        if mode == "modulate" and target not in effect.params:
+            raise ShowValidationError(
+                f"{item_path}.target", target,
+                "modulate requires an explicitly authored base parameter",
+            )
+        source = _nonempty_str(item["source"], f"{item_path}.source")
+        is_raw = source in RAW_AUDIO_SOURCES
+        if not is_raw:
+            try:
+                ScalarSource(source)
+            except ValueError as exc:
+                raise ShowValidationError(f"{item_path}.source", source, str(exc)) from exc
+        has_input_min = "input_min" in item
+        has_input_max = "input_max" in item
+        if is_raw and not (has_input_min and has_input_max):
+            raise ShowValidationError(
+                item_path, item,
+                "raw audio sources require input_min and input_max",
+            )
+        if not is_raw and (has_input_min or has_input_max):
+            raise ShowValidationError(
+                item_path, item,
+                "input_min/input_max are allowed only for raw audio sources",
+            )
+        input_min = (
+            _number(item["input_min"], f"{item_path}.input_min")
+            if has_input_min else None
+        )
+        input_max = (
+            _number(item["input_max"], f"{item_path}.input_max")
+            if has_input_max else None
+        )
+        if input_min is not None and input_max is not None and input_min >= input_max:
+            raise ShowValidationError(
+                f"{item_path}.input_max", input_max, "must be > input_min"
+            )
+        output_min = _number(item["output_min"], f"{item_path}.output_min")
+        output_max = _number(item["output_max"], f"{item_path}.output_max")
+        if output_min > output_max:
+            raise ShowValidationError(
+                f"{item_path}.output_max", output_max, "must be >= output_min"
+            )
+        if mode == "modulate" and output_min < 0.0:
+            raise ShowValidationError(
+                f"{item_path}.output_min", output_min, "multiplier must be >= 0"
+            )
+        fallback = (
+            _number(item["fallback"], f"{item_path}.fallback")
+            if "fallback" in item else None
+        )
+        if mode == "drive" and source != "cue_progress" and fallback is None:
+            raise ShowValidationError(
+                f"{item_path}.fallback", None,
+                "is required for an audio source that may be absent",
+            )
+        if fallback is not None and not output_min <= fallback <= output_max:
+            raise ShowValidationError(
+                f"{item_path}.fallback", fallback,
+                "must be within output_min and output_max",
+            )
+        binding = ParameterModulationBindingSpec(
+            target=target,
+            mode=mode,
+            source=source,
+            output_min=output_min,
+            output_max=output_max,
+            smoothing_seconds=_number(
+                item.get("smoothing_seconds", 0.0),
+                f"{item_path}.smoothing_seconds",
+                minimum=0.0,
+            ),
+            input_min=input_min,
+            input_max=input_max,
+            fallback=fallback,
+        )
+        bindings.append(binding)
+    _validate_parameter_modulation_output_combinations(
+        registration,
+        effect.params,
+        bindings,
+        path,
+    )
+    return ParameterModulationSpec(tuple(bindings))
+
+
+def _validate_parameter_modulation_output_combinations(
+    registration: Any,
+    authored_params: Mapping[str, Any],
+    bindings: list[ParameterModulationBindingSpec],
+    path: str,
+) -> None:
+    possible_values = [
+        tuple(dict.fromkeys(
+            value
+            for value in (
+                binding.output_min,
+                binding.output_max,
+                binding.fallback,
+                1.0 if binding.mode == "modulate" and binding.fallback is None else None,
+            )
+            if value is not None
+        ))
+        for binding in bindings
+    ]
+    for mapped_values in product(*possible_values):
+        final = dict(authored_params)
+        for binding, mapped in zip(bindings, mapped_values):
+            final[binding.target] = (
+                float(authored_params[binding.target]) * mapped
+                if binding.mode == "modulate" else mapped
+            )
+        try:
+            registration.validator(final)
+        except (TypeError, ValueError) as exc:
+            raise ShowValidationError(
+                path,
+                {binding.target: mapped for binding, mapped in zip(bindings, mapped_values)},
+                f"output combination produces invalid final effect parameters: {exc}",
+            ) from exc
 
 
 def _parameter_value(value: Any, path: str) -> None:

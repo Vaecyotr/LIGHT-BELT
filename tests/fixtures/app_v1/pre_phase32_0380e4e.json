@@ -1,0 +1,75 @@
+{
+  "provenance": {
+    "source_repository": "https://github.com/zxlzzz/LIGHT-BELT",
+    "source_commit": "0380e4e1ecb926148d9afc07b7f95f6ad0aa4c6b",
+    "source_short_commit": "0380e4e",
+    "source_date": "2026-08-19",
+    "reason": "last known-good pre-Phase32 integration state; APP + Host + Show playback were operational"
+  },
+  "api_version": "1.0",
+  "app_visible_effects": [
+    {"effect_type": "static", "name": "Static", "params": ["color", "intensity"], "effect_params": []},
+    {"effect_type": "breath", "name": "Breath", "params": ["color", "intensity"], "effect_params": ["period", "min_brightness"]},
+    {"effect_type": "chase", "name": "Chase", "params": ["speed", "intensity"], "effect_params": ["width", "gap", "direction"]},
+    {"effect_type": "color_wave", "name": "Color Wave", "params": ["speed", "intensity"], "effect_params": ["width"]},
+    {"effect_type": "comet", "name": "Comet", "params": ["speed", "intensity"], "effect_params": ["tail_length", "decay"]},
+    {"effect_type": "audio_pulse", "name": "Audio Pulse", "params": ["color", "intensity"], "effect_params": ["attack", "release"]},
+    {"effect_type": "bass_pulse", "name": "Bass Pulse", "params": ["color", "intensity"], "effect_params": ["attack", "release"]},
+    {"effect_type": "spectrum", "name": "Spectrum", "params": ["intensity"], "effect_params": ["bass_zones", "mid_zones", "treble_zones"]},
+    {"effect_type": "video_ambient", "name": "Video Ambient", "params": ["intensity"], "effect_params": ["smoothing"]},
+    {"effect_type": "video_audio_fusion", "name": "Video Audio Fusion", "params": ["intensity"], "effect_params": ["video_weight", "audio_weight"]},
+    {"effect_type": "calm", "name": "Calm", "params": ["color", "intensity"], "effect_params": ["period"]},
+    {"effect_type": "demo", "name": "Demo", "params": [], "effect_params": ["cycle_interval", "effects"]}
+  ],
+  "special_effect_types": [
+    "twinkle"
+  ],
+  "websocket_message_types": [
+    "session.connected",
+    "runtime.state",
+    "playback.progress",
+    "device.status",
+    "error.event",
+    "heartbeat",
+    "scene.applied"
+  ],
+  "supports": {
+    "playback": true,
+    "resume": true,
+    "seek": true,
+    "lights": true,
+    "effects": true,
+    "color_temperature": true,
+    "transitions": true,
+    "websocket": true,
+    "audio": true,
+    "scenes": true,
+    "brightness_scale": true
+  },
+  "rest_paths": [
+    "/api/v1/status",
+    "/api/v1/auth/pair",
+    "/api/v1/auth/refresh",
+    "/api/v1/session/ws-ticket",
+    "/api/v1/state",
+    "/api/v1/shows",
+    "/api/v1/capabilities",
+    "/api/v1/playback/play",
+    "/api/v1/playback/pause",
+    "/api/v1/playback/resume",
+    "/api/v1/playback/stop",
+    "/api/v1/playback/seek",
+    "/api/v1/playback/state",
+    "/api/v1/playback/reset",
+    "/api/v1/lights/set",
+    "/api/v1/effects/set",
+    "/api/v1/audio",
+    "/api/v1/audio/set",
+    "/api/v1/scenes",
+    "/api/v1/scenes/save",
+    "/api/v1/scenes/apply",
+    "/api/v1/scenes/delete",
+    "/api/v1/brightness",
+    "/api/v1/brightness/set"
+  ]
+}
