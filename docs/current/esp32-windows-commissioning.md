@@ -2,6 +2,13 @@
 
 状态：**NOT HARDWARE VERIFIED**。
 
+> [!NOTE]
+> **Maintenance Path Notice**:
+> - **Current Role**: This document is retained for the custom UDP-v3 firmware maintenance and commissioning path (`profiles/udp-v3-nine-strip-maintenance.yaml`).
+> - **Current Production Digital-Lighting Path**: The current production deployment uses `RK3588 → DDP (UDP 4048) → ESP32 running upstream WLED firmware → WS2811` (see [`config/profiles/rk3588-host-service.yaml`](../../config/profiles/rk3588-host-service.yaml)).
+> - **Historical Wording**: Historical references to "生产/production" within the text below describe the earlier custom-firmware architecture and must not be used to infer current production transport.
+> - **Hardware Status**: Custom UDP-v3 commissioning claims remain bounded to their documented bench evidence; do not generalize them to the current WLED/DDP deployment.
+
 本文用于 Phase 31 的 ESP32-S3 批量烧录与留档。生产合同是一条 WS2811
 灯带对应一块 ESP32-S3；每个节点只有 `output_id: 1`，数据引脚为 GPIO4。
 烧录成功只证明固件写入成功，不证明 Wi-Fi、UDP、灯带、电源或整场同步已经通过

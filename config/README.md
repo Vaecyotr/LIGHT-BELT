@@ -8,10 +8,10 @@
 | `shows/` | Admission rules and newly approved current Shows |
 | `shows/archive/` | Retired Show fixtures by stable category; never a current design reference |
 | `examples/` | Teaching, compatibility, and authoring examples |
-| `acceptance/` | Fixed inputs for named software acceptance campaigns |
+| [`acceptance/`](acceptance/README.md) | Fixed static inputs and test fixtures for named software acceptance campaigns |
 
 Hardware endpoints, GPIO mappings, and physical topology remain configurable.
-Files under `acceptance/` are test fixtures, not production profiles.
+Files under `acceptance/` are test fixtures, not production profiles; see [acceptance/README.md](acceptance/README.md).
 
 The immutable original Show source is
 `assets/energy-wakeup/energy-wakeup.yaml`; do not edit or use it as the runtime

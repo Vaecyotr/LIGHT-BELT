@@ -1,51 +1,45 @@
 # Documentation Index
 
-This index is the entry point for repository documentation. A document's
-directory defines its lifecycle; filenames alone do not determine authority.
+This index is the master entry point for repository documentation.
+Directory lifecycle categorizes document roles, but per-file README classification determines each document's precise authority and scope; a retained document in `current/` may contain explicitly historical or maintenance-only sections.
 
 ## Authority
 
-1. `CLAUDE.md` contains permanent project facts and architecture invariants.
-2. `docs/CLOSED_LOOP_SPEC.md` defines target behavior and protocol contracts.
-3. `docs/IMPLEMENTATION_PLAN.md` records the currently approved work only.
-4. Current source and tests provide evidence of implemented behavior.
+When documents or code disagree, resolve conflicts in this exact order:
 
-## Current instructions
+1. [CLAUDE.md](../CLAUDE.md) — permanent project facts and architecture invariants.
+2. [CLOSED_LOOP_SPEC.md](CLOSED_LOOP_SPEC.md) — target behavior and protocol contracts.
+3. [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — currently approved work and closure evidence.
+4. Current source implementation and focused tests — evidence of implemented behavior.
+5. Directory-level navigation indices and individual document status declarations.
 
-- [Cabin Lighting V3 operator guide](current/cabin-lighting-v3-operator-guide.md)
-- [ESP32 Windows commissioning](current/esp32-windows-commissioning.md)
-- [Show v2 authoring](current/show-v2-authoring.md)
-- [WS2811 show stability investigation](current/ws2811-show-stability-investigation.md)
+## Navigation by Role
 
-## Reference
+- **[Current Operations, Authoring & Maintenance (`docs/current/`)](current/README.md)**:
+  Active operational runbooks, authoring guides, Host Service deployment, and retained maintenance procedures.
+  - *Show Authoring Entry Point*: [show-authoring-source-index.md](current/show-authoring-source-index.md)
+  - *Canonical Authoring Guide*: [show-v2-authoring.md](current/show-v2-authoring.md)
+  - *Host Deployment*: [host-service-deployment.md](current/host-service-deployment.md)
 
-- [Effect reference](reference/effect-reference.md)
-- [Host API v1](reference/host-api-v1.md)
-- [Host API v1 changelog](reference/host-api-v1-changelog.md)
-- `reference/host-api-v1.openapi.yaml`
+- **[Technical Reference & API Contracts (`docs/reference/`)](reference/README.md)**:
+  Normative API contracts, effect metadata, wire protocols, and research closure records.
+  - *Frozen External APP Facade*: [host-api-v1.md](reference/host-api-v1.md) & [host-api-v1.openapi.yaml](reference/host-api-v1.openapi.yaml)
+  - *Native Effect Reference*: [effect-reference.md](reference/effect-reference.md)
+  - *Internal Parameter Metadata*: [effect-parameter-metadata.md](reference/effect-parameter-metadata.md)
+  - *Parameter Modulation*: [parameter-modulation.md](reference/parameter-modulation.md)
+  - *Dynamic ColorSource*: [color-source.md](reference/color-source.md)
 
-## Acceptance
+- **[Software Acceptance Records (`docs/acceptance/`)](acceptance/README.md)**:
+  Human-readable acceptance reports summarizing verified software evidence for completed phases.
+  - *Acceptance Evidence Chain*: [docs/acceptance/README.md](acceptance/README.md)
+  - *Machine-Readable Counterparts*: [artifacts/README.md](../artifacts/README.md)
+  - *Test Fixtures*: [config/acceptance/README.md](../config/acceptance/README.md)
 
-- [Cabin Lighting V3 Phase 31 software acceptance](acceptance/cabin-lighting-v3-phase31-software-acceptance.md)
-- [Authoring modulation v1 software acceptance](acceptance/authoring-modulation-v1-software-acceptance.md)
-- [Show orchestration v1 software acceptance](acceptance/show-orchestration-v1-software-acceptance.md)
-- [Hardware acceptance checklist](acceptance/hardware-acceptance-checklist.md)
-- [Repository governance closeout](acceptance/repository-governance-closeout.md)
+- **[Historical Archives (`docs/history/`)](history/README.md)**:
+  Preserved historical plans, early prototype notes, and completed campaign artifacts retained strictly for provenance.
 
-Software acceptance is not hardware acceptance. All physical installation and
-timing claims remain **NOT HARDWARE VERIFIED** until the hardware checklist is
-completed with real evidence.
+## Governance & Verification Boundaries
 
-## History
+Software acceptance demonstrates deterministic simulation correctness and offline capacity; it does not prove physical hardware installation. All electrical timing, multi-node Wi-Fi synchronization, and field deployment claims remain **`NOT HARDWARE VERIFIED`** until verified with physical hardware measurements.
 
-`history/` preserves superseded plans, old prototype descriptions, and
-completed campaign instructions. Historical files may intentionally contain
-old paths, RGBW terminology, deprecated commands, or measurements captured at
-the time. They are evidence, not current instructions.
-
-The superseded five-controller Phase 29 report is retained at
-`history/acceptance/cabin-lighting-v3-phase29-software-acceptance.md`; it does
-not describe the Phase 31 production topology.
-
-See [Repository Governance](repository-governance.md) for lifecycle and cleanup
-rules.
+See [Repository Governance](repository-governance.md) for full lifecycle management rules.
