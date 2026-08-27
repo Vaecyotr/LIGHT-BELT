@@ -638,8 +638,10 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
         return None, "INVALID_ARGUMENT"
     if _real_adapter is not None:
         _refresh_wled_profile(reason="playback session resolve")
-    # Tear down current playback before starting new show (same as stop).
-    if _mpv:
+    # Tear down current lighting playback before starting the new show.
+    # When the new show has media, loadfile(..., "replace") replaces the
+    # current media directly; stopping mpv first is unnecessary.
+    if _mpv and not show.get("media_path"):
         _mpv.stop()
     _manual_targets.clear()
     if _real_adapter is not None:
@@ -1245,18 +1247,124 @@ _ensure_mpv_at_startup()
 # ══════════════════════════════════════════════
 
 def _deferred_re_resolve() -> None:
-    """开机 30 秒后再 resolve 一次；如果 IP 变了就热更新 _devices。
+    """开机后退避重试 resolve，直到当前配置的节点全部解析出真实 IP 或耗尽重试。
 
-    解决开机时节点还没连上 WiFi、avahi 还没 ready 的时序问题。
+    覆盖冷启动时节点还没连 WiFi / avahi 还没 ready 的时序缝隙。
+    单次 30s 对慢冷启动不够，改为退避重试；任一次全部解析成功即停止。
     """
+    global _valid_target_ids, _capability_targets, _devices
+
     if ENGINE_ADAPTER != "real":
         return
-    time.sleep(30)
-    try:
-        _refresh_wled_profile(reason="deferred re-resolve")
-    except Exception as exc:
-        _log.warning("deferred re-resolve failed: %s", exc)
+
+    from light_engine.config import Config as _Cfg
+
+    for attempt, delay in enumerate(
+        (15, 15, 30, 30, 60, 60, 120),
+        start=1,
+    ):
+        time.sleep(delay)
+
+        try:
+            old_hosts = {
+                d["device_id"]: d.get("host")
+                for d in _devices
+            }
+
+            _run_resolve_nodes()
+
+            # 清掉 singleton 缓存，强制重新读取 runtime profile。
+            _Cfg.reset()
+
+            new_ids, new_caps, new_devs = _load_layout_vocab()
+
+            new_hosts = {
+                d["device_id"]: d.get("host")
+                for d in new_devs
+            }
+
+            changed = {
+                device_id
+                for device_id in (set(old_hosts) | set(new_hosts))
+                if old_hosts.get(device_id) != new_hosts.get(device_id)
+            }
+
+            # 只有节点地址确实发生变化时才替换运行时设备列表。
+            # 否则会无意义地重置 status / last_seen_ms /
+            # connection_confirmed 等运行时状态。
+            if changed:
+                _valid_target_ids = new_ids
+                _capability_targets = new_caps
+                _devices = new_devs
+
+                _log.info(
+                    "deferred re-resolve #%d: updated %s",
+                    attempt,
+                    ", ".join(
+                        f"{device_id}: "
+                        f"{old_hosts.get(device_id)} -> {new_hosts.get(device_id)}"
+                        for device_id in sorted(changed)
+                    ),
+                )
+
+            unresolved = [
+                device_id
+                for device_id, host in new_hosts.items()
+                if not host or str(host).endswith(".local")
+            ]
+
+            if not unresolved:
+                _log.info(
+                    "deferred re-resolve #%d: all configured nodes resolved",
+                    attempt,
+                )
+                return
+
+            _log.info(
+                "deferred re-resolve #%d: unresolved nodes remain: %s",
+                attempt,
+                unresolved,
+            )
+
+        except Exception as exc:
+            _log.warning(
+                "deferred re-resolve #%d failed: %s",
+                attempt,
+                exc,
+            )
+
+    _log.warning(
+        "deferred re-resolve: retry schedule exhausted; "
+        "some nodes are still unresolved"
+    )
 
 
-if ENGINE_ADAPTER == "real":
-    threading.Thread(target=_deferred_re_resolve, name="deferred-re-resolve", daemon=True).start()
+_deferred_re_resolve_thread: threading.Thread | None = None
+
+
+def _start_deferred_re_resolve() -> None:
+    """Start exactly one deferred node-resolution worker."""
+    global _deferred_re_resolve_thread
+
+    if ENGINE_ADAPTER != "real":
+        return
+
+    if (
+        _deferred_re_resolve_thread is not None
+        and _deferred_re_resolve_thread.is_alive()
+    ):
+        return
+
+    _deferred_re_resolve_thread = threading.Thread(
+        target=_deferred_re_resolve,
+        name="deferred-re-resolve",
+        daemon=True,
+    )
+    _deferred_re_resolve_thread.start()
+
+    _log.info(
+        "engine_adapter: deferred re-resolve thread started"
+    )
+
+
+_start_deferred_re_resolve()
