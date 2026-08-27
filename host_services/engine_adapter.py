@@ -107,8 +107,49 @@ def _run_resolve_nodes() -> None:
 _valid_target_ids: frozenset[str]
 _capability_targets: list[dict]
 _devices: list[dict]
+_profile_refresh_lock = threading.RLock()
 _run_resolve_nodes()
 _valid_target_ids, _capability_targets, _devices = _load_layout_vocab()
+
+
+def _refresh_wled_profile(*, reason: str) -> set[str]:
+    """Resolve and reload the WLED runtime profile at a safe process boundary.
+
+    The active light_engine process owns its physical mapping for its lifetime,
+    so this helper deliberately updates only the profile used by the *next*
+    process. It never claims to hot-update an already running DDP destination.
+    """
+    global _valid_target_ids, _capability_targets, _devices
+    if ENGINE_ADAPTER != "real":
+        return set()
+    with _profile_refresh_lock:
+        old_hosts = {d["device_id"]: d.get("host") for d in _devices}
+        _run_resolve_nodes()
+        from light_engine.config import Config as _Cfg
+        _Cfg.reset()
+        new_ids, new_caps, new_devs = _load_layout_vocab()
+        new_hosts = {d["device_id"]: d.get("host") for d in new_devs}
+        changed = {
+            device_id
+            for device_id in old_hosts.keys() | new_hosts.keys()
+            if old_hosts.get(device_id) != new_hosts.get(device_id)
+        }
+        _valid_target_ids = new_ids
+        _capability_targets = new_caps
+        _devices = new_devs
+        if changed:
+            _log.info(
+                "%s: updated %d device IPs: %s",
+                reason,
+                len(changed),
+                ", ".join(
+                    f"{device_id}: {old_hosts.get(device_id)} -> {new_hosts.get(device_id)}"
+                    for device_id in sorted(changed)
+                ),
+            )
+        else:
+            _log.info("%s: all IPs unchanged", reason)
+        return changed
 
 
 # ══════════════════════════════════════════════
@@ -400,6 +441,7 @@ def _accumulate_hw_entry(
 def _apply_manual_targets() -> None:
     """Send the complete accumulated _manual_targets list to the real adapter."""
     if _real_adapter is not None and _manual_targets:
+        _refresh_wled_profile(reason="manual session resolve")
         # 节点可能被 playback_stop / 自然结束看门狗关过，先重新点亮再下发。
         _push_brightness_scale()
         _real_adapter.on_manual_command(list(_manual_targets.values()))
@@ -594,6 +636,8 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
         return None, "NOT_FOUND"
     if start_ms is not None and start_ms > show["duration_ms"]:
         return None, "INVALID_ARGUMENT"
+    if _real_adapter is not None:
+        _refresh_wled_profile(reason="playback session resolve")
     # Tear down current playback before starting new show (same as stop).
     if _mpv:
         _mpv.stop()
@@ -678,6 +722,7 @@ def playback_reset() -> tuple[dict | None, str | None]:
         return None, "PLAYBACK_NOT_READY"
     _manual_targets.clear()
     if _real_adapter is not None:
+        _refresh_wled_profile(reason="playback resume resolve")
         ok = _real_adapter.on_playback_resume_yaml()
         if not ok:
             return None, "NO_ACTIVE_SHOW"
@@ -1204,29 +1249,11 @@ def _deferred_re_resolve() -> None:
 
     解决开机时节点还没连上 WiFi、avahi 还没 ready 的时序问题。
     """
-    global _valid_target_ids, _capability_targets, _devices
     if ENGINE_ADAPTER != "real":
         return
     time.sleep(30)
     try:
-        old_hosts = {d["device_id"]: d.get("host") for d in _devices}
-        _run_resolve_nodes()
-        from light_engine.config import Config as _Cfg
-        _Cfg.reset()  # 清掉 singleton 缓存，强制重新读文件
-        new_ids, new_caps, new_devs = _load_layout_vocab()
-        new_hosts = {d["device_id"]: d.get("host") for d in new_devs}
-        changed = {k for k in old_hosts if old_hosts[k] != new_hosts.get(k)}
-        if changed:
-            _valid_target_ids = new_ids
-            _capability_targets = new_caps
-            _devices = new_devs
-            _log.info(
-                "deferred re-resolve: updated %d device IPs: %s",
-                len(changed),
-                ", ".join(f"{k}: {old_hosts[k]} -> {new_hosts.get(k)}" for k in changed),
-            )
-        else:
-            _log.info("deferred re-resolve: all IPs unchanged")
+        _refresh_wled_profile(reason="deferred re-resolve")
     except Exception as exc:
         _log.warning("deferred re-resolve failed: %s", exc)
 

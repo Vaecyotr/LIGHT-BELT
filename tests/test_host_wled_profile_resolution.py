@@ -139,3 +139,126 @@ def test_enabled_custom_udp_v3_device_skips_wled_http_but_records_output(monkeyp
     assert calls == []
     assert custom["status"] == "offline"
     assert custom["last_output_ms"] == 123
+
+
+def test_refresh_resolves_before_reloading_runtime_devices(monkeypatch) -> None:
+    """A safe-boundary refresh must resolve first, then replace Host device data."""
+    old_devices = [{"device_id": "strip_11", "host": "192.0.2.11"}]
+    new_devices = [{"device_id": "strip_11", "host": "192.0.2.99"}]
+    events: list[str] = []
+    monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
+    monkeypatch.setattr(engine_adapter, "_devices", old_devices)
+    monkeypatch.setattr(engine_adapter, "_valid_target_ids", frozenset({"strip_11"}))
+    monkeypatch.setattr(engine_adapter, "_capability_targets", [])
+    monkeypatch.setattr(engine_adapter, "_run_resolve_nodes", lambda: events.append("resolve"))
+    monkeypatch.setattr(
+        engine_adapter,
+        "_load_layout_vocab",
+        lambda: events.append("load") or (frozenset({"strip_11"}), [{"id": "strip_11"}], new_devices),
+    )
+
+    changed = engine_adapter._refresh_wled_profile(reason="test refresh")
+
+    assert events == ["resolve", "load"]
+    assert changed == {"strip_11"}
+    assert engine_adapter._devices == new_devices
+    assert engine_adapter._valid_target_ids == frozenset({"strip_11"})
+
+
+def test_playback_refreshes_profile_before_starting_real_adapter(monkeypatch) -> None:
+    """The playback adapter call (and its engine spawn) follows a profile refresh."""
+    events: list[tuple[str, str]] = []
+    adapter = SimpleNamespace(
+        on_playback_stop=lambda: events.append(("adapter", "stop")),
+        on_playback_start=lambda _show, _start: events.append(("adapter", "playback_start")),
+    )
+    monkeypatch.setattr(engine_adapter, "_real_adapter", adapter)
+    monkeypatch.setattr(
+        engine_adapter,
+        "_refresh_wled_profile",
+        lambda *, reason: events.append(("refresh", reason)) or set(),
+    )
+    monkeypatch.setattr(
+        engine_adapter,
+        "_find_show",
+        lambda _show_id: {"show_id": "demo", "duration_ms": 1_000, "media_path": None},
+    )
+    monkeypatch.setattr(engine_adapter, "_mpv", None)
+    monkeypatch.setattr(engine_adapter, "_push_brightness_scale", lambda: None)
+    monkeypatch.setattr(engine_adapter, "_mark_devices_output", lambda: None)
+
+    data, error = engine_adapter.playback_play("demo", None)
+
+    assert error is None
+    assert data is not None
+    assert events.index(("refresh", "playback session resolve")) < events.index(("adapter", "playback_start"))
+
+
+def test_manual_command_refreshes_profile_before_real_adapter_call(monkeypatch) -> None:
+    """Manual output must resolve before handing a frame to the real adapter."""
+    events: list[tuple[str, str]] = []
+    adapter = SimpleNamespace(
+        on_manual_command=lambda _targets: events.append(("adapter", "manual_command")),
+    )
+    monkeypatch.setattr(engine_adapter, "_real_adapter", adapter)
+    monkeypatch.setattr(
+        engine_adapter,
+        "_refresh_wled_profile",
+        lambda *, reason: events.append(("refresh", reason)) or set(),
+    )
+    monkeypatch.setattr(
+        engine_adapter,
+        "_manual_targets",
+        {"strip_11": {"target_id": "strip_11", "effect_type": "static", "color": [1, 0, 0]}},
+    )
+    monkeypatch.setattr(engine_adapter, "_push_brightness_scale", lambda: None)
+    monkeypatch.setattr(engine_adapter, "_mark_devices_output", lambda: None)
+
+    engine_adapter._apply_manual_targets()
+
+    assert events.index(("refresh", "manual session resolve")) < events.index(("adapter", "manual_command"))
+
+
+def test_playback_reset_refreshes_profile_before_resuming_real_adapter(monkeypatch) -> None:
+    """Resuming YAML playback restarts only after the next-session profile refresh."""
+    events: list[tuple[str, str]] = []
+    adapter = SimpleNamespace(
+        on_playback_resume_yaml=lambda: events.append(("adapter", "resume_yaml")) or True,
+    )
+    monkeypatch.setattr(engine_adapter, "_real_adapter", adapter)
+    monkeypatch.setattr(
+        engine_adapter,
+        "_refresh_wled_profile",
+        lambda *, reason: events.append(("refresh", reason)) or set(),
+    )
+    monkeypatch.setitem(engine_adapter._state, "playback_state", "playing")
+    monkeypatch.setattr(engine_adapter, "_push_brightness_scale", lambda: None)
+
+    data, error = engine_adapter.playback_reset()
+
+    assert error is None
+    assert data is not None
+    assert events.index(("refresh", "playback resume resolve")) < events.index(("adapter", "resume_yaml"))
+
+
+def test_deferred_refresh_never_restarts_active_adapter(monkeypatch) -> None:
+    """Deferred discovery updates only the next profile; it never hot-restarts output."""
+    events: list[str] = []
+    adapter = SimpleNamespace(
+        on_playback_start=lambda *_args: events.append("playback_start"),
+        on_playback_resume_yaml=lambda: events.append("resume_yaml"),
+        on_manual_command=lambda *_args: events.append("manual_command"),
+        on_playback_stop=lambda: events.append("playback_stop"),
+    )
+    monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
+    monkeypatch.setattr(engine_adapter, "_real_adapter", adapter)
+    monkeypatch.setattr(engine_adapter.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        engine_adapter,
+        "_refresh_wled_profile",
+        lambda *, reason: events.append(reason) or {"strip_11"},
+    )
+
+    engine_adapter._deferred_re_resolve()
+
+    assert events == ["deferred re-resolve"]
