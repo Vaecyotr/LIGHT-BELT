@@ -1,3 +1,8 @@
+# created_at: 2026-08-26
+# purpose: 305-second energy-wakeup experience with center-out ceiling cues, layered ocean, grassland/snow mountain, sunset, and aurora/starfield scenes
+# status: draft
+# source: assets/energy-wakeup/energy-wakeup.yaml
+# hardware_verified: false
 schema_version: 2
 show:
   id: phase-1-5-combined
@@ -872,11 +877,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 40.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -1127,11 +1134,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 40.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -1237,11 +1246,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 40.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -1347,11 +1358,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 40.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -1457,11 +1470,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 40.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -1567,11 +1582,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 40.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -1677,11 +1694,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 40.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -1787,11 +1806,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 40.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -2093,11 +2114,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 12.0
+        edge_softness_px: 2.0
     color:
       mode: solid
       color:
@@ -2450,6 +2473,374 @@ show:
       fade_in: 1.0
       fade_out: 0.0
       blend: replace
+  - id: segment2_ceiling_deep_sea_noise
+    start: 97.0
+    end: 112.0
+    priority: 30
+    target:
+      type: digital_strip
+      id: strip_12
+    origin: start
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      speed: 0.8
+      intensity: 0.95
+      params:
+        feature_size_px: 14.0
+        drift_rate: 0.12
+        contrast: 0.8
+        floor_gain: 0.08
+        ceiling_gain: 0.62
+        color: [0.35, 0.80, 0.85]
+    color:
+      mode: solid
+      color: [0.35, 0.80, 0.85]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: replace
+  - id: segment2_floor_deep_sea_noise
+    start: 97.0
+    end: 112.0
+    priority: 30
+    target:
+      type: digital_strip
+      id: strip_22
+    origin: start
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      speed: 0.7
+      intensity: 0.8
+      params:
+        feature_size_px: 16.0
+        drift_rate: 0.08
+        contrast: 0.65
+        floor_gain: 0.04
+        ceiling_gain: 0.32
+        color: [0.02, 0.06, 0.22]
+    color:
+      mode: solid
+      color: [0.02, 0.06, 0.22]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: replace
+  - id: segment2_left_wall_deep_sea_noise
+    start: 97.0
+    end: 112.0
+    priority: 30
+    target:
+      type: digital_strip
+      id: strip_32
+    origin: start
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      speed: 0.8
+      intensity: 0.9
+      params:
+        feature_size_px: 12.0
+        drift_rate: 0.14
+        contrast: 0.8
+        floor_gain: 0.05
+        ceiling_gain: 0.5
+        color: [0.08, 0.36, 0.68]
+    color:
+      mode: solid
+      color: [0.08, 0.36, 0.68]
+    color_source:
+      type: spatial_palette
+      palette: [[0.16, 0.52, 0.85], [0.02, 0.08, 0.30]]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: replace
+  - id: segment2_right_wall_deep_sea_noise
+    start: 97.0
+    end: 112.0
+    priority: 30
+    target:
+      type: digital_set
+      ids: [strip_43, strip_44]
+    origin: start
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      speed: 0.8
+      intensity: 0.9
+      params:
+        feature_size_px: 12.0
+        drift_rate: 0.14
+        contrast: 0.8
+        floor_gain: 0.05
+        ceiling_gain: 0.5
+        color: [0.08, 0.36, 0.68]
+    color:
+      mode: solid
+      color: [0.08, 0.36, 0.68]
+    color_source:
+      type: spatial_palette
+      palette: [[0.16, 0.52, 0.85], [0.02, 0.08, 0.30]]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: replace
+  - id: segment2_ceiling_breath
+    start: 97.0
+    end: 112.0
+    priority: 31
+    target:
+      type: digital_strip
+      id: strip_12
+    effect:
+      mode: fixed
+      id: breath
+      intensity: 0.16
+      params:
+        period: 9.0
+        min_brightness: 0.08
+        color: [0.35, 0.80, 0.85]
+    color:
+      mode: solid
+      color: [0.35, 0.80, 0.85]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_floor_breath
+    start: 97.0
+    end: 112.0
+    priority: 31
+    target:
+      type: digital_strip
+      id: strip_22
+    effect:
+      mode: fixed
+      id: breath
+      intensity: 0.1
+      params:
+        period: 10.0
+        min_brightness: 0.06
+        color: [0.02, 0.06, 0.22]
+    color:
+      mode: solid
+      color: [0.02, 0.06, 0.22]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_left_wall_breath
+    start: 97.0
+    end: 112.0
+    priority: 31
+    target:
+      type: digital_strip
+      id: strip_32
+    effect:
+      mode: fixed
+      id: breath
+      intensity: 0.12
+      params:
+        period: 9.0
+        min_brightness: 0.06
+        color: [0.12, 0.48, 0.78]
+    color:
+      mode: solid
+      color: [0.12, 0.48, 0.78]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_right_wall_breath
+    start: 97.0
+    end: 112.0
+    priority: 31
+    target:
+      type: digital_set
+      ids: [strip_43, strip_44]
+    effect:
+      mode: fixed
+      id: breath
+      intensity: 0.12
+      params:
+        period: 9.0
+        min_brightness: 0.06
+        color: [0.12, 0.48, 0.78]
+    color:
+      mode: solid
+      color: [0.12, 0.48, 0.78]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_ceiling_twinkle
+    start: 97.0
+    end: 112.0
+    priority: 32
+    target:
+      type: digital_strip
+      id: strip_12
+    effect:
+      mode: fixed
+      id: twinkle
+      intensity: 0.4
+      params:
+        density: 0.02
+        fade_time: 1.4
+        color_source: solid
+        color: [0.65, 0.85, 1.0]
+    color:
+      mode: solid
+      color: [0.65, 0.85, 1.0]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_left_wall_twinkle
+    start: 97.0
+    end: 112.0
+    priority: 32
+    target:
+      type: digital_strip
+      id: strip_32
+    effect:
+      mode: fixed
+      id: twinkle
+      intensity: 0.4
+      params:
+        density: 0.02
+        fade_time: 1.4
+        color_source: solid
+        color: [0.65, 0.85, 1.0]
+    color:
+      mode: solid
+      color: [0.65, 0.85, 1.0]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_right_wall_twinkle
+    start: 97.0
+    end: 112.0
+    priority: 32
+    target:
+      type: digital_set
+      ids: [strip_43, strip_44]
+    effect:
+      mode: fixed
+      id: twinkle
+      intensity: 0.4
+      params:
+        density: 0.02
+        fade_time: 1.4
+        color_source: solid
+        color: [0.65, 0.85, 1.0]
+    color:
+      mode: solid
+      color: [0.65, 0.85, 1.0]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_left_wall_descending_bands
+    start: 97.0
+    end: 112.0
+    priority: 33
+    target:
+      type: digital_strip
+      id: strip_32
+    origin: start
+    effect:
+      mode: fixed
+      id: flowing_bands
+      speed: 1.0
+      intensity: 0.75
+      params:
+        band_width_px: 3
+        gap_width_px: 4
+        base_gain: 0.03
+        highlight_gain: 0.45
+        steps_per_second: 1.8
+        direction: forward
+        phase_offset_steps: 0
+        color: [0.50, 0.80, 1.0]
+    color:
+      mode: solid
+      color: [0.50, 0.80, 1.0]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_right_wall_descending_bands
+    start: 97.0
+    end: 112.0
+    priority: 33
+    target:
+      type: digital_set
+      ids: [strip_43, strip_44]
+    origin: start
+    effect:
+      mode: fixed
+      id: flowing_bands
+      speed: 1.0
+      intensity: 0.75
+      params:
+        band_width_px: 3
+        gap_width_px: 4
+        base_gain: 0.03
+        highlight_gain: 0.45
+        steps_per_second: 1.8
+        direction: forward
+        phase_offset_steps: 0
+        color: [0.50, 0.80, 1.0]
+    color:
+      mode: solid
+      color: [0.50, 0.80, 1.0]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
+  - id: segment2_screen_surround_video_ambient
+    start: 97.0
+    end: 112.0
+    priority: 30
+    target:
+      type: digital_set
+      ids: [strip_11, strip_21, strip_31, strip_41]
+    effect:
+      mode: fixed
+      id: video_ambient
+      intensity: 0.8
+      params:
+        smoothing: 0.2
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: replace
+  - id: segment2_cabin_bass_pulse
+    start: 97.0
+    end: 112.0
+    priority: 34
+    target:
+      type: digital_set
+      ids: [strip_11, strip_12, strip_21, strip_22, strip_31, strip_32, strip_41, strip_43, strip_44]
+    effect:
+      mode: fixed
+      id: bass_pulse
+      intensity: 0.18
+      params:
+        attack: 0.4
+        release: 0.15
+        color: [0.03, 0.16, 0.55]
+    color:
+      mode: solid
+      color: [0.03, 0.16, 0.55]
+    transition:
+      fade_in: 1.5
+      fade_out: 1.0
+      blend: add
   - id: phase2_p2_11_chase
     start: 111.0
     end: 131.0
@@ -6207,11 +6598,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 16.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -6317,11 +6710,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 16.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -6427,11 +6822,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 16.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -6537,11 +6934,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 16.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -6647,11 +7046,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 16.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -6757,11 +7158,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 16.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -6867,11 +7270,13 @@ show:
     target:
       type: digital_strip
       id: strip_12
-    origin: start
+    origin: center
     effect:
       mode: fixed
-      id: static
-      params: {}
+      id: color_wipe
+      params:
+        speed: 16.0
+        edge_softness_px: 1.5
     color:
       mode: solid
       color:
@@ -7828,6 +8233,38 @@ show:
       fade_in: 0.0
       fade_out: 0.0
       blend: replace
+  - id: phase1_left_wall_video_flowing_bands_35_62
+    start: 35.0
+    end: 62.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_32
+    origin: start
+    effect:
+      mode: fixed
+      id: flowing_bands
+      speed: 0.9
+      intensity: 0.85
+      params:
+        band_width_px: 4
+        gap_width_px: 3
+        base_gain: 0.10
+        highlight_gain: 0.70
+        steps_per_second: 2.2
+        direction: forward
+        phase_offset_steps: 0
+        color: [0.10, 0.45, 0.85]
+    color:
+      mode: solid
+      color: [0.10, 0.45, 0.85]
+    color_source:
+      type: video_average
+      fallback: [0.10, 0.45, 0.85]
+    transition:
+      fade_in: 1.0
+      fade_out: 1.2
+      blend: replace
   - id: phase1_blackout_12_35_38
     start: 35.0
     end: 38.0
@@ -7995,3 +8432,546 @@ show:
       fade_in: 1.0
       fade_out: 1.0
       blend: replace
+  # New 2026-08-30 visual-authoring layer.  It follows the supplied film
+  # timecode and intentionally supersedes the historical phase cues below.
+  - id: pdf_sea_transition_ceiling_noise
+    start: 90.0
+    end: 97.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      intensity: 0.9
+      params: {feature_size_px: 14.0, drift_rate: 0.12, contrast: 0.7, floor_gain: 0.08, ceiling_gain: 0.65, color: [0.35, 0.80, 0.85]}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sea_transition_floor_noise
+    start: 90.0
+    end: 97.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      intensity: 0.75
+      params: {feature_size_px: 16.0, drift_rate: 0.08, contrast: 0.6, floor_gain: 0.04, ceiling_gain: 0.32, color: [0.02, 0.06, 0.22]}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sea_transition_walls_noise
+    start: 90.0
+    end: 97.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_32, strip_43, strip_44]}
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      intensity: 0.85
+      params: {feature_size_px: 12.0, drift_rate: 0.14, contrast: 0.8, floor_gain: 0.05, ceiling_gain: 0.5, color: [0.08, 0.36, 0.68]}
+    color_source: {type: spatial_palette, palette: [[0.16, 0.52, 0.85], [0.02, 0.08, 0.30]]}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sea_transition_screen_ambient
+    start: 90.0
+    end: 97.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.75, params: {smoothing: 0.2}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_fish_walls_school_comets
+    start: 112.0
+    end: 128.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_32, strip_43, strip_44]}
+    origin: start
+    effect:
+      mode: fixed
+      id: comet
+      intensity: 0.9
+      params: {speed: 12.0, tail_length: 0.18, decay: 0.9, count: 4, phase_spacing: 0.2, trajectory: sine}
+    color: {mode: solid, color: [0.70, 0.85, 0.95]}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: replace}
+  - id: pdf_fish_ceiling_floor_comets
+    start: 112.0
+    end: 128.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_12, strip_22]}
+    origin: start
+    effect:
+      mode: fixed
+      id: comet
+      intensity: 0.5
+      params: {speed: 8.0, tail_length: 0.12, decay: 0.9, count: 1, trajectory: sine}
+    color: {mode: solid, color: [0.50, 0.72, 0.92]}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: replace}
+  - id: pdf_fish_screen_ambient
+    start: 112.0
+    end: 128.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.85, params: {smoothing: 0.18}}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: replace}
+  - id: pdf_fish_screen_bubbles
+    start: 112.0
+    end: 128.0
+    priority: 41
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    origin: start
+    effect: {mode: fixed, id: single_dot, intensity: 0.45, params: {speed: 2.5, direction: forward, color: [0.78, 0.88, 0.98]}}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: add}
+  - id: pdf_fish_cabin_onset_ripple
+    start: 112.0
+    end: 128.0
+    priority: 41
+    target: {type: digital_set, ids: [strip_11, strip_12, strip_21, strip_22, strip_31, strip_32, strip_41, strip_43, strip_44]}
+    effect:
+      mode: fixed
+      id: onset_ripple
+      intensity: 0.22
+      params: {onset_threshold: 0.35, wave_speed_pps: 18.0, wave_width_px: 6.0, decay_seconds: 1.4, floor_gain: 0.0, event_origin: random, propagation: bidirectional, color: [0.40, 0.70, 1.0]}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: add}
+  - id: pdf_fish_cabin_audio_pulse
+    start: 112.0
+    end: 128.0
+    priority: 42
+    target: {type: digital_set, ids: [strip_11, strip_12, strip_21, strip_22, strip_31, strip_32, strip_41, strip_43, strip_44]}
+    effect: {mode: fixed, id: audio_pulse, intensity: 0.16, params: {attack: 0.45, release: 0.18, color: [0.28, 0.55, 0.95]}}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: add}
+  - id: pdf_sea_return_ceiling_noise
+    start: 128.0
+    end: 143.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.9, params: {feature_size_px: 14.0, drift_rate: 0.1, contrast: 0.7, floor_gain: 0.08, ceiling_gain: 0.58, color: [0.35, 0.80, 0.85]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sea_return_floor_noise
+    start: 128.0
+    end: 143.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.75, params: {feature_size_px: 16.0, drift_rate: 0.08, contrast: 0.6, floor_gain: 0.04, ceiling_gain: 0.30, color: [0.02, 0.06, 0.22]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sea_return_walls_noise
+    start: 128.0
+    end: 143.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_32, strip_43, strip_44]}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.85, params: {feature_size_px: 12.0, drift_rate: 0.14, contrast: 0.75, floor_gain: 0.05, ceiling_gain: 0.48, color: [0.08, 0.36, 0.68]}}
+    color_source: {type: spatial_palette, palette: [[0.16, 0.52, 0.85], [0.02, 0.08, 0.30]]}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sea_return_screen_ambient
+    start: 128.0
+    end: 143.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.75, params: {smoothing: 0.2}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sea_return_cabin_breath
+    start: 128.0
+    end: 143.0
+    priority: 41
+    target: {type: digital_set, ids: [strip_12, strip_22, strip_32, strip_43, strip_44]}
+    effect: {mode: fixed, id: breath, intensity: 0.12, params: {period: 9.0, min_brightness: 0.06, color: [0.16, 0.52, 0.85]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: add}
+  - id: pdf_sea_return_ceiling_wall_twinkle
+    start: 128.0
+    end: 143.0
+    priority: 42
+    target: {type: digital_set, ids: [strip_12, strip_32, strip_43, strip_44]}
+    effect: {mode: fixed, id: twinkle, intensity: 0.35, params: {density: 0.02, fade_time: 1.4, color_source: solid, color: [0.65, 0.85, 1.0]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: add}
+  - id: pdf_sea_return_walls_bands
+    start: 128.0
+    end: 143.0
+    priority: 42
+    target: {type: digital_set, ids: [strip_32, strip_43, strip_44]}
+    origin: start
+    effect: {mode: fixed, id: flowing_bands, intensity: 0.55, params: {band_width_px: 3, gap_width_px: 4, base_gain: 0.03, highlight_gain: 0.34, steps_per_second: 1.5, direction: forward, color: [0.50, 0.80, 1.0]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: add}
+  - id: pdf_grass_ceiling_sky_breath
+    start: 143.0
+    end: 159.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: breath, intensity: 0.9, params: {period: 8.0, min_brightness: 0.22, color: [0.30, 0.62, 0.95]}}
+    audio_modulation: {brightness: {source: audio.rms, amount: 0.15, min_multiplier: 0.85, max_multiplier: 1.15, smoothing_seconds: 0.25}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_grass_screen_ambient
+    start: 143.0
+    end: 159.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.9, params: {smoothing: 0.2}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_grass_right_wall_noise
+    start: 143.0
+    end: 159.0
+    priority: 40
+    target: {type: digital_strip, id: strip_43}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.85, params: {feature_size_px: 10.0, drift_rate: 0.35, contrast: 0.75, floor_gain: 0.08, ceiling_gain: 0.58, color: [0.30, 0.68, 0.28]}}
+    audio_modulation: {speed: {source: audio.rms, amount: 0.15, min_multiplier: 0.85, max_multiplier: 1.15, smoothing_seconds: 0.25}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_grass_right_wall_bands
+    start: 143.0
+    end: 159.0
+    priority: 41
+    target: {type: digital_strip, id: strip_44}
+    origin: start
+    effect: {mode: fixed, id: flowing_bands, intensity: 0.78, params: {band_width_px: 4, gap_width_px: 4, base_gain: 0.12, highlight_gain: 0.58, steps_per_second: 1.5, direction: forward, color: [0.30, 0.68, 0.28]}}
+    audio_modulation: {speed: {source: audio.rms, amount: 0.15, min_multiplier: 0.85, max_multiplier: 1.15, smoothing_seconds: 0.25}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_grass_floor_noise
+    start: 143.0
+    end: 159.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.72, params: {feature_size_px: 12.0, drift_rate: 0.24, contrast: 0.7, floor_gain: 0.06, ceiling_gain: 0.46, color: [0.30, 0.68, 0.28]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_grass_left_window_breath
+    start: 143.0
+    end: 159.0
+    priority: 40
+    target: {type: digital_strip, id: strip_32}
+    effect: {mode: fixed, id: breath, intensity: 0.65, params: {period: 8.0, min_brightness: 0.18, color: [0.28, 0.63, 0.55]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_grass_snow_ceiling_hold
+    start: 159.0
+    end: 163.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: static, intensity: 0.72, params: {color: [0.30, 0.62, 0.95]}}
+    transition: {fade_in: 1.0, fade_out: 1.0, blend: replace}
+  - id: pdf_grass_snow_cool_transition
+    start: 159.0
+    end: 163.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_22, strip_31, strip_32, strip_41, strip_43, strip_44]}
+    effect: {mode: fixed, id: calm, intensity: 0.8, params: {period: 8.0, color: [0.62, 0.78, 0.96]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_snow_ceiling_highland_breath
+    start: 163.0
+    end: 199.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: breath, intensity: 0.78, params: {period: 11.0, min_brightness: 0.16, color: [0.12, 0.38, 0.80]}}
+    audio_modulation: {brightness: {source: audio.rms, amount: 0.12, min_multiplier: 0.88, max_multiplier: 1.12, smoothing_seconds: 0.3}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_snow_screen_ambient
+    start: 163.0
+    end: 199.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.8, params: {smoothing: 0.25}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_snow_right_wall_mist
+    start: 163.0
+    end: 199.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.72, params: {feature_size_px: 15.0, drift_rate: 0.18, contrast: 0.45, floor_gain: 0.06, ceiling_gain: 0.45, color: [0.88, 0.93, 1.0]}}
+    audio_modulation: {speed: {source: audio.rms, amount: 0.12, min_multiplier: 0.88, max_multiplier: 1.12, smoothing_seconds: 0.3}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_snow_floor_calm
+    start: 163.0
+    end: 199.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect: {mode: fixed, id: calm, intensity: 0.55, params: {period: 12.0, color: [0.45, 0.55, 0.72]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_snow_left_window_breath
+    start: 163.0
+    end: 199.0
+    priority: 40
+    target: {type: digital_strip, id: strip_32}
+    effect: {mode: fixed, id: breath, intensity: 0.64, params: {period: 10.0, min_brightness: 0.16, color: [0.70, 0.82, 0.98]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_snow_right_wall_twinkle
+    start: 163.0
+    end: 199.0
+    priority: 41
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    effect: {mode: fixed, id: twinkle, intensity: 0.3, params: {density: 0.05, fade_time: 1.6, color_source: solid, color: [0.92, 0.96, 1.0]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: add}
+  - id: pdf_sunset_gold_ceiling_breath
+    start: 199.0
+    end: 208.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: breath, intensity: 0.9, params: {period: 9.0, min_brightness: 0.2, color: [1.0, 0.55, 0.20]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sunset_gold_screen_ambient
+    start: 199.0
+    end: 208.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.9, params: {smoothing: 0.2}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sunset_gold_right_clouds
+    start: 199.0
+    end: 208.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.85, params: {feature_size_px: 13.0, drift_rate: 0.18, contrast: 0.65, floor_gain: 0.08, ceiling_gain: 0.58, color: [1.0, 0.50, 0.20]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sunset_gold_floor_glow
+    start: 199.0
+    end: 208.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.68, params: {feature_size_px: 14.0, drift_rate: 0.12, contrast: 0.55, floor_gain: 0.06, ceiling_gain: 0.42, color: [0.92, 0.42, 0.16]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sunset_gold_left_window_breath
+    start: 199.0
+    end: 208.0
+    priority: 40
+    target: {type: digital_strip, id: strip_32}
+    effect: {mode: fixed, id: breath, intensity: 0.72, params: {period: 9.0, min_brightness: 0.16, color: [1.0, 0.50, 0.20]}}
+    transition: {fade_in: 1.5, fade_out: 1.0, blend: replace}
+  - id: pdf_sunset_rich_ceiling_palette
+    start: 208.0
+    end: 220.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: breath, intensity: 0.92, params: {period: 10.0, min_brightness: 0.2, color: [1.0, 0.50, 0.20]}}
+    color_source: {type: spatial_palette, palette: [[1.0, 0.50, 0.20], [0.90, 0.25, 0.20], [0.95, 0.55, 0.60], [0.60, 0.35, 0.70]]}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_rich_screen_ambient
+    start: 208.0
+    end: 220.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.9, params: {smoothing: 0.2}}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_rich_right_palette
+    start: 208.0
+    end: 220.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.88, params: {feature_size_px: 11.0, drift_rate: 0.22, contrast: 0.75, floor_gain: 0.08, ceiling_gain: 0.65, color: [1.0, 0.50, 0.20]}}
+    color_source: {type: spatial_palette, palette: [[1.0, 0.50, 0.20], [0.90, 0.25, 0.20], [0.95, 0.55, 0.60], [0.60, 0.35, 0.70]]}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_rich_floor_palette
+    start: 208.0
+    end: 220.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.75, params: {feature_size_px: 13.0, drift_rate: 0.16, contrast: 0.65, floor_gain: 0.07, ceiling_gain: 0.52, color: [0.90, 0.25, 0.20]}}
+    color_source: {type: spatial_palette, palette: [[1.0, 0.50, 0.20], [0.90, 0.25, 0.20], [0.95, 0.55, 0.60], [0.60, 0.35, 0.70]]}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_rich_left_palette
+    start: 208.0
+    end: 220.0
+    priority: 40
+    target: {type: digital_strip, id: strip_32}
+    effect: {mode: fixed, id: breath, intensity: 0.75, params: {period: 10.0, min_brightness: 0.15, color: [0.95, 0.55, 0.60]}}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_rich_warm_twinkle
+    start: 208.0
+    end: 220.0
+    priority: 41
+    target: {type: digital_set, ids: [strip_12, strip_43, strip_44]}
+    effect: {mode: fixed, id: twinkle, intensity: 0.25, params: {density: 0.05, fade_time: 1.2, color_source: solid, color: [1.0, 0.88, 0.74]}}
+    transition: {fade_in: 1.0, fade_out: 1.5, blend: add}
+  - id: pdf_sunset_dusk_ceiling_breath
+    start: 220.0
+    end: 230.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: breath, intensity: 0.66, params: {period: 11.0, min_brightness: 0.12, color: [0.40, 0.30, 0.60]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_dusk_screen_ambient
+    start: 220.0
+    end: 230.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.8, params: {smoothing: 0.25}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_dusk_right_clouds
+    start: 220.0
+    end: 230.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.65, params: {feature_size_px: 15.0, drift_rate: 0.14, contrast: 0.45, floor_gain: 0.05, ceiling_gain: 0.42, color: [0.40, 0.30, 0.60]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_dusk_floor_calm
+    start: 220.0
+    end: 230.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect: {mode: fixed, id: calm, intensity: 0.35, params: {period: 12.0, color: [0.12, 0.18, 0.40]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_sunset_dusk_left_breath
+    start: 220.0
+    end: 230.0
+    priority: 40
+    target: {type: digital_strip, id: strip_32}
+    effect: {mode: fixed, id: breath, intensity: 0.55, params: {period: 11.0, min_brightness: 0.10, color: [0.35, 0.30, 0.60]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_stars_ceiling_night_breath
+    start: 230.0
+    end: 245.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: breath, intensity: 0.38, params: {period: 12.0, min_brightness: 0.08, color: [0.05, 0.10, 0.30]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_stars_ceiling_twinkle
+    start: 230.0
+    end: 245.0
+    priority: 41
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: twinkle, intensity: 0.82, params: {density: 0.15, fade_time: 1.8, color_source: solid, color: [0.90, 0.95, 1.0]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: add}
+  - id: pdf_stars_screen_ambient
+    start: 230.0
+    end: 245.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.72, params: {smoothing: 0.3}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_stars_right_wall_breath
+    start: 230.0
+    end: 245.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    effect: {mode: fixed, id: breath, intensity: 0.38, params: {period: 12.0, min_brightness: 0.08, color: [0.05, 0.10, 0.30]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_stars_floor_left_calm
+    start: 230.0
+    end: 245.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_22, strip_32]}
+    effect: {mode: fixed, id: calm, intensity: 0.3, params: {period: 12.0, color: [0.05, 0.10, 0.30]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_initial_ceiling_palette
+    start: 245.0
+    end: 265.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.88, params: {feature_size_px: 16.0, drift_rate: 0.28, contrast: 0.7, floor_gain: 0.08, ceiling_gain: 0.58, color: [0.15, 0.85, 0.45]}}
+    color_source: {type: spatial_palette, palette: [[0.15, 0.85, 0.45], [0.0, 0.70, 0.75]]}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_initial_screen_ambient
+    start: 245.0
+    end: 265.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.82, params: {smoothing: 0.22}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_initial_right_glow
+    start: 245.0
+    end: 265.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.7, params: {feature_size_px: 14.0, drift_rate: 0.22, contrast: 0.62, floor_gain: 0.06, ceiling_gain: 0.48, color: [0.10, 0.76, 0.62]}}
+    color_source: {type: spatial_palette, palette: [[0.15, 0.85, 0.45], [0.0, 0.70, 0.75]]}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_initial_floor_breath
+    start: 245.0
+    end: 265.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect: {mode: fixed, id: breath, intensity: 0.4, params: {period: 11.0, min_brightness: 0.08, color: [0.05, 0.15, 0.36]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_initial_left_palette
+    start: 245.0
+    end: 265.0
+    priority: 40
+    target: {type: digital_strip, id: strip_32}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.72, params: {feature_size_px: 14.0, drift_rate: 0.22, contrast: 0.62, floor_gain: 0.06, ceiling_gain: 0.48, color: [0.10, 0.76, 0.62]}}
+    color_source: {type: spatial_palette, palette: [[0.15, 0.85, 0.45], [0.0, 0.70, 0.75]]}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_initial_ceiling_stars
+    start: 245.0
+    end: 265.0
+    priority: 41
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: twinkle, intensity: 0.45, params: {density: 0.08, fade_time: 1.5, color_source: solid, color: [0.90, 0.95, 1.0]}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: add}
+  - id: pdf_aurora_dance_ceiling_palette
+    start: 265.0
+    end: 290.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.96, params: {feature_size_px: 11.0, drift_rate: 0.48, contrast: 0.85, floor_gain: 0.08, ceiling_gain: 0.68, color: [0.15, 0.85, 0.45]}}
+    color_source: {type: spatial_palette, palette: [[0.15, 0.85, 0.45], [0.0, 0.70, 0.75], [0.65, 0.30, 0.90]]}
+    audio_modulation: {speed: {source: audio.rms, amount: 0.15, min_multiplier: 0.85, max_multiplier: 1.15, smoothing_seconds: 0.2}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_dance_screen_ambient
+    start: 265.0
+    end: 290.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.9, params: {smoothing: 0.2}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_dance_right_noise
+    start: 265.0
+    end: 290.0
+    priority: 40
+    target: {type: digital_strip, id: strip_43}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.88, params: {feature_size_px: 11.0, drift_rate: 0.48, contrast: 0.85, floor_gain: 0.08, ceiling_gain: 0.68, color: [0.15, 0.85, 0.45]}}
+    color_source: {type: spatial_palette, palette: [[0.15, 0.85, 0.45], [0.0, 0.70, 0.75], [0.65, 0.30, 0.90]]}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_dance_right_color_wave
+    start: 265.0
+    end: 290.0
+    priority: 40
+    target: {type: digital_strip, id: strip_44}
+    effect: {mode: fixed, id: color_wave, intensity: 0.72, params: {speed: 0.32, width: 0.9, hue_cycle_rate: 0.05, hue_span_degrees: 56.0}}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_dance_floor_palette
+    start: 265.0
+    end: 290.0
+    priority: 40
+    target: {type: digital_strip, id: strip_22}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.55, params: {feature_size_px: 13.0, drift_rate: 0.38, contrast: 0.6, floor_gain: 0.06, ceiling_gain: 0.42, color: [0.18, 0.45, 0.42]}}
+    color_source: {type: spatial_palette, palette: [[0.15, 0.85, 0.45], [0.0, 0.70, 0.75], [0.65, 0.30, 0.90]]}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_dance_left_palette
+    start: 265.0
+    end: 290.0
+    priority: 40
+    target: {type: digital_strip, id: strip_32}
+    effect: {mode: fixed, id: coherent_noise_field, intensity: 0.82, params: {feature_size_px: 11.0, drift_rate: 0.48, contrast: 0.85, floor_gain: 0.08, ceiling_gain: 0.62, color: [0.15, 0.85, 0.45]}}
+    color_source: {type: spatial_palette, palette: [[0.15, 0.85, 0.45], [0.0, 0.70, 0.75], [0.65, 0.30, 0.90]]}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: replace}
+  - id: pdf_aurora_dance_occasional_comet
+    start: 265.0
+    end: 290.0
+    priority: 41
+    target: {type: digital_set, ids: [strip_32, strip_43]}
+    origin: start
+    effect: {mode: fixed, id: comet, intensity: 0.35, params: {speed: 5.0, tail_length: 0.12, decay: 0.92, count: 1, trajectory: wrap}}
+    color: {mode: solid, color: [0.82, 0.90, 1.0]}
+    transition: {fade_in: 1.5, fade_out: 1.5, blend: add}
+  - id: pdf_aurora_tail_ceiling_breath
+    start: 290.0
+    end: 305.0
+    priority: 40
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: breath, intensity: 0.52, params: {period: 12.0, min_brightness: 0.08, color: [0.20, 0.18, 0.46]}}
+    transition: {fade_in: 1.5, fade_out: 2.0, blend: replace}
+  - id: pdf_aurora_tail_ceiling_twinkle
+    start: 290.0
+    end: 305.0
+    priority: 41
+    target: {type: digital_strip, id: strip_12}
+    effect: {mode: fixed, id: twinkle, intensity: 0.38, params: {density: 0.07, fade_time: 1.6, color_source: solid, color: [0.90, 0.95, 1.0]}}
+    transition: {fade_in: 1.5, fade_out: 2.0, blend: add}
+  - id: pdf_aurora_tail_screen_ambient
+    start: 290.0
+    end: 305.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_11, strip_21, strip_31, strip_41]}
+    effect: {mode: fixed, id: video_ambient, intensity: 0.7, params: {smoothing: 0.3}}
+    transition: {fade_in: 1.5, fade_out: 2.0, blend: replace}
+  - id: pdf_aurora_tail_right_breath
+    start: 290.0
+    end: 305.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_43, strip_44]}
+    effect: {mode: fixed, id: breath, intensity: 0.45, params: {period: 12.0, min_brightness: 0.08, color: [0.35, 0.30, 0.60]}}
+    transition: {fade_in: 1.5, fade_out: 2.0, blend: replace}
+  - id: pdf_aurora_tail_floor_left_calm
+    start: 290.0
+    end: 305.0
+    priority: 40
+    target: {type: digital_set, ids: [strip_22, strip_32]}
+    effect: {mode: fixed, id: calm, intensity: 0.25, params: {period: 12.0, color: [0.05, 0.10, 0.30]}}
+    transition: {fade_in: 1.5, fade_out: 2.0, blend: replace}

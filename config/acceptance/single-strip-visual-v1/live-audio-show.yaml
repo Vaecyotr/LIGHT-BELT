@@ -1,0 +1,972 @@
+# created_at: 2026-08-30
+# purpose: Live WLED Audio Sync single-strip effects, consumers, modulation, color, and safe end
+# status: approved acceptance fixture
+# source: independent live-registry generator
+# hardware_verified: false
+schema_version: 2
+show:
+  id: single-strip-visual-v1-audio
+  duration: 316.3
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: replace
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+  cues:
+  - id: FX_audio_pulse_IDENTITY
+    start: 0.0
+    end: 12.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: audio_pulse
+      speed: 1.0
+      intensity: 1.0
+      params:
+        attack: 0.6
+        release: 0.08
+        color: &id001
+        - 0.9
+        - 0.22
+        - 0.03
+    color:
+      mode: solid
+      color: *id001
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_bass_pulse_IDENTITY
+    start: 12.4
+    end: 24.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: bass_pulse
+      speed: 1.0
+      intensity: 1.0
+      params:
+        attack: 0.6
+        release: 0.08
+        color: &id002
+        - 0.04
+        - 0.42
+        - 0.9
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_spectrum_IDENTITY
+    start: 24.8
+    end: 32.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: spectrum
+      speed: 1.0
+      intensity: 1.0
+      params:
+        bass_zones:
+        - strip_31
+        mid_zones: []
+        treble_zones: []
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_onset_ripple_IDENTITY
+    start: 33.2
+    end: 45.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: onset_ripple
+      speed: 1.0
+      intensity: 1.0
+      params:
+        onset_threshold: 0.25
+        wave_speed_pps: 3.0
+        wave_width_px: 1.3
+        decay_seconds: 1.4
+        floor_gain: 0.03
+        event_origin: fixed
+        propagation: one_way
+        wrap: false
+        color: &id003
+        - 0.02
+        - 0.65
+        - 1.0
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_audio_pulse_CONTRAST_envelope_rate_low
+    start: 45.6
+    end: 55.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: audio_pulse
+      speed: 1.0
+      intensity: 1.0
+      params:
+        attack: 0.05
+        release: 0.02
+    color:
+      mode: solid
+      color: *id001
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_audio_pulse_CONTRAST_envelope_rate_high
+    start: 56.0
+    end: 66.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: audio_pulse
+      speed: 1.0
+      intensity: 1.0
+      params:
+        attack: 1.0
+        release: 0.8
+    color:
+      mode: solid
+      color: *id001
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_bass_pulse_CONTRAST_envelope_rate_low
+    start: 66.4
+    end: 76.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: bass_pulse
+      speed: 1.0
+      intensity: 1.0
+      params:
+        attack: 0.05
+        release: 0.02
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_bass_pulse_CONTRAST_envelope_rate_high
+    start: 76.8
+    end: 86.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: bass_pulse
+      speed: 1.0
+      intensity: 1.0
+      params:
+        attack: 1.0
+        release: 0.8
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_spectrum_CONTRAST_routing_low
+    start: 87.2
+    end: 95.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: spectrum
+      speed: 1.0
+      intensity: 1.0
+      params:
+        bass_zones:
+        - strip_31
+        mid_zones: []
+        treble_zones: []
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_spectrum_CONTRAST_routing_high
+    start: 95.6
+    end: 103.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: spectrum
+      speed: 1.0
+      intensity: 1.0
+      params:
+        bass_zones: []
+        mid_zones: []
+        treble_zones:
+        - strip_31
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_onset_ripple_CONTRAST_wave_speed_low
+    start: 104.0
+    end: 113.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: onset_ripple
+      speed: 1.0
+      intensity: 1.0
+      params:
+        onset_threshold: 0.25
+        wave_speed_pps: 1.0
+        wave_width_px: 1.0
+        decay_seconds: 2.0
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: false
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_onset_ripple_CONTRAST_wave_speed_high
+    start: 113.4
+    end: 122.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: onset_ripple
+      speed: 1.0
+      intensity: 1.0
+      params:
+        onset_threshold: 0.25
+        wave_speed_pps: 9.0
+        wave_width_px: 1.0
+        decay_seconds: 2.0
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: false
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUD_spectrum_bass
+    start: 122.8
+    end: 130.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: spectrum
+      speed: 1.0
+      intensity: 1.0
+      params:
+        bass_zones:
+        - strip_31
+        mid_zones: []
+        treble_zones: []
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUD_spectrum_mid
+    start: 131.2
+    end: 139.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: spectrum
+      speed: 1.0
+      intensity: 1.0
+      params:
+        bass_zones: []
+        mid_zones:
+        - strip_31
+        treble_zones: []
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUD_spectrum_treble
+    start: 139.6
+    end: 147.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: spectrum
+      speed: 1.0
+      intensity: 1.0
+      params:
+        bass_zones: []
+        mid_zones: []
+        treble_zones:
+        - strip_31
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUD_chase_beat_boost
+    start: 148.0
+    end: 158.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: chase
+      speed: 1.0
+      intensity: 1.0
+      params:
+        speed: 2.0
+        width: 2
+        gap: 5
+        direction: forward
+        trail: 0.1
+        color_source: static
+        beat_boost: 3.0
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUD_adaptive_audio_control
+    start: 158.4
+    end: 182.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: adaptive
+      allowed:
+        silence: calm
+        calm: calm
+        flowing: breath
+        ambient: breath
+        rhythmic: chase
+        energetic: comet
+        impact: comet
+        transition: color_wave
+      fallback: calm
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    audio_control:
+      tempo_sync: auto
+      tempo_confidence_min: 0.65
+      beat_regularity_min: 0.6
+      beats_per_cycle: 4.0
+      beat_subdivision: 1.0
+      speed_smoothing_seconds: 0.5
+      state_confirmation_seconds: 0.5
+      min_effect_hold: 2.0
+      switch_cooldown: 1.0
+  - id: AUD_common_modulation
+    start: 182.8
+    end: 194.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: breath
+      speed: 1.0
+      intensity: 1.0
+      params:
+        period: 3.0
+        min_brightness: 0.1
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    audio_modulation:
+      brightness:
+        source: music.energy
+        amount: 0.7
+        min_multiplier: 0.3
+        max_multiplier: 1.7
+        smoothing_seconds: 0.1
+      speed:
+        source: music.beat_strength
+        amount: 0.7
+        min_multiplier: 0.4
+        max_multiplier: 1.8
+        smoothing_seconds: 0.1
+      intensity:
+        source: music.bass_pulse
+        amount: 0.7
+        min_multiplier: 0.3
+        max_multiplier: 1.7
+        smoothing_seconds: 0.1
+  - id: AUD_parameter_modulation
+    start: 195.2
+    end: 207.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: flowing_bands
+      speed: 1.0
+      intensity: 1.0
+      params:
+        band_width_px: 1
+        gap_width_px: 1
+        base_gain: 0.08
+        highlight_gain: 0.6
+        steps_per_second: 1.0
+        direction: forward
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    parameter_modulation:
+    - target: highlight_gain
+      mode: drive
+      source: audio.rms
+      output_min: 0.35
+      output_max: 0.95
+      fallback: 0.5
+      smoothing_seconds: 0.1
+  - id: AUD_onset_floor_modulation
+    start: 207.6
+    end: 219.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: onset_ripple
+      speed: 1.0
+      intensity: 1.0
+      params:
+        onset_threshold: 0.25
+        wave_speed_pps: 3.0
+        wave_width_px: 1.3
+        decay_seconds: 1.4
+        floor_gain: 0.03
+        event_origin: fixed
+        propagation: one_way
+        wrap: false
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    parameter_modulation:
+    - target: floor_gain
+      mode: drive
+      source: audio.bass
+      output_min: 0.0
+      output_max: 0.25
+      fallback: 0.03
+  - id: AUD_SCALAR_wipe_loudness
+    start: 220.0
+    end: 230.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: color_wipe
+      speed: 1.0
+      intensity: 1.0
+      params:
+        speed: 0.0
+        progress_source: audio.loudness
+        slew_seconds: 0.1
+        edge_softness_px: 0.0
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUD_SCALAR_twinkle_peak_gate
+    start: 230.4
+    end: 240.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: twinkle
+      speed: 1.0
+      intensity: 1.0
+      params:
+        density: 1.2
+        fade_time: 1.0
+        color_source: solid
+        event_width_px: 1.0
+        blur_radius_px: 0.5
+        event_gate_source: audio.peak
+        birth_gain_source: audio.loudness
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUD_SCALAR_history_rms
+    start: 240.8
+    end: 252.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: history_stream
+      speed: 1.0
+      intensity: 1.0
+      params:
+        steps_per_second: 2.0
+        direction: forward
+        sample_gain_source: audio.rms
+        color: *id003
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUD_COLOR_dominant_frequency_GLOBAL
+    start: 253.2
+    end: 265.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    color_source:
+      type: dominant_frequency_palette
+      frequency_min_hz: 100.0
+      frequency_max_hz: 5000.0
+      palette:
+      - &id006
+        - 0.7
+        - 0.02
+        - 0.01
+      - &id004
+        - 0.02
+        - 0.65
+        - 0.04
+      - *id002
+      fallback: &id005
+      - 0.72
+      - 0.04
+      - 0.46
+  - id: AUD_COLOR_spectrum_POSITIONAL
+    start: 265.6
+    end: 277.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: color_wipe
+      speed: 1.0
+      intensity: 1.0
+      params:
+        speed: 1000.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    color_source:
+      type: audio_spectrum_palette
+      palette:
+      - *id002
+      - *id004
+      - *id001
+      fallback: *id005
+  - id: AUD_COLOR_fallback
+    start: 278.0
+    end: 283.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    color_source:
+      type: dominant_frequency_palette
+      frequency_min_hz: 100.0
+      frequency_max_hz: 5000.0
+      palette:
+      - *id006
+      - *id002
+      fallback: *id005
+  - id: AUDIO_STRESS_rapid_00_static
+    start: 283.4
+    end: 283.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color: *id006
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: AUDIO_STRESS_rapid_01_static
+    start: 283.8
+    end: 284.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color: *id004
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: AUDIO_STRESS_rapid_02_static
+    start: 284.2
+    end: 284.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color: *id002
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: AUDIO_STRESS_rapid_03_single_dot
+    start: 284.6
+    end: 285.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: single_dot
+      speed: 1.0
+      intensity: 1.0
+      params:
+        speed: 14.0
+        direction: forward
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: AUDIO_STRESS_rapid_04_comet
+    start: 285.0
+    end: 285.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: comet
+      speed: 1.0
+      intensity: 1.0
+      params:
+        speed: 12.0
+        tail_length: 0.7
+        decay: 0.8
+        count: 8
+        phase_spacing: 0.125
+        trajectory: bounce
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: AUDIO_STRESS_rapid_05_demo
+    start: 285.4
+    end: 285.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: demo
+      speed: 1.0
+      intensity: 1.0
+      params:
+        cycle_interval: 0.3
+        effects:
+        - static
+        - breath
+        - color_wave
+        - single_dot
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: AUDIO_STRESS_stateful_long
+    start: 285.8
+    end: 309.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: heat_fire
+      speed: 1.0
+      intensity: 1.0
+      params:
+        cooling_per_second: 0.5
+        spark_rate: 12.0
+        spark_strength: 0.9
+        diffusion: 0.45
+        spark_zone_px: 2
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: AUDIO_SAFE_fade_to_black
+    start: 310.2
+    end: 313.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color:
+        - 0.08
+        - 0.18
+        - 0.24
+    color:
+      mode: solid
+      color:
+      - 0.08
+      - 0.18
+      - 0.24
+    transition:
+      fade_in: 0.0
+      fade_out: 3.0
+      blend: replace
+  - id: AUDIO_SAFE_black_hold
+    start: 313.2
+    end: 316.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color: &id007
+        - 0.0
+        - 0.0
+        - 0.0
+    color:
+      mode: solid
+      color: *id007
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace

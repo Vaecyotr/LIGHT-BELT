@@ -1,0 +1,3180 @@
+{
+  "adaptive_mapped_effects": [
+    "breath",
+    "chase",
+    "color_wave",
+    "static"
+  ],
+  "boundary_coverage_notes": {
+    "video_audio_fusion.video_weight.min": "mechanism identical to audio_weight=0 (authored 0.0 in vid_fusion_videoonly)"
+  },
+  "capabilities": [
+    {
+      "color_source_support": "GLOBAL",
+      "cue_ids": [
+        "cal_black_hold",
+        "cal_blue_solid",
+        "cal_green_solid",
+        "cal_red_solid",
+        "cal_white_solid",
+        "col_dominant_freq_fallback",
+        "col_timeline_sweep",
+        "col_video_fallback",
+        "fx_static_con_a",
+        "fx_static_con_b",
+        "fx_static_identity",
+        "fx_static_lim_black",
+        "fx_static_lim_intensity10",
+        "mod_adaptive_states",
+        "mod_track_step",
+        "safe_black_hold",
+        "safe_fade_to_black",
+        "str_blend_base",
+        "str_blend_overlay",
+        "str_min_cue",
+        "str_priority_base",
+        "str_rapid_07",
+        "vid_average_steps",
+        "vid_dominant_bar"
+      ],
+      "id": "effect.static",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "GLOBAL",
+      "cue_ids": [
+        "col_palette_cycle",
+        "fx_breath_con_a",
+        "fx_breath_con_b",
+        "fx_breath_identity",
+        "fx_breath_lim_min0",
+        "fx_breath_lim_min1",
+        "fx_breath_lim_period_max",
+        "fx_breath_lim_period_micro",
+        "fx_breath_wave_smoothstep",
+        "mod_adaptive_states",
+        "mod_audio_brightness",
+        "mod_param_breath_min_drive",
+        "mod_track_linear",
+        "str_fade_envelope"
+      ],
+      "id": "effect.breath",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "NOT_APPLICABLE",
+      "cue_ids": [
+        "fx_colorwave_con_a",
+        "fx_colorwave_con_b",
+        "fx_colorwave_identity",
+        "fx_colorwave_lim_rate5",
+        "fx_colorwave_lim_span0",
+        "fx_colorwave_lim_speed0",
+        "fx_colorwave_lim_speed50",
+        "fx_colorwave_lim_width100",
+        "fx_colorwave_wave_linear",
+        "fx_colorwave_wave_saw",
+        "fx_colorwave_wave_triangle",
+        "mod_adaptive_states",
+        "mod_param_colorwave_span_mod"
+      ],
+      "id": "effect.color_wave",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "col_audio_spectrum_fallback",
+        "fx_chase_con_a",
+        "fx_chase_con_b",
+        "fx_chase_con_dir_a",
+        "fx_chase_con_dir_b",
+        "fx_chase_dir_reverse",
+        "fx_chase_identity",
+        "fx_chase_lim_beatboost",
+        "fx_chase_lim_speed0",
+        "fx_chase_lim_speed100",
+        "fx_chase_lim_trail_flat",
+        "fx_chase_lim_width0",
+        "fx_chase_lim_width_full",
+        "fx_chase_src_rainbow",
+        "mod_adaptive_states",
+        "mod_audio_speed",
+        "str_rapid_02",
+        "vid_chase_video"
+      ],
+      "id": "effect.chase",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "fx_comet_con_a",
+        "fx_comet_con_b",
+        "fx_comet_identity",
+        "fx_comet_lim_count1",
+        "fx_comet_lim_count64",
+        "fx_comet_lim_decay0",
+        "fx_comet_lim_decay1",
+        "fx_comet_lim_phase0",
+        "fx_comet_lim_phase1",
+        "fx_comet_lim_speed0",
+        "fx_comet_lim_tail0",
+        "fx_comet_lim_tail_full",
+        "fx_comet_traj_sine",
+        "str_rapid_05"
+      ],
+      "id": "effect.comet",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "GLOBAL",
+      "cue_ids": [
+        "aud_audiopulse_con_a",
+        "aud_audiopulse_con_b",
+        "aud_audiopulse_identity",
+        "aud_audiopulse_lim_release60"
+      ],
+      "id": "effect.audio_pulse",
+      "kind": "effect",
+      "notes": "fallback/silence stability in Part 1; dynamic evidence in Part 2",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "GLOBAL",
+      "cue_ids": [
+        "aud_basspulse_con_a",
+        "aud_basspulse_con_b",
+        "aud_basspulse_identity",
+        "aud_basspulse_lim_attack60"
+      ],
+      "id": "effect.bass_pulse",
+      "kind": "effect",
+      "notes": "fallback/silence stability in Part 1; dynamic evidence in Part 2",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "NOT_APPLICABLE",
+      "cue_ids": [
+        "aud_spectrum_bass",
+        "aud_spectrum_mid",
+        "aud_spectrum_treble"
+      ],
+      "id": "effect.spectrum",
+      "kind": "effect",
+      "notes": "three independent single-band cues (bass/mid/treble); simultaneous multi-zone banding is NOT_COVERABLE_SINGLE_STRIP",
+      "status": "PARTIAL"
+    },
+    {
+      "color_source_support": "NOT_APPLICABLE",
+      "cue_ids": [
+        "vid_ambient_smoothfast",
+        "vid_ambient_smoothslow"
+      ],
+      "id": "effect.video_ambient",
+      "kind": "effect",
+      "notes": "evidence requires Part 3 local video",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "NOT_APPLICABLE",
+      "cue_ids": [
+        "vid_fusion_audioheavy",
+        "vid_fusion_videoonly",
+        "vid_fusion_weights_mod"
+      ],
+      "id": "effect.video_audio_fusion",
+      "kind": "effect",
+      "notes": "evidence requires Part 3 local video; treble shimmer (treble_limit > 0) consumes global RNG at render time, so Part 3 frames are excluded from digest pinning and shimmer amplitude is expected to vary run-to-run",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "GLOBAL",
+      "cue_ids": [
+        "fx_calm_con_a",
+        "fx_calm_con_b",
+        "fx_calm_identity",
+        "fx_calm_lim_period_max",
+        "fx_calm_lim_period_micro"
+      ],
+      "id": "effect.calm",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "col_spatial_gradient",
+        "fx_colorwipe_con_a",
+        "fx_colorwipe_con_b",
+        "fx_colorwipe_con_curve_a",
+        "fx_colorwipe_con_curve_b",
+        "fx_colorwipe_identity",
+        "fx_colorwipe_lim_slew_high",
+        "fx_colorwipe_lim_soft_max",
+        "fx_colorwipe_lim_speed0",
+        "fx_colorwipe_lim_speed1000",
+        "mod_param_wipe_softness_drive",
+        "str_rapid_04"
+      ],
+      "id": "effect.color_wipe",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "EVENT",
+      "cue_ids": [
+        "aud_twinkle_birth_treble",
+        "aud_twinkle_gate_bass",
+        "col_event_spatial",
+        "fx_twinkle_birth_progress",
+        "fx_twinkle_con_a",
+        "fx_twinkle_con_b",
+        "fx_twinkle_gate_progress",
+        "fx_twinkle_identity",
+        "fx_twinkle_lim_blur0",
+        "fx_twinkle_lim_blur_max",
+        "fx_twinkle_lim_density0",
+        "fx_twinkle_lim_density100",
+        "fx_twinkle_lim_fade_max",
+        "fx_twinkle_lim_fade_min",
+        "fx_twinkle_lim_width_max",
+        "fx_twinkle_lim_width_min",
+        "fx_twinkle_src_palette",
+        "fx_twinkle_src_solid",
+        "mod_audio_intensity",
+        "str_rapid_06"
+      ],
+      "id": "effect.twinkle",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "NOT_APPLICABLE",
+      "cue_ids": [
+        "fx_demo_con_a",
+        "fx_demo_con_b",
+        "fx_demo_identity",
+        "fx_demo_lim_interval_max",
+        "fx_demo_lim_interval_micro",
+        "fx_demo_lim_unknown_child"
+      ],
+      "id": "effect.demo",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "NOT_APPLICABLE",
+      "cue_ids": [
+        "fx_steppulse_con_a",
+        "fx_steppulse_con_b",
+        "fx_steppulse_identity",
+        "fx_steppulse_lim_duty0",
+        "fx_steppulse_lim_duty1",
+        "fx_steppulse_lim_period_max",
+        "fx_steppulse_lim_strobe",
+        "str_rapid_03"
+      ],
+      "id": "effect.step_pulse",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "cal_origin_center",
+        "cal_origin_edges",
+        "cal_origin_end",
+        "cal_origin_start",
+        "fx_single_dot_con_a",
+        "fx_single_dot_con_b",
+        "fx_single_dot_dir_reverse",
+        "fx_single_dot_identity",
+        "fx_single_dot_lim_speed0",
+        "fx_single_dot_lim_speed50",
+        "fx_single_dot_lim_speedslow",
+        "fx_single_dot_speed_a",
+        "fx_single_dot_speed_b",
+        "str_priority_flash",
+        "str_rapid_00"
+      ],
+      "id": "effect.single_dot",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "fx_theater_phase_con_a",
+        "fx_theater_phase_con_b",
+        "fx_theater_phase_identity",
+        "fx_theater_phase_lim_speed0",
+        "fx_theater_phase_lim_speed60",
+        "str_rapid_01"
+      ],
+      "id": "effect.theater_phase",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "fx_flow_bands_con_a",
+        "fx_flow_bands_con_b",
+        "fx_flow_bands_identity",
+        "fx_flow_bands_lim_band10000",
+        "fx_flow_bands_lim_band_max",
+        "fx_flow_bands_lim_base0",
+        "fx_flow_bands_lim_base_eq_highlight",
+        "fx_flow_bands_lim_steps0",
+        "fx_flow_bands_lim_steps_max",
+        "fx_flow_bands_phase_offset",
+        "mod_param_audio_rms",
+        "mod_param_bands_base_mod",
+        "mod_param_bands_highlight_mod"
+      ],
+      "id": "effect.flowing_bands",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "EVENT",
+      "cue_ids": [
+        "aud_onset_ripple_con_a",
+        "aud_onset_ripple_con_b",
+        "aud_onset_ripple_identity",
+        "aud_onset_ripple_lim_decay_max",
+        "aud_onset_ripple_lim_decay_min",
+        "aud_onset_ripple_lim_floor1",
+        "aud_onset_ripple_lim_speed0",
+        "aud_onset_ripple_lim_speed1000",
+        "aud_onset_ripple_lim_threshold0",
+        "aud_onset_ripple_lim_threshold1",
+        "aud_onset_ripple_lim_width1000",
+        "aud_onset_ripple_nowrap",
+        "aud_onset_ripple_origin_random",
+        "col_event_timeline",
+        "mod_param_onset_floor_drive"
+      ],
+      "id": "effect.onset_ripple",
+      "kind": "effect",
+      "notes": "fallback/silence stability in Part 1; dynamic evidence in Part 2",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "fx_heat_fire_con_a",
+        "fx_heat_fire_con_b",
+        "fx_heat_fire_identity",
+        "fx_heat_fire_lim_cooling_max",
+        "fx_heat_fire_lim_diffusion_max",
+        "fx_heat_fire_lim_rate0",
+        "fx_heat_fire_lim_rate_max",
+        "fx_heat_fire_lim_strength_max",
+        "fx_heat_fire_lim_zone1",
+        "fx_heat_fire_lim_zone_max"
+      ],
+      "id": "effect.heat_fire",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "aud_historystream_rms",
+        "fx_history_con_a",
+        "fx_history_con_b",
+        "fx_history_dir_reverse",
+        "fx_history_identity",
+        "fx_history_lim_sps_max",
+        "fx_history_lim_sps_min"
+      ],
+      "id": "effect.history_stream",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "color_source_support": "POSITIONAL",
+      "cue_ids": [
+        "fx_noise_con_a",
+        "fx_noise_con_b",
+        "fx_noise_identity",
+        "fx_noise_lim_ceiling0",
+        "fx_noise_lim_contrast0",
+        "fx_noise_lim_contrast_max",
+        "fx_noise_lim_drift_max",
+        "fx_noise_lim_feature_max",
+        "fx_noise_lim_feature_min",
+        "fx_noise_lim_flat",
+        "fx_noise_lim_flat_white",
+        "mod_param_noise_contrast_drive"
+      ],
+      "id": "effect.coherent_noise_field",
+      "kind": "effect",
+      "notes": "",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "fx_single_dot_speed_a",
+        "fx_single_dot_speed_b",
+        "fx_static_con_a",
+        "fx_static_con_b"
+      ],
+      "id": "show.effect.speed_intensity",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "cal_origin_center",
+        "cal_origin_edges",
+        "cal_origin_end",
+        "cal_origin_start"
+      ],
+      "id": "show.origin",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "cal_black_hold",
+        "cal_blue_solid",
+        "cal_green_solid",
+        "cal_origin_center",
+        "cal_origin_edges",
+        "cal_origin_end",
+        "cal_origin_start",
+        "cal_red_solid",
+        "cal_white_solid",
+        "fx_chase_identity"
+      ],
+      "id": "show.color_spec_solid",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "col_palette_cycle",
+        "fx_twinkle_src_palette",
+        "fx_twinkle_src_solid"
+      ],
+      "id": "show.color_spec_palette",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "str_fade_envelope",
+        "safe_black_hold",
+        "safe_fade_to_black"
+      ],
+      "id": "show.transition_fades",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "str_blend_base",
+        "str_blend_overlay"
+      ],
+      "id": "show.blend_add",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "str_priority_base",
+        "str_priority_flash"
+      ],
+      "id": "show.priority",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "mod_track_linear",
+        "mod_track_step"
+      ],
+      "id": "show.brightness_tracks",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "mod_adaptive_states"
+      ],
+      "id": "show.adaptive_mode",
+      "kind": "show_language",
+      "notes": "Part 1 exercises only the silence/fallback path; state switching needs Part 2",
+      "status": "PARTIAL"
+    },
+    {
+      "cue_ids": [
+        "mod_adaptive_states"
+      ],
+      "id": "show.audio_control",
+      "kind": "show_language",
+      "notes": "gates only the adaptive selector; inert on fixed cues; the beat-locked fields (beats_per_cycle, beat_subdivision, speed_smoothing_seconds) are declared but need live tempo evidence in Part 2",
+      "status": "PARTIAL"
+    },
+    {
+      "cue_ids": [
+        "mod_adaptive_states"
+      ],
+      "id": "show.min_effect_hold_switch_cooldown",
+      "kind": "show_language",
+      "notes": "adaptive-only gates; fixed-cue rows would be a false pass",
+      "status": "PARTIAL"
+    },
+    {
+      "cue_ids": [
+        "mod_audio_brightness",
+        "mod_audio_intensity",
+        "mod_audio_speed"
+      ],
+      "id": "show.audio_modulation",
+      "kind": "show_language",
+      "notes": "channels neutral (1.0) without audio; dynamic evidence in Part 2",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "mod_param_audio_rms",
+        "mod_param_bands_base_mod",
+        "mod_param_bands_highlight_mod",
+        "mod_param_colorwave_span_mod",
+        "vid_fusion_weights_mod"
+      ],
+      "id": "show.parameter_modulation_modulate",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "mod_param_breath_min_drive",
+        "mod_param_noise_contrast_drive",
+        "mod_param_onset_floor_drive",
+        "mod_param_wipe_softness_drive"
+      ],
+      "id": "show.parameter_modulation_drive",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "mod_param_audio_rms",
+        "mod_param_bands_base_mod",
+        "mod_param_bands_highlight_mod",
+        "mod_param_breath_min_drive",
+        "mod_param_colorwave_span_mod",
+        "mod_param_noise_contrast_drive",
+        "mod_param_onset_floor_drive",
+        "mod_param_wipe_softness_drive",
+        "vid_fusion_audioheavy",
+        "vid_fusion_videoonly",
+        "vid_fusion_weights_mod"
+      ],
+      "id": "show.modulatable_params",
+      "kind": "show_language",
+      "notes": "all 11 registry-modulatable float params exercised; video_audio_fusion members in Part 3",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "fx_twinkle_birth_progress",
+        "fx_twinkle_gate_progress",
+        "mod_param_audio_rms",
+        "mod_param_bands_base_mod",
+        "mod_param_bands_highlight_mod",
+        "mod_param_breath_min_drive",
+        "mod_param_colorwave_span_mod",
+        "mod_param_noise_contrast_drive",
+        "mod_param_onset_floor_drive",
+        "mod_param_wipe_softness_drive"
+      ],
+      "id": "show.scalar_source_cue_progress",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "aud_historystream_rms",
+        "aud_twinkle_birth_treble",
+        "aud_twinkle_gate_bass",
+        "mod_param_audio_rms"
+      ],
+      "id": "show.scalar_source_audio",
+      "kind": "show_language",
+      "notes": "fallback behavior in Part 1; live values in Part 2",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "col_event_timeline",
+        "col_timeline_sweep",
+        "fx_history_identity"
+      ],
+      "id": "show.colorsource_timeline",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "col_event_spatial",
+        "col_spatial_gradient"
+      ],
+      "id": "show.colorsource_spatial_palette",
+      "kind": "show_language",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "col_audio_spectrum_fallback"
+      ],
+      "id": "show.colorsource_audio_spectrum_palette",
+      "kind": "show_language",
+      "notes": "fallback in Part 1; live spectrum in Part 2",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "col_dominant_freq_fallback"
+      ],
+      "id": "show.colorsource_dominant_frequency_palette",
+      "kind": "show_language",
+      "notes": "fallback in Part 1; pitch tracking in Part 2",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "col_video_fallback",
+        "vid_average_steps"
+      ],
+      "id": "show.colorsource_video_average",
+      "kind": "show_language",
+      "notes": "fallback in Part 1; live evidence in Part 3",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "vid_dominant_bar"
+      ],
+      "id": "show.colorsource_video_dominant",
+      "kind": "show_language",
+      "notes": "live evidence in Part 3",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [],
+      "id": "show.virtual_paths_multi_member",
+      "kind": "show_language",
+      "notes": "members require >=2 distinct strips; a 1-member path degenerates",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "show.branches_start_on_release",
+      "kind": "show_language",
+      "notes": "branches need a multi-member virtual path and a digital_set target",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "show.branches_pre_roll",
+      "kind": "show_language",
+      "notes": "same structural dependency as start_on_release",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "show.digital_group",
+      "kind": "show_language",
+      "notes": "no group registry in a single-strip catalog",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "show.all_digital",
+      "kind": "show_language",
+      "notes": "v1-only grammar; on one strip it degenerates to strip_31",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "show.analog_zones_rgbcct",
+      "kind": "show_language",
+      "notes": "WS2811 carries RGB only; warm/cool white channels are analog-only",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "color.cross_strip_seam",
+      "kind": "visual",
+      "notes": "requires >=2 physical strips",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "color.spectrum_simultaneous_zones",
+      "kind": "visual",
+      "notes": "one strip carries exactly one band color (bass precedence)",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "color.video_multi_zone_mapping",
+      "kind": "visual",
+      "notes": "video_ambient paints all 10px one video_zone color",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [],
+      "id": "audio.beat_sync_fixed_cues",
+      "kind": "visual",
+      "notes": "tempo only reaches motion through the adaptive selector",
+      "status": "NOT_COVERABLE_SINGLE_STRIP"
+    },
+    {
+      "cue_ids": [
+        "aud_onset_ripple_con_a",
+        "aud_onset_ripple_con_b",
+        "aud_onset_ripple_identity",
+        "aud_onset_ripple_lim_decay_max",
+        "aud_onset_ripple_lim_decay_min",
+        "aud_onset_ripple_lim_floor1",
+        "aud_onset_ripple_lim_speed0",
+        "aud_onset_ripple_lim_speed1000",
+        "aud_onset_ripple_lim_threshold0",
+        "aud_onset_ripple_lim_threshold1",
+        "aud_onset_ripple_lim_width1000",
+        "aud_onset_ripple_nowrap",
+        "aud_onset_ripple_origin_random"
+      ],
+      "id": "audio.onset_vs_spectral_flux_distinction",
+      "kind": "visual",
+      "notes": "WLED sync derives onset == spectral_flux; the two mechanisms cannot be distinguished through this chain",
+      "status": "PARTIAL"
+    },
+    {
+      "cue_ids": [
+        "mod_adaptive_states"
+      ],
+      "id": "audio.silence_state",
+      "kind": "visual",
+      "notes": "environment-dependent (mic gain, room tone, WLED AGC)",
+      "status": "PARTIAL"
+    },
+    {
+      "cue_ids": [
+        "str_rapid_00",
+        "str_rapid_01",
+        "str_rapid_02",
+        "str_rapid_03",
+        "str_rapid_04",
+        "str_rapid_05",
+        "str_rapid_06",
+        "str_rapid_07"
+      ],
+      "id": "stress.rapid_cue_switching",
+      "kind": "stress",
+      "status": "FULL"
+    },
+    {
+      "cue_ids": [
+        "fx_demo_con_a",
+        "fx_demo_con_b",
+        "fx_demo_identity",
+        "fx_demo_lim_interval_max",
+        "fx_demo_lim_interval_micro",
+        "fx_demo_lim_unknown_child"
+      ],
+      "id": "stress.demo_registry_cycling",
+      "kind": "stress",
+      "notes": "children run on renderer defaults; self-sufficient subset only",
+      "status": "PARTIAL"
+    }
+  ],
+  "cue_metrics": {
+    "aud_audiopulse_con_a": {
+      "duration_seconds": 8.0,
+      "expected": "tight kicks",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": "aud_audiopulse_attack",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 691.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_audiopulse_con_b": {
+      "duration_seconds": 8.0,
+      "expected": "sluggish glow",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": "aud_audiopulse_attack",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 699.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_audiopulse_identity": {
+      "duration_seconds": 10.0,
+      "expected": "P1: black; P2: punchy swells following RMS",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 681.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_audiopulse_lim_release60": {
+      "duration_seconds": 4.0,
+      "expected": "brightness freezes after the first hit (unbounded stress)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 707.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_basspulse_con_a": {
+      "duration_seconds": 8.0,
+      "expected": "per-kick thump",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": "aud_basspulse_attack",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 721.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_basspulse_con_b": {
+      "duration_seconds": 8.0,
+      "expected": "smeared constant glow",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": "aud_basspulse_attack",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 729.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_basspulse_identity": {
+      "duration_seconds": 10.0,
+      "expected": "P1: black; P2: cyan thumps locked to low-frequency energy",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 711.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_basspulse_lim_attack60": {
+      "duration_seconds": 3.0,
+      "expected": "barely reaches visible brightness (unbounded stress)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 737.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_historystream_rms": {
+      "duration_seconds": 6.0,
+      "expected": "P1: gain 0 -> black samples; P2: history brightens with loudness",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 832.6,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_con_a": {
+      "duration_seconds": 8.0,
+      "expected": "single front leaves px0",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": "aud_onset_prop",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 782.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_con_b": {
+      "duration_seconds": 8.0,
+      "expected": "two mirrored fronts",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": "aud_onset_prop",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 790.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_identity": {
+      "duration_seconds": 12.0,
+      "expected": "P1: black; P2: amber wave from px0 on each beat, 1s crossing",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 770.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_lim_decay_max": {
+      "duration_seconds": 3.0,
+      "expected": "waves linger far beyond the cue (max boundary)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 827.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_lim_decay_min": {
+      "duration_seconds": 3.0,
+      "expected": "waves vanish almost instantly (min boundary)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 824.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_lim_floor1": {
+      "duration_seconds": 2.5,
+      "expected": "constant full-brightness floor, waves invisible (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 830.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_lim_speed0": {
+      "duration_seconds": 3.0,
+      "expected": "frozen hairline front at the origin (min boundaries)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 817.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_lim_speed1000": {
+      "duration_seconds": 2.0,
+      "expected": "front crosses faster than a frame: whole-strip flash (max boundary)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 820.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_lim_threshold0": {
+      "duration_seconds": 3.0,
+      "expected": "every onset triggers: continuous wave spam (min boundary)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 814.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_lim_threshold1": {
+      "duration_seconds": 4.0,
+      "expected": "almost no triggers (max boundary)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 810.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_lim_width1000": {
+      "duration_seconds": 2.0,
+      "expected": "every onset lights the entire strip (max boundary)",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 822.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_nowrap": {
+      "duration_seconds": 6.0,
+      "expected": "wrap=false branch: fronts die at strip ends",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 804.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_onset_ripple_origin_random": {
+      "duration_seconds": 6.0,
+      "expected": "random-origin branch: waves born at hashed pixels",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 798.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_spectrum_bass": {
+      "duration_seconds": 10.0,
+      "expected": "P1: black; P2: whole strip red, pulsing with bass only",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 740.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_spectrum_mid": {
+      "duration_seconds": 10.0,
+      "expected": "P1: black; P2: whole strip green with mid energy",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 750.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_spectrum_treble": {
+      "duration_seconds": 10.0,
+      "expected": "P1: black; P2: whole strip blue with treble energy",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 760.1,
+      "warmup_seconds": 0.0
+    },
+    "aud_twinkle_birth_treble": {
+      "duration_seconds": 6.0,
+      "expected": "P1: zero birth gain -> black; P2: treble lights the sparks",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 844.6,
+      "warmup_seconds": 0.0
+    },
+    "aud_twinkle_gate_bass": {
+      "duration_seconds": 6.0,
+      "expected": "P1: gated to black; P2: sparks only on bass content",
+      "metric_class": "BLACK_UNTIL_MEDIA",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 838.6,
+      "warmup_seconds": 0.0
+    },
+    "cal_black_hold": {
+      "duration_seconds": 2.0,
+      "expected": "all-black safe state",
+      "metric_class": "UNIFORM_BLACK",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 0.0,
+      "warmup_seconds": 0.0
+    },
+    "cal_blue_solid": {
+      "duration_seconds": 2.0,
+      "expected": "10 uniform blue groups",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 6.0,
+      "warmup_seconds": 0.0
+    },
+    "cal_green_solid": {
+      "duration_seconds": 2.0,
+      "expected": "10 uniform green groups",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 4.0,
+      "warmup_seconds": 0.0
+    },
+    "cal_origin_center": {
+      "duration_seconds": 4.0,
+      "expected": "origin=center: content folds outward from middle",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 18.0,
+      "warmup_seconds": 0.0
+    },
+    "cal_origin_edges": {
+      "duration_seconds": 4.0,
+      "expected": "origin=edges: two dots glide from both ends inward",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 22.0,
+      "warmup_seconds": 0.0
+    },
+    "cal_origin_end": {
+      "duration_seconds": 4.0,
+      "expected": "origin=end: dot runs 9->0 (mirrored)",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 14.0,
+      "warmup_seconds": 0.0
+    },
+    "cal_origin_start": {
+      "duration_seconds": 4.0,
+      "expected": "origin=start: dot runs 0->9",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 10.0,
+      "warmup_seconds": 0.0
+    },
+    "cal_red_solid": {
+      "duration_seconds": 2.0,
+      "expected": "10 uniform red groups (wiring/order check)",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 2.0,
+      "warmup_seconds": 0.0
+    },
+    "cal_white_solid": {
+      "duration_seconds": 2.0,
+      "expected": "10 uniform white groups",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 8.0,
+      "warmup_seconds": 0.0
+    },
+    "col_audio_spectrum_fallback": {
+      "duration_seconds": 4.0,
+      "expected": "P1: moving window in fallback color; P2: spectrum-shaped gradient",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 551.1,
+      "warmup_seconds": 0.0
+    },
+    "col_dominant_freq_fallback": {
+      "duration_seconds": 4.0,
+      "expected": "P1: steady fallback gray; P2: hue follows tone pitch",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 547.1,
+      "warmup_seconds": 0.0
+    },
+    "col_event_spatial": {
+      "duration_seconds": 5.0,
+      "expected": "multi-colored twinkles: per-event palette sampling",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 534.1,
+      "warmup_seconds": 0.0
+    },
+    "col_event_timeline": {
+      "duration_seconds": 8.0,
+      "expected": "amber->green->blue floor; P2 adds ripples in the live color",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 539.1,
+      "warmup_seconds": 0.0
+    },
+    "col_palette_cycle": {
+      "duration_seconds": 9.5,
+      "expected": "8-color 1Hz hard-stepped palette over a breathing envelope",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 519.1,
+      "warmup_seconds": 0.0
+    },
+    "col_spatial_gradient": {
+      "duration_seconds": 5.5,
+      "expected": "10px R->Y->B gradient revealed by the wipe front",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 528.6,
+      "warmup_seconds": 0.0
+    },
+    "col_timeline_sweep": {
+      "duration_seconds": 14.0,
+      "expected": "R->Y->G->C->B->M->W->dim: primaries, secondaries, white",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 505.1,
+      "warmup_seconds": 0.0
+    },
+    "col_video_fallback": {
+      "duration_seconds": 3.0,
+      "expected": "P1: steady fallback; Part 3 drives the live color",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 555.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_breath_con_a": {
+      "duration_seconds": 7.0,
+      "expected": "sine: lingers at extremes",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": "fx_breath_wave",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 42.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_breath_con_b": {
+      "duration_seconds": 7.0,
+      "expected": "triangle: linear ramp",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": "fx_breath_wave",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 49.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_breath_identity": {
+      "duration_seconds": 7.0,
+      "expected": "whole strip swells dim->bright->dim, 2+ cycles",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 35.0,
+      "warmup_seconds": 0.2
+    },
+    "fx_breath_lim_min0": {
+      "duration_seconds": 4.0,
+      "expected": "strip goes fully dark each cycle (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 63.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_breath_lim_min1": {
+      "duration_seconds": 4.0,
+      "expected": "flat full brightness, mechanism invisible (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 67.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_breath_lim_period_max": {
+      "duration_seconds": 2.0,
+      "expected": "single half-cycle for the whole cue: near-static (unbounded stress)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 71.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_breath_lim_period_micro": {
+      "duration_seconds": 2.0,
+      "expected": "1kHz flicker integrates to dim blur",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 61.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_breath_wave_smoothstep": {
+      "duration_seconds": 5.0,
+      "expected": "smoothstep branch",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 56.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_calm_con_a": {
+      "duration_seconds": 8.0,
+      "expected": "visible hue sway",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": "fx_calm_period",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 193.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_calm_con_b": {
+      "duration_seconds": 8.0,
+      "expected": "nearly static tint",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": "fx_calm_period",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 201.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_calm_identity": {
+      "duration_seconds": 10.0,
+      "expected": "faint desaturated blue, slow hue drift; amplitude via brightness track",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 183.5,
+      "warmup_seconds": 1.0
+    },
+    "fx_calm_lim_period_max": {
+      "duration_seconds": 2.0,
+      "expected": "near-static faint tint (unbounded stress)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 211.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_calm_lim_period_micro": {
+      "duration_seconds": 2.0,
+      "expected": "fast wobble flattened by the 0.35 value cap",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 209.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_con_a": {
+      "duration_seconds": 3.0,
+      "expected": "two dots (period 5px)",
+      "metric_class": "SPATIAL",
+      "pair": "fx_chase_gap",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 113.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_con_b": {
+      "duration_seconds": 3.0,
+      "expected": "one lone dot (period 15px > strip)",
+      "metric_class": "SPATIAL",
+      "pair": "fx_chase_gap",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 116.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_con_dir_a": {
+      "duration_seconds": 4.0,
+      "expected": "forward march",
+      "metric_class": "SPATIAL",
+      "pair": "fx_chase_dir",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 119.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_con_dir_b": {
+      "duration_seconds": 4.0,
+      "expected": "bounce reverses at px9",
+      "metric_class": "SPATIAL",
+      "pair": "fx_chase_dir",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 123.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_dir_reverse": {
+      "duration_seconds": 3.0,
+      "expected": "reverse march branch",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 127.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_identity": {
+      "duration_seconds": 3.5,
+      "expected": "two 1px dots marching 0->9, 1s pattern period",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 109.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_lim_beatboost": {
+      "duration_seconds": 2.5,
+      "expected": "P1: normal speed (no beat input); P2: march accelerates on beats",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 141.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_lim_speed0": {
+      "duration_seconds": 1.5,
+      "expected": "frozen pattern",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 136.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_lim_speed100": {
+      "duration_seconds": 1.5,
+      "expected": "shimmer aliasing",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 138.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_lim_trail_flat": {
+      "duration_seconds": 2.0,
+      "expected": "trail saturates: full window, no decay",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 139.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_lim_width0": {
+      "duration_seconds": 1.5,
+      "expected": "all black",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 135.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_lim_width_full": {
+      "duration_seconds": 2.0,
+      "expected": "all pixels lit, motion invisible",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 133.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_chase_src_rainbow": {
+      "duration_seconds": 3.0,
+      "expected": "rainbow: per-index hue gradient, window moves (hue does NOT travel)",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 130.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_con_a": {
+      "duration_seconds": 5.0,
+      "expected": "one rainbow across 10px",
+      "metric_class": "SPATIAL",
+      "pair": "fx_colorwave_width",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 78.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_con_b": {
+      "duration_seconds": 5.0,
+      "expected": "five compressed rainbows",
+      "metric_class": "SPATIAL",
+      "pair": "fx_colorwave_width",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 83.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_identity": {
+      "duration_seconds": 5.0,
+      "expected": "one full rainbow band gliding 0->9 every 2s",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 73.0,
+      "warmup_seconds": 0.2
+    },
+    "fx_colorwave_lim_rate5": {
+      "duration_seconds": 2.0,
+      "expected": "base hue rotates faster than perceivable",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 107.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_lim_span0": {
+      "duration_seconds": 2.0,
+      "expected": "uniform color, no wave (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 100.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_lim_speed0": {
+      "duration_seconds": 2.0,
+      "expected": "static gradient",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 102.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_lim_speed50": {
+      "duration_seconds": 1.5,
+      "expected": "hue strobe mush",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 104.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_lim_width100": {
+      "duration_seconds": 2.0,
+      "expected": "wavelength 1000px: near-uniform tint drift",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 105.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_wave_linear": {
+      "duration_seconds": 4.0,
+      "expected": "linear hue ramp branch",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 88.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_wave_saw": {
+      "duration_seconds": 4.0,
+      "expected": "saw branch",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 96.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwave_wave_triangle": {
+      "duration_seconds": 4.0,
+      "expected": "triangle branch",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 92.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_con_a": {
+      "duration_seconds": 2.2,
+      "expected": "crisp front",
+      "metric_class": "SPATIAL",
+      "pair": "fx_colorwipe_edge",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 215.7,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_con_b": {
+      "duration_seconds": 2.2,
+      "expected": "3px gradient front",
+      "metric_class": "SPATIAL",
+      "pair": "fx_colorwipe_edge",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 217.9,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_con_curve_a": {
+      "duration_seconds": 2.5,
+      "expected": "linear progress",
+      "metric_class": "SPATIAL",
+      "pair": "fx_colorwipe_curve",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 220.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_con_curve_b": {
+      "duration_seconds": 2.5,
+      "expected": "ease-in/out progress",
+      "metric_class": "SPATIAL",
+      "pair": "fx_colorwipe_curve",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 222.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_identity": {
+      "duration_seconds": 2.2,
+      "expected": "cyan fills pixel-by-pixel 0->9 in 1.8s",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 213.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_lim_slew_high": {
+      "duration_seconds": 3.0,
+      "expected": "external progress drives the fill; authored speed is inert in this mode and the 3s slew lags cue progress (unbounded stress)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 230.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_lim_soft_max": {
+      "duration_seconds": 2.5,
+      "expected": "whole strip dimly lit from frame one (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 228.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_lim_speed0": {
+      "duration_seconds": 1.5,
+      "expected": "1px lit, frozen (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 225.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_colorwipe_lim_speed1000": {
+      "duration_seconds": 1.5,
+      "expected": "instantly full (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 226.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_con_a": {
+      "duration_seconds": 5.0,
+      "expected": "wrap: exits one end, re-enters other",
+      "metric_class": "SPATIAL",
+      "pair": "fx_comet_traj",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 149.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_con_b": {
+      "duration_seconds": 5.0,
+      "expected": "bounce: decelerates and returns",
+      "metric_class": "SPATIAL",
+      "pair": "fx_comet_traj",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 154.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_identity": {
+      "duration_seconds": 5.0,
+      "expected": "two white heads with ~4px tails wrap the strip (2.5 cycles)",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 144.0,
+      "warmup_seconds": 0.3
+    },
+    "fx_comet_lim_count1": {
+      "duration_seconds": 4.0,
+      "expected": "count=1 legacy wrap branch (authored color keeps it deterministic)",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 163.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_lim_count64": {
+      "duration_seconds": 2.0,
+      "expected": "64 emitters saturate all 10px (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 175.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_lim_decay0": {
+      "duration_seconds": 2.0,
+      "expected": "tail vanishes instantly behind the head (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 169.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_lim_decay1": {
+      "duration_seconds": 2.5,
+      "expected": "tail never fades, strip fills (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 179.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_lim_phase0": {
+      "duration_seconds": 2.0,
+      "expected": "emitters fully overlapped into one (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 171.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_lim_phase1": {
+      "duration_seconds": 2.0,
+      "expected": "emitters coincide at the same phase (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 173.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_lim_speed0": {
+      "duration_seconds": 1.5,
+      "expected": "frozen head",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 182.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_lim_tail0": {
+      "duration_seconds": 2.0,
+      "expected": "no tail: bare heads only (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 167.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_lim_tail_full": {
+      "duration_seconds": 2.5,
+      "expected": "50px tail covers whole strip",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 177.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_comet_traj_sine": {
+      "duration_seconds": 4.0,
+      "expected": "sine trajectory branch",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 159.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_demo_con_a": {
+      "duration_seconds": 6.5,
+      "expected": "two-child tour (spatially uniform children)",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": "fx_demo_children",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 297.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_demo_con_b": {
+      "duration_seconds": 12.5,
+      "expected": "four-child tour",
+      "metric_class": "SPATIAL",
+      "pair": "fx_demo_children",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 303.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_demo_identity": {
+      "duration_seconds": 12.5,
+      "expected": "3s tour: static/breath/color_wave/chase, each freshly reset",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 284.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_demo_lim_interval_max": {
+      "duration_seconds": 2.5,
+      "expected": "single child for the whole cue (unbounded stress)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 321.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_demo_lim_interval_micro": {
+      "duration_seconds": 2.5,
+      "expected": "children reset before rendering: strobing first-frames",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 316.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_demo_lim_unknown_child": {
+      "duration_seconds": 2.5,
+      "expected": "unknown ids skipped -> static fallback",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 318.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_con_a": {
+      "duration_seconds": 4.0,
+      "expected": "highlight hops left->right",
+      "metric_class": "SPATIAL",
+      "pair": "fx_flow_bands_dir",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 387.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_con_b": {
+      "duration_seconds": 4.0,
+      "expected": "highlight hops right->left",
+      "metric_class": "SPATIAL",
+      "pair": "fx_flow_bands_dir",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 391.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_identity": {
+      "duration_seconds": 4.0,
+      "expected": "3 dim bands, one bright band hopping forward every 0.33s",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 383.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_lim_band10000": {
+      "duration_seconds": 2.0,
+      "expected": "all lit always (max boundaries)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 397.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_lim_band_max": {
+      "duration_seconds": 2.5,
+      "expected": "band+gap >= 10: single band, no motion (short-strip finding)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 395.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_lim_base0": {
+      "duration_seconds": 2.5,
+      "expected": "background invisible: only the highlight band shows (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 401.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_lim_base_eq_highlight": {
+      "duration_seconds": 2.0,
+      "expected": "uniform, highlight invisible (relational boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 399.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_lim_steps0": {
+      "duration_seconds": 2.0,
+      "expected": "uniform dark bands: no highlight, no background (min boundaries)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 405.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_lim_steps_max": {
+      "duration_seconds": 1.5,
+      "expected": "highlight aliasing/strobe (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 404.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_flow_bands_phase_offset": {
+      "duration_seconds": 2.5,
+      "expected": "phase offset 10000 mod band_count: shifted start (max boundary)",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 407.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_heat_fire_con_a": {
+      "duration_seconds": 5.0,
+      "expected": "flames climb the strip",
+      "metric_class": "SPATIAL",
+      "pair": "fx_heat_fire_diffusion",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 415.1,
+      "warmup_seconds": 1.0
+    },
+    "fx_heat_fire_con_b": {
+      "duration_seconds": 5.0,
+      "expected": "heat cannot propagate: base only",
+      "metric_class": "SPATIAL",
+      "pair": "fx_heat_fire_diffusion",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 420.1,
+      "warmup_seconds": 1.0
+    },
+    "fx_heat_fire_identity": {
+      "duration_seconds": 5.0,
+      "expected": "flickering base with flame tips reaching px9 (~1s warm-up)",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 410.1,
+      "warmup_seconds": 1.0
+    },
+    "fx_heat_fire_lim_cooling_max": {
+      "duration_seconds": 2.5,
+      "expected": "near-black with rare flashes (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 435.1,
+      "warmup_seconds": 1.0
+    },
+    "fx_heat_fire_lim_diffusion_max": {
+      "duration_seconds": 2.0,
+      "expected": "heat smears instantly, whole strip flickers (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 439.6,
+      "warmup_seconds": 1.0
+    },
+    "fx_heat_fire_lim_rate0": {
+      "duration_seconds": 2.5,
+      "expected": "black: no sparks/cooling/strength (min boundaries)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 428.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_heat_fire_lim_rate_max": {
+      "duration_seconds": 2.5,
+      "expected": "uniform inferno (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 430.6,
+      "warmup_seconds": 1.0
+    },
+    "fx_heat_fire_lim_strength_max": {
+      "duration_seconds": 2.0,
+      "expected": "clipped white-hot base (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 437.6,
+      "warmup_seconds": 1.0
+    },
+    "fx_heat_fire_lim_zone1": {
+      "duration_seconds": 3.0,
+      "expected": "sparks at px0 only, 90% of strip never burns (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 425.1,
+      "warmup_seconds": 1.0
+    },
+    "fx_heat_fire_lim_zone_max": {
+      "duration_seconds": 2.0,
+      "expected": "sparks anywhere: uniform flicker, no gradient (max boundary, clamped to strip)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 433.1,
+      "warmup_seconds": 1.0
+    },
+    "fx_history_con_a": {
+      "duration_seconds": 8.0,
+      "expected": "legible cell-by-cell shift",
+      "metric_class": "SPATIAL",
+      "pair": "fx_history_sps",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 448.6,
+      "warmup_seconds": 5.2
+    },
+    "fx_history_con_b": {
+      "duration_seconds": 4.0,
+      "expected": "fluid 2s fill",
+      "metric_class": "SPATIAL",
+      "pair": "fx_history_sps",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 456.6,
+      "warmup_seconds": 2.2
+    },
+    "fx_history_dir_reverse": {
+      "duration_seconds": 8.0,
+      "expected": "history flows toward px0 branch",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 460.6,
+      "warmup_seconds": 5.2
+    },
+    "fx_history_identity": {
+      "duration_seconds": 7.0,
+      "expected": "color snake fills 0->9 in 5s, then scrolls red->blue history",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 441.6,
+      "warmup_seconds": 5.2
+    },
+    "fx_history_lim_sps_max": {
+      "duration_seconds": 2.0,
+      "expected": "buffer overwritten within one frame: flat single color (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 471.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_history_lim_sps_min": {
+      "duration_seconds": 2.5,
+      "expected": "one sample per 1000s: 1px lit (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 468.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_con_a": {
+      "duration_seconds": 5.0,
+      "expected": "frozen spatial pattern",
+      "metric_class": "SPATIAL",
+      "pair": "fx_noise_drift",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 479.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_con_b": {
+      "duration_seconds": 5.0,
+      "expected": "fast boiling shimmer",
+      "metric_class": "SPATIAL",
+      "pair": "fx_noise_drift",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 484.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_identity": {
+      "duration_seconds": 6.0,
+      "expected": "~2.5 soft blobs breathing and sliding, never fully dark",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 473.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_lim_ceiling0": {
+      "duration_seconds": 1.5,
+      "expected": "flat black field (min boundaries)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 503.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_lim_contrast0": {
+      "duration_seconds": 2.0,
+      "expected": "flat mid gain (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 496.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_lim_contrast_max": {
+      "duration_seconds": 2.5,
+      "expected": "harsh black/white banding (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 493.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_lim_drift_max": {
+      "duration_seconds": 2.0,
+      "expected": "temporal aliasing: per-frame random field (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 500.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_lim_feature_max": {
+      "duration_seconds": 2.5,
+      "expected": "one gradient spans the strip: uniform slow glow (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 489.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_lim_feature_min": {
+      "duration_seconds": 2.0,
+      "expected": "per-pixel static chaos (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 491.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_lim_flat": {
+      "duration_seconds": 2.0,
+      "expected": "ceiling == floor: completely flat (relational boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 498.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_noise_lim_flat_white": {
+      "duration_seconds": 1.5,
+      "expected": "flat full-brightness field (max boundaries)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 502.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_con_a": {
+      "duration_seconds": 4.0,
+      "expected": "forward wrap 9->0",
+      "metric_class": "SPATIAL",
+      "pair": "fx_single_dot_dir",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 343.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_con_b": {
+      "duration_seconds": 7.0,
+      "expected": "bounce walks back from px9",
+      "metric_class": "SPATIAL",
+      "pair": "fx_single_dot_dir",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 347.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_dir_reverse": {
+      "duration_seconds": 3.0,
+      "expected": "reverse march branch",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 354.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_identity": {
+      "duration_seconds": 4.0,
+      "expected": "single green pixel stepping 0->9, 3.33s per revolution",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 339.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_lim_speed0": {
+      "duration_seconds": 1.5,
+      "expected": "frozen dot at px0",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 364.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_lim_speed50": {
+      "duration_seconds": 2.0,
+      "expected": "500px/s exceeds frame rate: dot teleports",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 366.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_lim_speedslow": {
+      "duration_seconds": 2.5,
+      "expected": "10s per single step: near-static",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 368.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_speed_a": {
+      "duration_seconds": 4.0,
+      "expected": "common effect.speed 0.5: half march rate (6.7s/rev)",
+      "metric_class": "SPATIAL",
+      "pair": "fx_single_dot_speed",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 357.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_single_dot_speed_b": {
+      "duration_seconds": 3.0,
+      "expected": "common effect.speed 2.0: double march rate (1.67s/rev)",
+      "metric_class": "SPATIAL",
+      "pair": "fx_single_dot_speed",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 361.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_static_con_a": {
+      "duration_seconds": 2.0,
+      "expected": "full red",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": "fx_static_con",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 28.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_static_con_b": {
+      "duration_seconds": 2.0,
+      "expected": "dim red (common intensity)",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": "fx_static_con",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 30.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_static_identity": {
+      "duration_seconds": 2.0,
+      "expected": "uniform saturated red",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 26.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_static_lim_black": {
+      "duration_seconds": 1.5,
+      "expected": "all black (off-path)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 32.0,
+      "warmup_seconds": 0.0
+    },
+    "fx_static_lim_intensity10": {
+      "duration_seconds": 1.5,
+      "expected": "clamped to full, no overdrive",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 33.5,
+      "warmup_seconds": 0.0
+    },
+    "fx_steppulse_con_a": {
+      "duration_seconds": 3.0,
+      "expected": "short flash / long dim",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": "fx_steppulse_duty",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 326.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_steppulse_con_b": {
+      "duration_seconds": 3.0,
+      "expected": "long bright / short dim",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": "fx_steppulse_duty",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 329.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_steppulse_identity": {
+      "duration_seconds": 3.0,
+      "expected": "crisp 0.25s bright / 0.75s dim steps, never intermediate",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 323.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_steppulse_lim_duty0": {
+      "duration_seconds": 1.5,
+      "expected": "permanently low (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 332.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_steppulse_lim_duty1": {
+      "duration_seconds": 1.5,
+      "expected": "permanently high (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 334.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_steppulse_lim_period_max": {
+      "duration_seconds": 2.0,
+      "expected": "single state for the whole cue (unbounded stress)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 337.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_steppulse_lim_strobe": {
+      "duration_seconds": 2.0,
+      "expected": "20Hz strobe",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 335.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_theater_phase_con_a": {
+      "duration_seconds": 3.0,
+      "expected": "legible 3-dot march",
+      "metric_class": "SPATIAL",
+      "pair": "fx_theater_phase_speed",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 373.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_theater_phase_con_b": {
+      "duration_seconds": 3.0,
+      "expected": "masks interleave into flicker",
+      "metric_class": "SPATIAL",
+      "pair": "fx_theater_phase_speed",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 376.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_theater_phase_identity": {
+      "duration_seconds": 3.0,
+      "expected": "three evenly spaced dots marching, 3-phase cycle each second",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 370.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_theater_phase_lim_speed0": {
+      "duration_seconds": 2.0,
+      "expected": "frozen 4/3/3 lit split (short-strip finding)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 379.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_theater_phase_lim_speed60": {
+      "duration_seconds": 1.5,
+      "expected": "strobe mush",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 381.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_birth_progress": {
+      "duration_seconds": 5.0,
+      "expected": "birth gain follows cue progress: dim -> bright events",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 279.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_con_a": {
+      "duration_seconds": 6.0,
+      "expected": "~2 lonely twinkles",
+      "metric_class": "EVENT",
+      "pair": "fx_twinkle_density",
+      "part": "main",
+      "role": "contrast_a",
+      "start": 238.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_con_b": {
+      "duration_seconds": 6.0,
+      "expected": "~36 sparks, near-continuous sparkle",
+      "metric_class": "EVENT",
+      "pair": "fx_twinkle_density",
+      "part": "main",
+      "role": "contrast_b",
+      "start": 244.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_gate_progress": {
+      "duration_seconds": 5.0,
+      "expected": "births gated by cue progress: sparse -> dense ramp",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 274.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_identity": {
+      "duration_seconds": 5.0,
+      "expected": "~4 sparks/s popping at random pixels, each fading ~1.5s",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 233.6,
+      "warmup_seconds": 0.2
+    },
+    "fx_twinkle_lim_blur0": {
+      "duration_seconds": 2.0,
+      "expected": "hard unblurred 2px events (min boundary; width != 1 keeps the seeded event path)",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 267.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_lim_blur_max": {
+      "duration_seconds": 2.5,
+      "expected": "each birth softly lights the entire strip (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 272.1,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_lim_density0": {
+      "duration_seconds": 2.0,
+      "expected": "no events, black (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 256.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_lim_density100": {
+      "duration_seconds": 2.0,
+      "expected": "1000 spawns/s, strip pinned bright (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 258.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_lim_fade_max": {
+      "duration_seconds": 3.0,
+      "expected": "sparks never clear, saturates (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 262.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_lim_fade_min": {
+      "duration_seconds": 2.0,
+      "expected": "strobe sparks (min boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 260.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_lim_width_max": {
+      "duration_seconds": 2.5,
+      "expected": "full-strip flash per event (max boundary)",
+      "metric_class": "EXPECTED_DEGRADED",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 269.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_lim_width_min": {
+      "duration_seconds": 2.0,
+      "expected": "single-pixel hard events (min boundary)",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "limit",
+      "start": 265.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_src_palette": {
+      "duration_seconds": 3.0,
+      "expected": "palette-color sparks branch",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 253.6,
+      "warmup_seconds": 0.0
+    },
+    "fx_twinkle_src_solid": {
+      "duration_seconds": 3.0,
+      "expected": "solid-color sparks branch",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 250.6,
+      "warmup_seconds": 0.0
+    },
+    "mod_adaptive_states": {
+      "duration_seconds": 32.0,
+      "expected": "P1: silence->static (fallback path); P2: states switch with music",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 627.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_audio_brightness": {
+      "duration_seconds": 8.0,
+      "expected": "P1: neutral (multiplier floor 1.0 at zero signal); P2: breath brightens with music energy",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 659.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_audio_intensity": {
+      "duration_seconds": 6.0,
+      "expected": "P1: normal sparks (floor 1.0); P2: spark brightness follows loudness",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 675.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_audio_speed": {
+      "duration_seconds": 8.0,
+      "expected": "P1: normal march (floor 1.0); P2: march accelerates on beats",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 667.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_param_audio_rms": {
+      "duration_seconds": 6.0,
+      "expected": "P1: authored base (zero signal maps to x1.0); P2: background swells up to x3 with loudness",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 621.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_param_bands_base_mod": {
+      "duration_seconds": 6.0,
+      "expected": "background bands swell from 0.03 to clipped 0.45",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 593.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_param_bands_highlight_mod": {
+      "duration_seconds": 6.0,
+      "expected": "highlight dimmer than background at first, overtakes it",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 599.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_param_breath_min_drive": {
+      "duration_seconds": 8.0,
+      "expected": "dim floor rises from black to 0.8 as the cue progresses",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 572.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_param_colorwave_span_mod": {
+      "duration_seconds": 8.0,
+      "expected": "rainbow collapses toward uniform color and re-opens",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 580.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_param_noise_contrast_drive": {
+      "duration_seconds": 8.0,
+      "expected": "soft blobs harden into harsh bands",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 605.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_param_onset_floor_drive": {
+      "duration_seconds": 8.0,
+      "expected": "ripple floor rises from black to visible green without media",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 613.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_param_wipe_softness_drive": {
+      "duration_seconds": 5.0,
+      "expected": "wipe front sharpens into a 6px soft gradient",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 588.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_track_linear": {
+      "duration_seconds": 8.0,
+      "expected": "brightness track 1.0->0.25->1.0 linear over the breath",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 558.1,
+      "warmup_seconds": 0.0
+    },
+    "mod_track_step": {
+      "duration_seconds": 6.0,
+      "expected": "stepped brightness 1.0/0.3/0.7/1.0",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "identity",
+      "start": 566.1,
+      "warmup_seconds": 0.0
+    },
+    "safe_black_hold": {
+      "duration_seconds": 4.0,
+      "expected": "final all-black safe state hold",
+      "metric_class": "UNIFORM_BLACK",
+      "pair": null,
+      "part": "main",
+      "role": "safe",
+      "start": 876.0,
+      "warmup_seconds": 0.0
+    },
+    "safe_fade_to_black": {
+      "duration_seconds": 5.0,
+      "expected": "fades to black over the last 3s",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "safe",
+      "start": 871.0,
+      "warmup_seconds": 0.0
+    },
+    "str_blend_base": {
+      "duration_seconds": 4.0,
+      "expected": "red base (add)",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 859.8,
+      "warmup_seconds": 0.0
+    },
+    "str_blend_overlay": {
+      "duration_seconds": 2.0,
+      "expected": "overlap sums toward white clipping, hue partially destroyed",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 860.8,
+      "warmup_seconds": 0.0
+    },
+    "str_fade_envelope": {
+      "duration_seconds": 5.0,
+      "expected": "breath rises/falls inside 1.5s fades",
+      "metric_class": "UNIFORM_TEMPORAL",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 865.8,
+      "warmup_seconds": 0.0
+    },
+    "str_min_cue": {
+      "duration_seconds": 0.2,
+      "expected": "minimum practical cue length",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 870.8,
+      "warmup_seconds": 0.0
+    },
+    "str_priority_base": {
+      "duration_seconds": 4.0,
+      "expected": "dim blue base",
+      "metric_class": "UNIFORM_STATIC",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 853.8,
+      "warmup_seconds": 0.0
+    },
+    "str_priority_flash": {
+      "duration_seconds": 2.0,
+      "expected": "priority-20 overlay replaces the base strip contribution: dot on black, base hidden",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 854.8,
+      "warmup_seconds": 0.0
+    },
+    "str_rapid_00": {
+      "duration_seconds": 0.4,
+      "expected": "rapid switch #0: fresh effect instance each 0.4s",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 850.6,
+      "warmup_seconds": 0.0
+    },
+    "str_rapid_01": {
+      "duration_seconds": 0.4,
+      "expected": "rapid switch #1: fresh effect instance each 0.4s",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 851.0,
+      "warmup_seconds": 0.0
+    },
+    "str_rapid_02": {
+      "duration_seconds": 0.4,
+      "expected": "rapid switch #2: fresh effect instance each 0.4s",
+      "metric_class": "SPATIAL",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 851.4,
+      "warmup_seconds": 0.0
+    },
+    "str_rapid_03": {
+      "duration_seconds": 0.4,
+      "expected": "rapid switch #3: fresh effect instance each 0.4s",
+      "metric_class": "RAPID_SWITCH",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 851.8,
+      "warmup_seconds": 0.0
+    },
+    "str_rapid_04": {
+      "duration_seconds": 0.4,
+      "expected": "rapid switch #4: fresh effect instance each 0.4s",
+      "metric_class": "RAPID_SWITCH",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 852.2,
+      "warmup_seconds": 0.0
+    },
+    "str_rapid_05": {
+      "duration_seconds": 0.4,
+      "expected": "rapid switch #5: fresh effect instance each 0.4s",
+      "metric_class": "RAPID_SWITCH",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 852.6,
+      "warmup_seconds": 0.0
+    },
+    "str_rapid_06": {
+      "duration_seconds": 0.4,
+      "expected": "rapid switch #6: fresh effect instance each 0.4s",
+      "metric_class": "EVENT",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 853.0,
+      "warmup_seconds": 0.0
+    },
+    "str_rapid_07": {
+      "duration_seconds": 0.4,
+      "expected": "rapid switch #7: fresh effect instance each 0.4s",
+      "metric_class": "RAPID_SWITCH",
+      "pair": null,
+      "part": "main",
+      "role": "stress",
+      "start": 853.4,
+      "warmup_seconds": 0.0
+    },
+    "vid_ambient_smoothfast": {
+      "duration_seconds": 6.0,
+      "expected": "fast cuts land almost immediately",
+      "metric_class": "VIDEO_INPUT",
+      "pair": null,
+      "part": "video",
+      "role": "identity",
+      "start": 38.0,
+      "warmup_seconds": 0.0
+    },
+    "vid_ambient_smoothslow": {
+      "duration_seconds": 6.0,
+      "expected": "same cuts glide in over ~2s (A/B lag contrast)",
+      "metric_class": "VIDEO_INPUT",
+      "pair": null,
+      "part": "video",
+      "role": "identity",
+      "start": 44.0,
+      "warmup_seconds": 0.0
+    },
+    "vid_average_steps": {
+      "duration_seconds": 24.0,
+      "expected": "strip follows clip R(0-8)->G(8-16)->B(16-24) with ~1s lag",
+      "metric_class": "VIDEO_INPUT",
+      "pair": null,
+      "part": "video",
+      "role": "identity",
+      "start": 0.0,
+      "warmup_seconds": 0.0
+    },
+    "vid_chase_video": {
+      "duration_seconds": 8.0,
+      "expected": "dim video-tinted chase window over the near-black scene",
+      "metric_class": "VIDEO_INPUT",
+      "pair": null,
+      "part": "video",
+      "role": "identity",
+      "start": 30.0,
+      "warmup_seconds": 0.0
+    },
+    "vid_dominant_bar": {
+      "duration_seconds": 6.0,
+      "expected": "dominant stays red while a white bar sweeps (vs average)",
+      "metric_class": "VIDEO_INPUT",
+      "pair": null,
+      "part": "video",
+      "role": "identity",
+      "start": 24.0,
+      "warmup_seconds": 0.0
+    },
+    "vid_fusion_audioheavy": {
+      "duration_seconds": 3.0,
+      "expected": "same white video + wav beats: brightness pumps (A/B audio_weight); treble_limit 1.0 (max boundary) enables shimmer whose per-pixel jitter is expected to vary run-to-run",
+      "metric_class": "VIDEO_INPUT",
+      "pair": null,
+      "part": "video",
+      "role": "identity",
+      "start": 53.0,
+      "warmup_seconds": 0.0
+    },
+    "vid_fusion_videoonly": {
+      "duration_seconds": 3.0,
+      "expected": "video-only leg over the white segment: bright steady strip",
+      "metric_class": "VIDEO_INPUT",
+      "pair": null,
+      "part": "video",
+      "role": "identity",
+      "start": 50.0,
+      "warmup_seconds": 0.0
+    },
+    "vid_fusion_weights_mod": {
+      "duration_seconds": 4.0,
+      "expected": "video weight ramps 1.0 -> 0.1 over the white segment (modulate)",
+      "metric_class": "VIDEO_INPUT",
+      "pair": null,
+      "part": "video",
+      "role": "identity",
+      "start": 56.0,
+      "warmup_seconds": 0.0
+    }
+  },
+  "demo_children": [
+    "static",
+    "breath",
+    "color_wave",
+    "chase"
+  ],
+  "effect_count": 22,
+  "effect_registry_source": "light_engine.effects.list_effect_registrations()",
+  "enum_choice_coverage": {
+    "breath.waveform": [
+      "sine",
+      "triangle",
+      "smoothstep"
+    ],
+    "chase.color_source": [
+      "static",
+      "rainbow",
+      "video"
+    ],
+    "chase.direction": [
+      "forward",
+      "bounce",
+      "reverse"
+    ],
+    "color_wave.waveform": [
+      "sine",
+      "linear",
+      "triangle",
+      "saw"
+    ],
+    "color_wipe.progress_curve": [
+      "linear",
+      "smoothstep"
+    ],
+    "comet.trajectory": [
+      "wrap",
+      "bounce",
+      "sine"
+    ],
+    "flowing_bands.direction": [
+      "forward",
+      "reverse"
+    ],
+    "history_stream.direction": [
+      "forward",
+      "reverse"
+    ],
+    "onset_ripple.event_origin": [
+      "fixed",
+      "random"
+    ],
+    "onset_ripple.propagation": [
+      "one_way",
+      "bidirectional"
+    ],
+    "single_dot.direction": [
+      "forward",
+      "bounce",
+      "reverse"
+    ],
+    "twinkle.color_source": [
+      "random",
+      "solid",
+      "palette"
+    ]
+  },
+  "generated_at": "2026-08-30",
+  "hardware_claim": "SOFTWARE EVIDENCE ONLY - no hardware pass is recorded here; hardware gates are documented in README.md",
+  "missing_enum_choices": {},
+  "schema_version": 1,
+  "show_parts": {
+    "part1_part2": {
+      "cues": 217,
+      "duration_seconds": 880.0,
+      "file": "show(1).yaml",
+      "show_id": "single-strip-acceptance-v1"
+    },
+    "part3_video": {
+      "cues": 8,
+      "duration_seconds": 60.0,
+      "file": "show-video(1).yaml",
+      "show_id": "single-strip-acceptance-video-v1"
+    }
+  },
+  "target": {
+    "physical": "50cm WS2811, 10 controllable groups (pixel_count counts IC groups)",
+    "pixel_count": 10,
+    "source_profile": "config\\profiles\\rk3588-host-service.yaml",
+    "strip_id": "strip_31"
+  },
+  "uint8_levels": {
+    "gamma": 1.3,
+    "max_brightness": 0.65,
+    "note": "authored visible levels must map to >= ~10/255; levels below 0.15 collapse toward black under this transform",
+    "profile": "config\\profiles\\rk3588-host-service.yaml",
+    "table": {
+      "0.02": 1,
+      "0.05": 3,
+      "0.10": 7,
+      "0.15": 12,
+      "0.20": 18,
+      "0.25": 24,
+      "0.30": 30,
+      "0.35": 37,
+      "0.50": 59,
+      "0.75": 100,
+      "1.00": 146
+    }
+  }
+}

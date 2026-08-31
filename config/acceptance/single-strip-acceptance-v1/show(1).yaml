@@ -1,0 +1,4250 @@
+# created_at: 2026-08-30
+# purpose: single-strip (strip_31) hardware acceptance campaign — systematic 1D lighting-language coverage; degradation on a short strip is an acceptance finding, not a renderer bug
+# status: draft
+# source: independent live-registry generator (scripts/generate_single_strip_acceptance_show.py)
+# hardware_verified: false
+schema_version: 2
+show:
+  id: single-strip-acceptance-v1
+  duration: 880.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: replace
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+  brightness_tracks:
+  - id: bt_calm_amplitude
+    target:
+      type: digital_strip
+      id: strip_31
+    start: 183.5
+    end: 193.5
+    interpolation: linear
+    keyframes:
+    - time: 183.5
+      value: 1.0
+    - time: 188.5
+      value: 0.25
+    - time: 193.5
+      value: 1.0
+  - id: bt_calm_amplitude_a
+    target:
+      type: digital_strip
+      id: strip_31
+    start: 193.5
+    end: 201.5
+    interpolation: linear
+    keyframes:
+    - time: 193.5
+      value: 1.0
+    - time: 197.5
+      value: 0.3
+    - time: 201.5
+      value: 1.0
+  - id: bt_calm_amplitude_b
+    target:
+      type: digital_strip
+      id: strip_31
+    start: 201.5
+    end: 209.5
+    interpolation: linear
+    keyframes:
+    - time: 201.5
+      value: 1.0
+    - time: 205.5
+      value: 0.3
+    - time: 209.5
+      value: 1.0
+  - id: bt_mod_linear
+    target:
+      type: digital_strip
+      id: strip_31
+    start: 558.1
+    end: 566.1
+    interpolation: linear
+    keyframes:
+    - time: 558.1
+      value: 1.0
+    - time: 562.1
+      value: 0.25
+    - time: 566.1
+      value: 1.0
+  - id: bt_mod_step
+    target:
+      type: digital_strip
+      id: strip_31
+    start: 566.1
+    end: 572.1
+    interpolation: step
+    keyframes:
+    - time: 566.1
+      value: 1.0
+    - time: 568.1
+      value: 0.3
+    - time: 570.1
+      value: 0.7
+    - time: 572.1
+      value: 1.0
+  cues:
+  - id: cal_black_hold
+    start: 0.0
+    end: 2.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.0
+        - 0.0
+        - 0.0
+  - id: cal_red_solid
+    start: 2.0
+    end: 4.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 1.0
+        - 0.0
+        - 0.0
+  - id: cal_green_solid
+    start: 4.0
+    end: 6.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.0
+        - 1.0
+        - 0.0
+  - id: cal_blue_solid
+    start: 6.0
+    end: 8.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.0
+        - 0.0
+        - 1.0
+  - id: cal_white_solid
+    start: 8.0
+    end: 10.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+  - id: cal_origin_start
+    start: 10.0
+    end: 14.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 3.0
+        direction: forward
+        color:
+        - 0.1
+        - 1.0
+        - 0.1
+  - id: cal_origin_end
+    start: 14.0
+    end: 18.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: end
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 3.0
+        direction: forward
+        color:
+        - 0.1
+        - 1.0
+        - 0.1
+  - id: cal_origin_center
+    start: 18.0
+    end: 22.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: center
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 3.0
+        direction: forward
+        color:
+        - 0.1
+        - 1.0
+        - 0.1
+  - id: cal_origin_edges
+    start: 22.0
+    end: 26.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: edges
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 3.0
+        direction: forward
+        color:
+        - 0.1
+        - 1.0
+        - 0.1
+  - id: fx_static_identity
+    start: 26.0
+    end: 28.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 1.0
+        - 0.0
+        - 0.0
+  - id: fx_static_con_a
+    start: 28.0
+    end: 30.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      intensity: 1.0
+      params:
+        color:
+        - 1.0
+        - 0.0
+        - 0.0
+  - id: fx_static_con_b
+    start: 30.0
+    end: 32.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      intensity: 0.3
+      params:
+        color:
+        - 1.0
+        - 0.0
+        - 0.0
+  - id: fx_static_lim_black
+    start: 32.0
+    end: 33.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.0
+        - 0.0
+        - 0.0
+  - id: fx_static_lim_intensity10
+    start: 33.5
+    end: 35.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      intensity: 10.0
+      params:
+        color:
+        - 1.0
+        - 0.0
+        - 0.0
+  - id: fx_breath_identity
+    start: 35.0
+    end: 42.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 3.0
+        min_brightness: 0.05
+        waveform: sine
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+  - id: fx_breath_con_a
+    start: 42.0
+    end: 49.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 3.0
+        min_brightness: 0.05
+        waveform: sine
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+  - id: fx_breath_con_b
+    start: 49.0
+    end: 56.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 3.0
+        min_brightness: 0.05
+        waveform: triangle
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+  - id: fx_breath_wave_smoothstep
+    start: 56.0
+    end: 61.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 3.0
+        min_brightness: 0.1
+        waveform: smoothstep
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+  - id: fx_breath_lim_period_micro
+    start: 61.0
+    end: 63.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 0.001
+        min_brightness: 0.3
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+  - id: fx_breath_lim_min0
+    start: 63.0
+    end: 67.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 2.0
+        min_brightness: 0.0
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+  - id: fx_breath_lim_min1
+    start: 67.0
+    end: 71.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 2.0
+        min_brightness: 1.0
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+  - id: fx_breath_lim_period_max
+    start: 71.0
+    end: 73.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 600.0
+        min_brightness: 0.1
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+  - id: fx_colorwave_identity
+    start: 73.0
+    end: 78.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 1.0
+        waveform: sine
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.0
+  - id: fx_colorwave_con_a
+    start: 78.0
+    end: 83.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 1.0
+        waveform: sine
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.0
+  - id: fx_colorwave_con_b
+    start: 83.0
+    end: 88.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 0.2
+        waveform: sine
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.0
+  - id: fx_colorwave_wave_linear
+    start: 88.0
+    end: 92.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 1.0
+        waveform: linear
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.3
+  - id: fx_colorwave_wave_triangle
+    start: 92.0
+    end: 96.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 1.0
+        waveform: triangle
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.3
+  - id: fx_colorwave_wave_saw
+    start: 96.0
+    end: 100.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 1.0
+        waveform: saw
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.3
+  - id: fx_colorwave_lim_span0
+    start: 100.0
+    end: 102.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 1.0
+        waveform: sine
+        hue_span_degrees: 0.0
+        hue_cycle_rate: 0.0
+  - id: fx_colorwave_lim_speed0
+    start: 102.0
+    end: 104.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.0
+        width: 1.0
+        waveform: sine
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.0
+  - id: fx_colorwave_lim_speed50
+    start: 104.0
+    end: 105.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 50.0
+        width: 1.0
+        waveform: sine
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.0
+  - id: fx_colorwave_lim_width100
+    start: 105.5
+    end: 107.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 100.0
+        waveform: sine
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.0
+  - id: fx_colorwave_lim_rate5
+    start: 107.5
+    end: 109.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 1.0
+        waveform: sine
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 5.0
+  - id: fx_chase_identity
+    start: 109.5
+    end: 113.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_con_a
+    start: 113.0
+    end: 116.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_con_b
+    start: 116.0
+    end: 119.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 14
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_con_dir_a
+    start: 119.0
+    end: 123.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_con_dir_b
+    start: 123.0
+    end: 127.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: bounce
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_dir_reverse
+    start: 127.0
+    end: 130.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: reverse
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_src_rainbow
+    start: 130.0
+    end: 133.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: rainbow
+        beat_boost: 0.0
+  - id: fx_chase_lim_width_full
+    start: 133.0
+    end: 135.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 10
+        gap: 0
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_lim_width0
+    start: 135.0
+    end: 136.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 0
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_lim_speed0
+    start: 136.5
+    end: 138.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 0.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_lim_speed100
+    start: 138.0
+    end: 139.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 100.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_lim_trail_flat
+    start: 139.5
+    end: 141.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 1000.0
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_chase_lim_beatboost
+    start: 141.5
+    end: 144.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 4.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: fx_comet_identity
+    start: 144.0
+    end: 149.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_con_a
+    start: 149.0
+    end: 154.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_con_b
+    start: 154.0
+    end: 159.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.5
+        trajectory: bounce
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_traj_sine
+    start: 159.0
+    end: 163.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.5
+        trajectory: sine
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_count1
+    start: 163.0
+    end: 167.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 1
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_tail0
+    start: 167.0
+    end: 169.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.0
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_decay0
+    start: 169.0
+    end: 171.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.0
+        count: 2
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_phase0
+    start: 171.0
+    end: 173.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.0
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_phase1
+    start: 173.0
+    end: 175.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 2
+        phase_spacing: 1.0
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_count64
+    start: 175.0
+    end: 177.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 64
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_tail_full
+    start: 177.0
+    end: 179.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 5.0
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_decay1
+    start: 179.5
+    end: 182.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 6.0
+        tail_length: 0.4
+        decay: 1.0
+        count: 2
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_comet_lim_speed0
+    start: 182.0
+    end: 183.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 0.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: fx_calm_identity
+    start: 183.5
+    end: 193.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: calm
+      params:
+        period: 5.0
+        color: &id001
+        - 0.15
+        - 0.35
+        - 1.0
+  - id: fx_calm_con_a
+    start: 193.5
+    end: 201.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: calm
+      params:
+        period: 3.0
+        color: *id001
+  - id: fx_calm_con_b
+    start: 201.5
+    end: 209.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: calm
+      params:
+        period: 15.0
+        color: *id001
+  - id: fx_calm_lim_period_micro
+    start: 209.5
+    end: 211.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: calm
+      params:
+        period: 0.001
+        color: *id001
+  - id: fx_calm_lim_period_max
+    start: 211.5
+    end: 213.5
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: calm
+      params:
+        period: 600.0
+        color: *id001
+  - id: fx_colorwipe_identity
+    start: 213.5
+    end: 215.7
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 5.0
+        color: &id002
+        - 0.1
+        - 0.7
+        - 1.0
+        edge_softness_px: 0.0
+        progress_curve: linear
+        slew_seconds: 0.0
+  - id: fx_colorwipe_con_a
+    start: 215.7
+    end: 217.9
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 5.0
+        color: *id002
+        edge_softness_px: 0.0
+        progress_curve: linear
+        slew_seconds: 0.0
+  - id: fx_colorwipe_con_b
+    start: 217.9
+    end: 220.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 5.0
+        color: *id002
+        edge_softness_px: 3.0
+        progress_curve: linear
+        slew_seconds: 0.0
+  - id: fx_colorwipe_con_curve_a
+    start: 220.1
+    end: 222.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 4.0
+        color: *id002
+        edge_softness_px: 0.0
+        progress_curve: linear
+        slew_seconds: 0.0
+  - id: fx_colorwipe_con_curve_b
+    start: 222.6
+    end: 225.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 4.0
+        color: *id002
+        edge_softness_px: 0.0
+        progress_curve: smoothstep
+        slew_seconds: 0.0
+  - id: fx_colorwipe_lim_speed0
+    start: 225.1
+    end: 226.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 0.0
+        color: *id002
+        edge_softness_px: 0.0
+        progress_curve: linear
+        slew_seconds: 0.0
+  - id: fx_colorwipe_lim_speed1000
+    start: 226.6
+    end: 228.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 1000.0
+        color: *id002
+        edge_softness_px: 0.0
+        progress_curve: linear
+        slew_seconds: 0.0
+  - id: fx_colorwipe_lim_soft_max
+    start: 228.1
+    end: 230.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 5.0
+        color: *id002
+        edge_softness_px: 10000.0
+        progress_curve: linear
+        slew_seconds: 0.0
+  - id: fx_colorwipe_lim_slew_high
+    start: 230.6
+    end: 233.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 0.0
+        color: *id002
+        edge_softness_px: 0.0
+        progress_curve: linear
+        slew_seconds: 3.0
+        progress_source: cue_progress
+  - id: fx_twinkle_identity
+    start: 233.6
+    end: 238.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: &id003
+        - 1.0
+        - 0.9
+        - 0.5
+  - id: fx_twinkle_con_a
+    start: 238.6
+    end: 244.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.05
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+  - id: fx_twinkle_con_b
+    start: 244.6
+    end: 250.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.6
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+  - id: fx_twinkle_src_solid
+    start: 250.6
+    end: 253.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 0.35
+        color_source: solid
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color:
+        - 1.0
+        - 0.2
+        - 0.2
+  - id: fx_twinkle_src_palette
+    start: 253.6
+    end: 256.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 0.35
+        color_source: palette
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+    color:
+      mode: palette
+      colors:
+      - - 1.0
+        - 0.0
+        - 0.0
+      - - 0.0
+        - 1.0
+        - 0.0
+      - - 0.0
+        - 0.2
+        - 1.0
+  - id: fx_twinkle_lim_density0
+    start: 256.6
+    end: 258.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.0
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+  - id: fx_twinkle_lim_density100
+    start: 258.6
+    end: 260.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 100.0
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+  - id: fx_twinkle_lim_fade_min
+    start: 260.6
+    end: 262.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 0.01
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+  - id: fx_twinkle_lim_fade_max
+    start: 262.6
+    end: 265.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 60.0
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+  - id: fx_twinkle_lim_width_min
+    start: 265.6
+    end: 267.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 0.01
+        blur_radius_px: 1.0
+        color: *id003
+  - id: fx_twinkle_lim_blur0
+    start: 267.6
+    end: 269.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 2.0
+        blur_radius_px: 0.0
+        color: *id003
+  - id: fx_twinkle_lim_width_max
+    start: 269.6
+    end: 272.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 10000.0
+        blur_radius_px: 1.0
+        color: *id003
+  - id: fx_twinkle_lim_blur_max
+    start: 272.1
+    end: 274.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.4
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 10000.0
+        color: *id003
+  - id: fx_twinkle_gate_progress
+    start: 274.6
+    end: 279.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 1.5
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+        event_gate_source: cue_progress
+  - id: fx_twinkle_birth_progress
+    start: 279.6
+    end: 284.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 1.0
+        fade_time: 0.35
+        color_source: random
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color: *id003
+        birth_gain_source: cue_progress
+  - id: fx_demo_identity
+    start: 284.6
+    end: 297.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: demo
+      params:
+        cycle_interval: 3.0
+        effects: &id004
+        - static
+        - breath
+        - color_wave
+        - chase
+  - id: fx_demo_con_a
+    start: 297.1
+    end: 303.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: demo
+      params:
+        cycle_interval: 3.0
+        effects:
+        - static
+        - breath
+  - id: fx_demo_con_b
+    start: 303.6
+    end: 316.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: demo
+      params:
+        cycle_interval: 3.0
+        effects: *id004
+  - id: fx_demo_lim_interval_micro
+    start: 316.1
+    end: 318.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: demo
+      params:
+        cycle_interval: 0.05
+        effects: *id004
+  - id: fx_demo_lim_unknown_child
+    start: 318.6
+    end: 321.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: demo
+      params:
+        cycle_interval: 3.0
+        effects:
+        - not_a_registered_effect
+  - id: fx_demo_lim_interval_max
+    start: 321.1
+    end: 323.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: demo
+      params:
+        cycle_interval: 600.0
+        effects: *id004
+  - id: fx_steppulse_identity
+    start: 323.6
+    end: 326.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: step_pulse
+      params:
+        period: 1.0
+        duty_cycle: 0.25
+        low_color: &id005
+        - 0.15
+        - 0.15
+        - 0.15
+        high_color: &id006
+        - 1.0
+        - 0.2
+        - 0.2
+  - id: fx_steppulse_con_a
+    start: 326.6
+    end: 329.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: step_pulse
+      params:
+        period: 1.0
+        duty_cycle: 0.25
+        low_color: *id005
+        high_color: *id006
+  - id: fx_steppulse_con_b
+    start: 329.6
+    end: 332.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: step_pulse
+      params:
+        period: 1.0
+        duty_cycle: 0.75
+        low_color: *id005
+        high_color: *id006
+  - id: fx_steppulse_lim_duty0
+    start: 332.6
+    end: 334.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: step_pulse
+      params:
+        period: 1.0
+        duty_cycle: 0.0
+        low_color: *id005
+        high_color: *id006
+  - id: fx_steppulse_lim_duty1
+    start: 334.1
+    end: 335.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: step_pulse
+      params:
+        period: 1.0
+        duty_cycle: 1.0
+        low_color: *id005
+        high_color: *id006
+  - id: fx_steppulse_lim_strobe
+    start: 335.6
+    end: 337.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: step_pulse
+      params:
+        period: 0.05
+        duty_cycle: 0.25
+        low_color: *id005
+        high_color: *id006
+  - id: fx_steppulse_lim_period_max
+    start: 337.6
+    end: 339.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: step_pulse
+      params:
+        period: 600.0
+        duty_cycle: 0.25
+        low_color: *id005
+        high_color: *id006
+  - id: fx_single_dot_identity
+    start: 339.6
+    end: 343.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 3.0
+        direction: forward
+        color: &id007
+        - 0.1
+        - 1.0
+        - 0.1
+  - id: fx_single_dot_con_a
+    start: 343.6
+    end: 347.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 3.0
+        direction: forward
+        color: *id007
+  - id: fx_single_dot_con_b
+    start: 347.6
+    end: 354.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 3.0
+        direction: bounce
+        color: *id007
+  - id: fx_single_dot_dir_reverse
+    start: 354.6
+    end: 357.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 3.0
+        direction: reverse
+        color: *id007
+  - id: fx_single_dot_speed_a
+    start: 357.6
+    end: 361.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      speed: 0.5
+      params:
+        speed: 3.0
+        direction: forward
+        color: *id007
+  - id: fx_single_dot_speed_b
+    start: 361.6
+    end: 364.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      speed: 2.0
+      params:
+        speed: 3.0
+        direction: forward
+        color: *id007
+  - id: fx_single_dot_lim_speed0
+    start: 364.6
+    end: 366.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 0.0
+        direction: forward
+        color: *id007
+  - id: fx_single_dot_lim_speed50
+    start: 366.1
+    end: 368.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 50.0
+        direction: forward
+        color: *id007
+  - id: fx_single_dot_lim_speedslow
+    start: 368.1
+    end: 370.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 0.1
+        direction: forward
+        color: *id007
+  - id: fx_theater_phase_identity
+    start: 370.6
+    end: 373.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: theater_phase
+      params:
+        speed: 3.0
+        color: &id008
+        - 1.0
+        - 1.0
+        - 1.0
+  - id: fx_theater_phase_con_a
+    start: 373.6
+    end: 376.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: theater_phase
+      params:
+        speed: 2.0
+        color: *id008
+  - id: fx_theater_phase_con_b
+    start: 376.6
+    end: 379.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: theater_phase
+      params:
+        speed: 8.0
+        color: *id008
+  - id: fx_theater_phase_lim_speed0
+    start: 379.6
+    end: 381.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: theater_phase
+      params:
+        speed: 0.0
+        color: *id008
+  - id: fx_theater_phase_lim_speed60
+    start: 381.6
+    end: 383.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: theater_phase
+      params:
+        speed: 60.0
+        color: *id008
+  - id: fx_flow_bands_identity
+    start: 383.1
+    end: 387.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color: &id009
+        - 1.0
+        - 1.0
+        - 1.0
+  - id: fx_flow_bands_con_a
+    start: 387.1
+    end: 391.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color: *id009
+  - id: fx_flow_bands_con_b
+    start: 391.1
+    end: 395.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: reverse
+        phase_offset_steps: 0
+        color: *id009
+  - id: fx_flow_bands_lim_band_max
+    start: 395.1
+    end: 397.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 8
+        gap_width_px: 8
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color: *id009
+  - id: fx_flow_bands_lim_band10000
+    start: 397.6
+    end: 399.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 10000
+        gap_width_px: 10000
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color: *id009
+  - id: fx_flow_bands_lim_base_eq_highlight
+    start: 399.6
+    end: 401.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 1.0
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color: *id009
+  - id: fx_flow_bands_lim_base0
+    start: 401.6
+    end: 404.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 1
+        gap_width_px: 1
+        base_gain: 0.0
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color: *id009
+  - id: fx_flow_bands_lim_steps_max
+    start: 404.1
+    end: 405.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 1000.0
+        direction: forward
+        phase_offset_steps: 0
+        color: *id009
+  - id: fx_flow_bands_lim_steps0
+    start: 405.6
+    end: 407.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.0
+        highlight_gain: 0.0
+        steps_per_second: 0.0
+        direction: forward
+        phase_offset_steps: 0
+        color: *id009
+  - id: fx_flow_bands_phase_offset
+    start: 407.6
+    end: 410.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 10000
+        color: *id009
+  - id: fx_heat_fire_identity
+    start: 410.1
+    end: 415.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.8
+        spark_rate: 10.0
+        spark_strength: 0.9
+        diffusion: 0.5
+        spark_zone_px: 10
+        color: &id010
+        - 1.0
+        - 0.32
+        - 0.04
+  - id: fx_heat_fire_con_a
+    start: 415.1
+    end: 420.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.8
+        spark_rate: 10.0
+        spark_strength: 0.9
+        diffusion: 0.5
+        spark_zone_px: 10
+        color: *id010
+  - id: fx_heat_fire_con_b
+    start: 420.1
+    end: 425.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.8
+        spark_rate: 10.0
+        spark_strength: 0.9
+        diffusion: 0.0
+        spark_zone_px: 10
+        color: *id010
+  - id: fx_heat_fire_lim_zone1
+    start: 425.1
+    end: 428.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.8
+        spark_rate: 10.0
+        spark_strength: 0.9
+        diffusion: 0.5
+        spark_zone_px: 1
+        color: *id010
+  - id: fx_heat_fire_lim_rate0
+    start: 428.1
+    end: 430.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.0
+        spark_rate: 0.0
+        spark_strength: 0.0
+        diffusion: 0.5
+        spark_zone_px: 10
+        color: *id010
+  - id: fx_heat_fire_lim_rate_max
+    start: 430.6
+    end: 433.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.8
+        spark_rate: 60.0
+        spark_strength: 0.9
+        diffusion: 0.5
+        spark_zone_px: 10
+        color: *id010
+  - id: fx_heat_fire_lim_zone_max
+    start: 433.1
+    end: 435.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.8
+        spark_rate: 10.0
+        spark_strength: 0.9
+        diffusion: 0.5
+        spark_zone_px: 10000
+        color: *id010
+  - id: fx_heat_fire_lim_cooling_max
+    start: 435.1
+    end: 437.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 60.0
+        spark_rate: 10.0
+        spark_strength: 0.9
+        diffusion: 0.5
+        spark_zone_px: 10
+        color: *id010
+  - id: fx_heat_fire_lim_strength_max
+    start: 437.6
+    end: 439.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.8
+        spark_rate: 10.0
+        spark_strength: 1.0
+        diffusion: 0.5
+        spark_zone_px: 10
+        color: *id010
+  - id: fx_heat_fire_lim_diffusion_max
+    start: 439.6
+    end: 441.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: heat_fire
+      params:
+        cooling_per_second: 0.8
+        spark_rate: 10.0
+        spark_strength: 0.9
+        diffusion: 1.0
+        spark_zone_px: 10
+        color: *id010
+  - id: fx_history_identity
+    start: 441.6
+    end: 448.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: history_stream
+      params:
+        steps_per_second: 2.0
+        direction: forward
+        color_timeline: &id011
+          interpolation: rgb_linear
+          keyframes:
+          - time: 0.0
+            color:
+            - 1.0
+            - 0.1
+            - 0.1
+          - time: 5.0
+            color:
+            - 0.1
+            - 0.2
+            - 1.0
+  - id: fx_history_con_a
+    start: 448.6
+    end: 456.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: history_stream
+      params:
+        steps_per_second: 1.0
+        direction: forward
+        color_timeline: *id011
+  - id: fx_history_con_b
+    start: 456.6
+    end: 460.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: history_stream
+      params:
+        steps_per_second: 5.0
+        direction: forward
+        color_timeline: *id011
+  - id: fx_history_dir_reverse
+    start: 460.6
+    end: 468.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: history_stream
+      params:
+        steps_per_second: 2.0
+        direction: reverse
+        color_timeline: *id011
+  - id: fx_history_lim_sps_min
+    start: 468.6
+    end: 471.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: history_stream
+      params:
+        steps_per_second: 0.001
+        direction: forward
+        color_timeline: *id011
+  - id: fx_history_lim_sps_max
+    start: 471.1
+    end: 473.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: history_stream
+      params:
+        steps_per_second: 1000.0
+        direction: forward
+        color_timeline: *id011
+  - id: fx_noise_identity
+    start: 473.1
+    end: 479.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 0.5
+        contrast: 2.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color: &id012
+        - 0.2
+        - 0.8
+        - 1.0
+  - id: fx_noise_con_a
+    start: 479.1
+    end: 484.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 0.0
+        contrast: 2.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color: *id012
+  - id: fx_noise_con_b
+    start: 484.1
+    end: 489.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 3.0
+        contrast: 2.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color: *id012
+  - id: fx_noise_lim_feature_max
+    start: 489.1
+    end: 491.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 10000.0
+        drift_rate: 0.5
+        contrast: 2.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color: *id012
+  - id: fx_noise_lim_feature_min
+    start: 491.6
+    end: 493.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 0.01
+        drift_rate: 0.5
+        contrast: 2.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color: *id012
+  - id: fx_noise_lim_contrast_max
+    start: 493.6
+    end: 496.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 0.5
+        contrast: 4.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color: *id012
+  - id: fx_noise_lim_contrast0
+    start: 496.1
+    end: 498.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 0.5
+        contrast: 0.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color: *id012
+  - id: fx_noise_lim_flat
+    start: 498.1
+    end: 500.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 0.5
+        contrast: 2.0
+        floor_gain: 0.5
+        ceiling_gain: 0.5
+        color: *id012
+  - id: fx_noise_lim_drift_max
+    start: 500.1
+    end: 502.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 1000.0
+        contrast: 2.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color: *id012
+  - id: fx_noise_lim_flat_white
+    start: 502.1
+    end: 503.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 0.5
+        contrast: 2.0
+        floor_gain: 1.0
+        ceiling_gain: 1.0
+        color: *id012
+  - id: fx_noise_lim_ceiling0
+    start: 503.6
+    end: 505.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 0.5
+        contrast: 2.0
+        floor_gain: 0.0
+        ceiling_gain: 0.0
+        color: *id012
+  - id: col_timeline_sweep
+    start: 505.1
+    end: 519.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color_timeline:
+          interpolation: rgb_linear
+          keyframes:
+          - time: 0.0
+            color:
+            - 1.0
+            - 0.0
+            - 0.0
+          - time: 2.0
+            color:
+            - 1.0
+            - 1.0
+            - 0.0
+          - time: 4.0
+            color:
+            - 0.0
+            - 1.0
+            - 0.0
+          - time: 6.0
+            color:
+            - 0.0
+            - 1.0
+            - 1.0
+          - time: 8.0
+            color:
+            - 0.0
+            - 0.0
+            - 1.0
+          - time: 10.0
+            color:
+            - 1.0
+            - 0.0
+            - 1.0
+          - time: 12.0
+            color:
+            - 1.0
+            - 1.0
+            - 1.0
+          - time: 14.0
+            color:
+            - 0.2
+            - 0.2
+            - 0.2
+  - id: col_palette_cycle
+    start: 519.1
+    end: 528.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 4.0
+        min_brightness: 0.1
+        waveform: sine
+    color:
+      mode: palette
+      colors:
+      - - 1.0
+        - 0.0
+        - 0.0
+      - - 1.0
+        - 1.0
+        - 0.0
+      - - 0.0
+        - 1.0
+        - 0.0
+      - - 0.0
+        - 1.0
+        - 1.0
+      - - 0.0
+        - 0.0
+        - 1.0
+      - - 1.0
+        - 0.0
+        - 1.0
+      - - 1.0
+        - 1.0
+        - 1.0
+      - - 0.15
+        - 0.15
+        - 0.15
+  - id: col_spatial_gradient
+    start: 528.6
+    end: 534.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 2.0
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+        edge_softness_px: 0.0
+    color_source:
+      type: spatial_palette
+      palette:
+      - - 1.0
+        - 0.0
+        - 0.0
+      - - 1.0
+        - 1.0
+        - 0.0
+      - - 0.0
+        - 0.0
+        - 1.0
+  - id: col_event_spatial
+    start: 534.1
+    end: 539.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.8
+        fade_time: 0.3
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+    color_source:
+      type: spatial_palette
+      palette:
+      - - 1.0
+        - 0.1
+        - 0.1
+      - - 0.1
+        - 1.0
+        - 0.1
+      - - 0.2
+        - 0.3
+        - 1.0
+      - - 1.0
+        - 1.0
+        - 0.1
+      - - 1.0
+        - 0.2
+        - 1.0
+      - - 0.1
+        - 1.0
+        - 1.0
+  - id: col_event_timeline
+    start: 539.1
+    end: 547.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.35
+        wave_speed_pps: 18.0
+        wave_width_px: 2.0
+        decay_seconds: 1.5
+        floor_gain: 0.3
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+    color_source:
+      type: timeline
+      interpolation: rgb_linear
+      keyframes:
+      - time: 0.0
+        color:
+        - 1.0
+        - 0.4
+        - 0.1
+      - time: 4.0
+        color:
+        - 0.2
+        - 0.9
+        - 0.3
+      - time: 8.0
+        color:
+        - 0.3
+        - 0.4
+        - 1.0
+  - id: col_dominant_freq_fallback
+    start: 547.1
+    end: 551.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+    color_source:
+      type: dominant_frequency_palette
+      frequency_min_hz: 100.0
+      frequency_max_hz: 4000.0
+      palette:
+      - - 1.0
+        - 0.1
+        - 0.1
+      - - 1.0
+        - 1.0
+        - 0.1
+      - - 0.2
+        - 1.0
+        - 0.3
+      - - 0.3
+        - 0.4
+        - 1.0
+      fallback:
+      - 0.3
+      - 0.3
+      - 0.3
+  - id: col_audio_spectrum_fallback
+    start: 551.1
+    end: 555.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 3.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 0.6
+      - 0.6
+      - 0.6
+    color_source:
+      type: audio_spectrum_palette
+      palette:
+      - - 0.1
+        - 0.1
+        - 0.4
+      - - 0.1
+        - 0.6
+        - 0.8
+      - - 1.0
+        - 0.9
+        - 0.2
+      - - 1.0
+        - 0.2
+        - 0.1
+      fallback:
+      - 0.2
+      - 0.2
+      - 0.25
+  - id: col_video_fallback
+    start: 555.1
+    end: 558.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+    color_source:
+      type: video_average
+      fallback:
+      - 0.25
+      - 0.25
+      - 0.3
+  - id: mod_track_linear
+    start: 558.1
+    end: 566.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 3.0
+        min_brightness: 0.05
+        waveform: sine
+        color:
+        - 0.9
+        - 0.5
+        - 0.1
+  - id: mod_track_step
+    start: 566.1
+    end: 572.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 1.0
+        - 0.6
+        - 0.1
+  - id: mod_param_breath_min_drive
+    start: 572.1
+    end: 580.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 2.0
+        min_brightness: 0.05
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+    parameter_modulation:
+    - target: min_brightness
+      mode: drive
+      source: cue_progress
+      output_min: 0.0
+      output_max: 0.8
+      smoothing_seconds: 0.05
+  - id: mod_param_colorwave_span_mod
+    start: 580.1
+    end: 588.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wave
+      params:
+        speed: 0.5
+        width: 1.0
+        waveform: sine
+        hue_span_degrees: 360.0
+        hue_cycle_rate: 0.0
+    parameter_modulation:
+    - target: hue_span_degrees
+      mode: modulate
+      source: cue_progress
+      output_min: 0.1
+      output_max: 1.0
+      smoothing_seconds: 0.05
+  - id: mod_param_wipe_softness_drive
+    start: 588.1
+    end: 593.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 4.0
+        color:
+        - 0.1
+        - 0.7
+        - 1.0
+        edge_softness_px: 0.0
+    parameter_modulation:
+    - target: edge_softness_px
+      mode: drive
+      source: cue_progress
+      output_min: 0.0
+      output_max: 6.0
+      smoothing_seconds: 0.05
+  - id: mod_param_bands_base_mod
+    start: 593.1
+    end: 599.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+    parameter_modulation:
+    - target: base_gain
+      mode: modulate
+      source: cue_progress
+      output_min: 0.2
+      output_max: 3.0
+      smoothing_seconds: 0.05
+  - id: mod_param_bands_highlight_mod
+    start: 599.1
+    end: 605.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+    parameter_modulation:
+    - target: highlight_gain
+      mode: modulate
+      source: cue_progress
+      output_min: 0.5
+      output_max: 1.0
+      smoothing_seconds: 0.05
+  - id: mod_param_noise_contrast_drive
+    start: 605.1
+    end: 613.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: coherent_noise_field
+      params:
+        feature_size_px: 4.0
+        drift_rate: 0.5
+        contrast: 2.0
+        floor_gain: 0.1
+        ceiling_gain: 0.9
+        color:
+        - 0.2
+        - 0.8
+        - 1.0
+    parameter_modulation:
+    - target: contrast
+      mode: drive
+      source: cue_progress
+      output_min: 0.2
+      output_max: 3.5
+      smoothing_seconds: 0.05
+  - id: mod_param_onset_floor_drive
+    start: 613.1
+    end: 621.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.35
+        wave_speed_pps: 18.0
+        wave_width_px: 2.0
+        decay_seconds: 1.5
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 0.4
+        - 0.9
+        - 0.4
+    parameter_modulation:
+    - target: floor_gain
+      mode: drive
+      source: cue_progress
+      output_min: 0.0
+      output_max: 0.5
+      smoothing_seconds: 0.05
+  - id: mod_param_audio_rms
+    start: 621.1
+    end: 627.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: flowing_bands
+      params:
+        band_width_px: 2
+        gap_width_px: 2
+        base_gain: 0.15
+        highlight_gain: 1.0
+        steps_per_second: 3.0
+        direction: forward
+        phase_offset_steps: 0
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+    parameter_modulation:
+    - target: base_gain
+      mode: modulate
+      source: audio.rms
+      output_min: 1.0
+      output_max: 3.0
+      smoothing_seconds: 0.1
+  - id: mod_adaptive_states
+    start: 627.1
+    end: 659.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: adaptive
+      allowed:
+        silence: static
+        calm: breath
+        flowing: chase
+        energetic: color_wave
+      fallback: static
+    audio_control:
+      tempo_sync: auto
+      tempo_confidence_min: 0.3
+      beat_regularity_min: 0.3
+      state_confirmation_seconds: 1.0
+      min_effect_hold: 2.0
+      switch_cooldown: 1.0
+  - id: mod_audio_brightness
+    start: 659.1
+    end: 667.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 2.0
+        min_brightness: 0.1
+        color:
+        - 0.9
+        - 0.5
+        - 0.1
+    audio_modulation:
+      enabled: true
+      brightness:
+        source: music.energy
+        amount: 0.8
+        min_multiplier: 1.0
+        max_multiplier: 1.8
+        smoothing_seconds: 0.2
+  - id: mod_audio_speed
+    start: 667.1
+    end: 675.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+    audio_modulation:
+      enabled: true
+      speed:
+        source: music.beat_strength
+        amount: 0.9
+        min_multiplier: 1.0
+        max_multiplier: 3.0
+        smoothing_seconds: 0.15
+  - id: mod_audio_intensity
+    start: 675.1
+    end: 681.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 0.5
+        fade_time: 0.3
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color:
+        - 1.0
+        - 0.9
+        - 0.5
+    audio_modulation:
+      enabled: true
+      intensity:
+        source: audio.rms
+        amount: 0.9
+        min_multiplier: 1.0
+        max_multiplier: 2.5
+        smoothing_seconds: 0.15
+  - id: aud_audiopulse_identity
+    start: 681.1
+    end: 691.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: audio_pulse
+      params:
+        attack: 0.05
+        release: 0.5
+        color:
+        - 1.0
+        - 0.5
+        - 0.1
+  - id: aud_audiopulse_con_a
+    start: 691.1
+    end: 699.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: audio_pulse
+      params:
+        attack: 0.05
+        release: 0.5
+        color:
+        - 1.0
+        - 0.5
+        - 0.1
+  - id: aud_audiopulse_con_b
+    start: 699.1
+    end: 707.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: audio_pulse
+      params:
+        attack: 2.0
+        release: 0.5
+        color:
+        - 1.0
+        - 0.5
+        - 0.1
+  - id: aud_audiopulse_lim_release60
+    start: 707.1
+    end: 711.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: audio_pulse
+      params:
+        attack: 0.05
+        release: 60.0
+        color:
+        - 1.0
+        - 0.5
+        - 0.1
+  - id: aud_basspulse_identity
+    start: 711.1
+    end: 721.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: bass_pulse
+      params:
+        attack: 0.08
+        release: 0.4
+        color:
+        - 0.2
+        - 0.6
+        - 1.0
+  - id: aud_basspulse_con_a
+    start: 721.1
+    end: 729.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: bass_pulse
+      params:
+        attack: 0.08
+        release: 0.4
+        color:
+        - 0.2
+        - 0.6
+        - 1.0
+  - id: aud_basspulse_con_b
+    start: 729.1
+    end: 737.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: bass_pulse
+      params:
+        attack: 1.5
+        release: 0.4
+        color:
+        - 0.2
+        - 0.6
+        - 1.0
+  - id: aud_basspulse_lim_attack60
+    start: 737.1
+    end: 740.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: bass_pulse
+      params:
+        attack: 60.0
+        release: 0.4
+        color:
+        - 0.2
+        - 0.6
+        - 1.0
+  - id: aud_spectrum_bass
+    start: 740.1
+    end: 750.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: spectrum
+      params:
+        bass_zones:
+        - strip_31
+        mid_zones: []
+        treble_zones: []
+  - id: aud_spectrum_mid
+    start: 750.1
+    end: 760.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: spectrum
+      params:
+        bass_zones: []
+        mid_zones:
+        - strip_31
+        treble_zones: []
+  - id: aud_spectrum_treble
+    start: 760.1
+    end: 770.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: spectrum
+      params:
+        bass_zones: []
+        mid_zones: []
+        treble_zones:
+        - strip_31
+  - id: aud_onset_ripple_identity
+    start: 770.1
+    end: 782.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_con_a
+    start: 782.1
+    end: 790.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_con_b
+    start: 790.1
+    end: 798.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: bidirectional
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_origin_random
+    start: 798.1
+    end: 804.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: random
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_nowrap
+    start: 804.1
+    end: 810.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: false
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_lim_threshold1
+    start: 810.1
+    end: 814.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 1.0
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_lim_threshold0
+    start: 814.1
+    end: 817.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.0
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_lim_speed0
+    start: 817.1
+    end: 820.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 0.0
+        wave_width_px: 0.1
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_lim_speed1000
+    start: 820.1
+    end: 822.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 1000.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_lim_width1000
+    start: 822.1
+    end: 824.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 1000.0
+        decay_seconds: 1.2
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_lim_decay_min
+    start: 824.1
+    end: 827.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 0.01
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_lim_decay_max
+    start: 827.1
+    end: 830.1
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 60.0
+        floor_gain: 0.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_onset_ripple_lim_floor1
+    start: 830.1
+    end: 832.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: onset_ripple
+      params:
+        onset_threshold: 0.1
+        wave_speed_pps: 10.0
+        wave_width_px: 2.0
+        decay_seconds: 1.2
+        floor_gain: 1.0
+        event_origin: fixed
+        propagation: one_way
+        wrap: true
+        color:
+        - 1.0
+        - 0.6
+        - 0.15
+  - id: aud_historystream_rms
+    start: 832.6
+    end: 838.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: history_stream
+      params:
+        steps_per_second: 2.0
+        direction: forward
+        sample_gain_source: audio.rms
+        color_timeline:
+          interpolation: rgb_linear
+          keyframes:
+          - time: 0.0
+            color:
+            - 1.0
+            - 0.1
+            - 0.1
+          - time: 6.0
+            color:
+            - 0.1
+            - 0.2
+            - 1.0
+  - id: aud_twinkle_gate_bass
+    start: 838.6
+    end: 844.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 1.0
+        fade_time: 0.3
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color:
+        - 1.0
+        - 0.9
+        - 0.5
+        event_gate_source: audio.bass
+  - id: aud_twinkle_birth_treble
+    start: 844.6
+    end: 850.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 1.0
+        fade_time: 0.3
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color:
+        - 1.0
+        - 0.9
+        - 0.5
+        birth_gain_source: audio.treble
+  - id: str_rapid_00
+    start: 850.6
+    end: 851.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 30.0
+        direction: forward
+        color:
+        - 0.1
+        - 1.0
+        - 0.1
+  - id: str_rapid_01
+    start: 851.0
+    end: 851.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: theater_phase
+      params:
+        speed: 10.0
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+  - id: str_rapid_02
+    start: 851.4
+    end: 851.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 20.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: static
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 0.55
+      - 0.15
+  - id: str_rapid_03
+    start: 851.8
+    end: 852.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: step_pulse
+      params:
+        period: 0.2
+        duty_cycle: 0.5
+        low_color:
+        - 0.15
+        - 0.15
+        - 0.15
+        high_color:
+        - 1.0
+        - 0.2
+        - 0.2
+  - id: str_rapid_04
+    start: 852.2
+    end: 852.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: color_wipe
+      params:
+        speed: 30.0
+        color:
+        - 0.1
+        - 0.7
+        - 1.0
+        edge_softness_px: 0.0
+  - id: str_rapid_05
+    start: 852.6
+    end: 853.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: comet
+      params:
+        speed: 20.0
+        tail_length: 0.4
+        decay: 0.85
+        count: 2
+        phase_spacing: 0.5
+        trajectory: wrap
+    color:
+      mode: solid
+      color:
+      - 1.0
+      - 1.0
+      - 0.85
+  - id: str_rapid_06
+    start: 853.0
+    end: 853.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: twinkle
+      params:
+        density: 2.0
+        fade_time: 0.1
+        event_width_px: 1.0
+        blur_radius_px: 1.0
+        color:
+        - 1.0
+        - 0.9
+        - 0.5
+  - id: str_rapid_07
+    start: 853.4
+    end: 853.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 1.0
+        - 0.3
+        - 0.3
+  - id: str_priority_base
+    start: 853.8
+    end: 857.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.1
+        - 0.1
+        - 0.35
+  - id: str_priority_flash
+    start: 854.8
+    end: 856.8
+    priority: 20
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: single_dot
+      params:
+        speed: 2.0
+        direction: forward
+        color:
+        - 1.0
+        - 0.9
+        - 0.2
+  - id: str_blend_base
+    start: 859.8
+    end: 863.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.3
+        - 0.1
+        - 0.1
+    transition:
+      blend: add
+  - id: str_blend_overlay
+    start: 860.8
+    end: 862.8
+    priority: 20
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.2
+        - 0.3
+        - 0.2
+    transition:
+      blend: add
+  - id: str_fade_envelope
+    start: 865.8
+    end: 870.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: breath
+      params:
+        period: 2.0
+        min_brightness: 0.1
+        color:
+        - 0.55
+        - 0.2
+        - 1.0
+    transition:
+      fade_in: 1.5
+      fade_out: 1.5
+  - id: str_min_cue
+    start: 870.8
+    end: 871.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.5
+        - 0.5
+        - 0.5
+  - id: safe_fade_to_black
+    start: 871.0
+    end: 876.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.35
+        - 0.35
+        - 0.35
+    transition:
+      fade_out: 3.0
+  - id: safe_black_hold
+    start: 876.0
+    end: 880.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+      params:
+        color:
+        - 0.0
+        - 0.0
+        - 0.0

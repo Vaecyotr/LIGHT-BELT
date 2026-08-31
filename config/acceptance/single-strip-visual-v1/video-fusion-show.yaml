@@ -1,0 +1,676 @@
+# created_at: 2026-08-30
+# purpose: Local deterministic video and optional live-audio fusion on one strip
+# status: approved acceptance fixture
+# source: independent live-registry generator
+# hardware_verified: false
+schema_version: 2
+show:
+  id: single-strip-visual-v1-video
+  duration: 200.7
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: replace
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+  cues:
+  - id: FX_video_ambient_IDENTITY
+    start: 0.0
+    end: 12.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_ambient
+      speed: 1.0
+      intensity: 1.0
+      params:
+        smoothing: 0.15
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_video_audio_fusion_IDENTITY
+    start: 12.4
+    end: 27.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 0.55
+        audio_weight: 0.45
+        bass_boost: 1.2
+        treble_limit: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_video_ambient_CONTRAST_smoothing_low
+    start: 27.8
+    end: 37.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_ambient
+      speed: 1.0
+      intensity: 1.0
+      params:
+        smoothing: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_video_ambient_CONTRAST_smoothing_high
+    start: 38.2
+    end: 48.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_ambient
+      speed: 1.0
+      intensity: 1.0
+      params:
+        smoothing: 0.92
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_video_ambient_LIMIT_smoothing_freeze
+    start: 48.6
+    end: 53.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_ambient
+      speed: 1.0
+      intensity: 1.0
+      params:
+        smoothing: 1.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_video_audio_fusion_CONTRAST_source_weight_low
+    start: 54.0
+    end: 64.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 1.0
+        audio_weight: 0.0
+        bass_boost: 0.0
+        treble_limit: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: FX_video_audio_fusion_CONTRAST_source_weight_high
+    start: 64.4
+    end: 74.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 0.25
+        audio_weight: 0.75
+        bass_boost: 2.0
+        treble_limit: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: VID_COLOR_average_GLOBAL
+    start: 74.8
+    end: 86.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    color_source:
+      type: video_average
+      fallback: &id001
+      - 0.72
+      - 0.04
+      - 0.46
+  - id: VID_COLOR_dominant_GLOBAL
+    start: 87.2
+    end: 99.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    color_source:
+      type: video_dominant
+      fallback: *id001
+  - id: VID_chase_internal_video
+    start: 99.6
+    end: 111.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: chase
+      speed: 1.0
+      intensity: 1.0
+      params:
+        speed: 2.0
+        width: 2
+        gap: 5
+        direction: forward
+        trail: 0.15
+        color_source: video
+        beat_boost: 0.0
+    color:
+      mode: solid
+      color: &id002
+      - 0.02
+      - 0.65
+      - 1.0
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: VID_fusion_MOD_video_weight
+    start: 112.0
+    end: 120.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 0.55
+        audio_weight: 0.45
+        bass_boost: 1.0
+        treble_limit: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    parameter_modulation:
+    - target: video_weight
+      mode: drive
+      source: cue_progress
+      output_min: 0.2
+      output_max: 0.8
+  - id: VID_fusion_MOD_audio_weight
+    start: 120.4
+    end: 128.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 0.55
+        audio_weight: 0.45
+        bass_boost: 1.0
+        treble_limit: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    parameter_modulation:
+    - target: audio_weight
+      mode: drive
+      source: cue_progress
+      output_min: 0.2
+      output_max: 0.8
+  - id: VID_fusion_MOD_bass_boost
+    start: 128.8
+    end: 136.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 0.55
+        audio_weight: 0.45
+        bass_boost: 1.0
+        treble_limit: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    parameter_modulation:
+    - target: bass_boost
+      mode: drive
+      source: cue_progress
+      output_min: 0.0
+      output_max: 2.5
+  - id: VID_fusion_MOD_treble_limit
+    start: 137.2
+    end: 145.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 0.55
+        audio_weight: 0.45
+        bass_boost: 1.0
+        treble_limit: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    parameter_modulation:
+    - target: treble_limit
+      mode: drive
+      source: cue_progress
+      output_min: 0.0
+      output_max: 0.1
+  - id: VID_fusion_treble_live_A
+    start: 145.6
+    end: 153.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 0.5
+        audio_weight: 0.5
+        bass_boost: 1.0
+        treble_limit: 0.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: VID_fusion_treble_live_B
+    start: 154.0
+    end: 162.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      speed: 1.0
+      intensity: 1.0
+      params:
+        video_weight: 0.5
+        audio_weight: 0.5
+        bass_boost: 1.0
+        treble_limit: 0.1
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: VID_COLOR_fallback
+    start: 162.4
+    end: 167.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color:
+        - 1.0
+        - 1.0
+        - 1.0
+    color:
+      mode: effect_default
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+    color_source:
+      type: video_average
+      fallback: *id001
+  - id: VIDEO_STRESS_rapid_00_static
+    start: 167.8
+    end: 168.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color:
+        - 0.7
+        - 0.02
+        - 0.01
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: VIDEO_STRESS_rapid_01_static
+    start: 168.2
+    end: 168.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color:
+        - 0.02
+        - 0.65
+        - 0.04
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: VIDEO_STRESS_rapid_02_static
+    start: 168.6
+    end: 169.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color:
+        - 0.04
+        - 0.42
+        - 0.9
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: VIDEO_STRESS_rapid_03_single_dot
+    start: 169.0
+    end: 169.4
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: single_dot
+      speed: 1.0
+      intensity: 1.0
+      params:
+        speed: 14.0
+        direction: forward
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: VIDEO_STRESS_rapid_04_comet
+    start: 169.4
+    end: 169.8
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: comet
+      speed: 1.0
+      intensity: 1.0
+      params:
+        speed: 12.0
+        tail_length: 0.7
+        decay: 0.8
+        count: 8
+        phase_spacing: 0.125
+        trajectory: bounce
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: VIDEO_STRESS_rapid_05_demo
+    start: 169.8
+    end: 170.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: demo
+      speed: 1.0
+      intensity: 1.0
+      params:
+        cycle_interval: 0.3
+        effects:
+        - static
+        - breath
+        - color_wave
+        - single_dot
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace
+  - id: VIDEO_STRESS_stateful_long
+    start: 170.2
+    end: 194.2
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: heat_fire
+      speed: 1.0
+      intensity: 1.0
+      params:
+        cooling_per_second: 0.5
+        spark_rate: 12.0
+        spark_strength: 0.9
+        diffusion: 0.45
+        spark_zone_px: 2
+    color:
+      mode: solid
+      color: *id002
+    transition:
+      fade_in: 0.25
+      fade_out: 0.25
+      blend: replace
+  - id: VIDEO_SAFE_fade_to_black
+    start: 194.6
+    end: 197.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color:
+        - 0.08
+        - 0.18
+        - 0.24
+    color:
+      mode: solid
+      color:
+      - 0.08
+      - 0.18
+      - 0.24
+    transition:
+      fade_in: 0.0
+      fade_out: 3.0
+      blend: replace
+  - id: VIDEO_SAFE_black_hold
+    start: 197.6
+    end: 200.6
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    origin: start
+    effect:
+      mode: fixed
+      id: static
+      speed: 1.0
+      intensity: 1.0
+      params:
+        color: &id003
+        - 0.0
+        - 0.0
+        - 0.0
+    color:
+      mode: solid
+      color: *id003
+    transition:
+      fade_in: 0.0
+      fade_out: 0.0
+      blend: replace

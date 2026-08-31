@@ -1,0 +1,148 @@
+# created_at: 2026-08-30
+# purpose: single-strip (strip_31) hardware acceptance campaign — systematic 1D lighting-language coverage; degradation on a short strip is an acceptance finding, not a renderer bug
+# status: draft
+# source: independent live-registry generator (scripts/generate_single_strip_acceptance_show.py)
+# hardware_verified: false
+schema_version: 2
+show:
+  id: single-strip-acceptance-video-v1
+  duration: 60.0
+  defaults:
+    fade_in: 0.0
+    fade_out: 0.0
+    blend: replace
+    min_effect_hold: 0.0
+    switch_cooldown: 0.0
+  cues:
+  - id: vid_average_steps
+    start: 0.0
+    end: 24.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+    color_source:
+      type: video_average
+      fallback:
+      - 0.2
+      - 0.2
+      - 0.25
+  - id: vid_dominant_bar
+    start: 24.0
+    end: 30.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: static
+    color_source:
+      type: video_dominant
+      fallback:
+      - 0.2
+      - 0.2
+      - 0.2
+  - id: vid_chase_video
+    start: 30.0
+    end: 38.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: chase
+      params:
+        speed: 5.0
+        width: 1
+        gap: 4
+        direction: forward
+        trail: 0.4
+        color_source: video
+        beat_boost: 0.0
+  - id: vid_ambient_smoothfast
+    start: 38.0
+    end: 44.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: video_ambient
+      params:
+        smoothing: 0.9
+  - id: vid_ambient_smoothslow
+    start: 44.0
+    end: 50.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: video_ambient
+      params:
+        smoothing: 0.02
+  - id: vid_fusion_videoonly
+    start: 50.0
+    end: 53.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      params:
+        video_weight: 0.65
+        audio_weight: 0.0
+        bass_boost: 0.0
+        treble_limit: 0.0
+  - id: vid_fusion_audioheavy
+    start: 53.0
+    end: 56.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      params:
+        video_weight: 0.65
+        audio_weight: 0.35
+        bass_boost: 10.0
+        treble_limit: 1.0
+  - id: vid_fusion_weights_mod
+    start: 56.0
+    end: 60.0
+    priority: 10
+    target:
+      type: digital_strip
+      id: strip_31
+    effect:
+      mode: fixed
+      id: video_audio_fusion
+      params:
+        video_weight: 1.0
+        audio_weight: 1.0
+        bass_boost: 1.5
+        treble_limit: 0.5
+    parameter_modulation:
+    - target: video_weight
+      mode: modulate
+      source: cue_progress
+      output_min: 0.1
+      output_max: 1.0
+      smoothing_seconds: 0.05
+    - target: treble_limit
+      mode: modulate
+      source: cue_progress
+      output_min: 0.2
+      output_max: 1.0
+      smoothing_seconds: 0.05
