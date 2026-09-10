@@ -22,8 +22,10 @@ authoring-contract statement, not hardware or product-release verification.
 Historical documents and `config/shows/archive/` are regression evidence only;
 they are not current authoring contract.  The immutable original is
 [`assets/energy-wakeup/energy-wakeup.yaml`](../../assets/energy-wakeup/energy-wakeup.yaml);
-the only current runnable compatibility baseline is
+the test / explicit CLI validation / current compatibility baseline is
 [`config/shows/energy-wakeup.yaml`](../../config/shows/energy-wakeup.yaml).
+Production Host discovery remains under `assets/`; the compatibility fixture
+does not replace that entry or require semantic equality with the original.
 
 ## Authoring language
 

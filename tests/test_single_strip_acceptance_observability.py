@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -9,7 +8,6 @@ from scripts.generate_single_strip_acceptance_campaign import (
     BASELINE_DIR,
     IDENTITY_METRIC_EVALUATORS,
     OUTPUT_DIR,
-    generate,
 )
 
 
@@ -132,7 +130,9 @@ def test_obs_09_a_b_pairs_are_not_functional_duplicates(baseline):
     assert duplicates == {}
 
 
-def test_obs_10_deterministic_rerender_metrics_reproduce(tmp_path, baseline):
-    generated = generate(tmp_path / "fixture", tmp_path / "baseline")
-    rerender = json.loads(Path(generated["software_baseline"]).read_text(encoding="utf-8"))
-    assert rerender == baseline
+def test_obs_10_deterministic_rerender_metrics_reproduce(single_strip_regeneration, assert_campaign_evidence):
+    _, generated_baseline = single_strip_regeneration
+    assert_campaign_evidence(
+        generated_baseline / "software-baseline.json",
+        BASELINE_DIR / "software-baseline.json",
+    )

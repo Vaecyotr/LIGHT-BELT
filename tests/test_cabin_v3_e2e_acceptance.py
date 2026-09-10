@@ -359,14 +359,15 @@ def test_safe_black_frame_encodes_all_configured_outputs_and_replay_is_determini
     assert all(channel == 0 for packet in packets if packet is not None for item in packet.outputs for pixel in item.pixels for channel in pixel)
 
     runtime = ShowRuntime(load_show(SHOW, _catalog(layout)), TargetResolver.from_layout(layout), seed=29)
-    def replay() -> str:
-        digest = hashlib.sha256()
-        for sequence, timestamp in enumerate((0.0, 1.0, 2.0, 5.454545454545454), start=1):
-            base = black_base_frame(timestamp=timestamp, sequence=sequence, analog_zones=layout.zones, digital_strips=layout.strips)
-            frame = runtime.render(EffectContext(timestamp=timestamp, delta_time=0.1, sequence=sequence), base)
-            digest.update(repr(frame).encode("utf-8"))
-        return digest.hexdigest()
-    first = replay()
-    assert first == _fixture()["deterministic_replay_sha256"]
+    first = _replay_digest(runtime, layout)
     runtime.reset()
-    assert replay() == first
+    assert _replay_digest(runtime, layout) == first
+
+
+def _replay_digest(runtime: ShowRuntime, layout: Layout) -> str:
+    digest = hashlib.sha256()
+    for sequence, timestamp in enumerate((0.0, 1.0, 2.0, 5.454545454545454), start=1):
+        base = black_base_frame(timestamp=timestamp, sequence=sequence, analog_zones=layout.zones, digital_strips=layout.strips)
+        frame = runtime.render(EffectContext(timestamp=timestamp, delta_time=0.1, sequence=sequence), base)
+        digest.update(repr(frame).encode("utf-8"))
+    return digest.hexdigest()

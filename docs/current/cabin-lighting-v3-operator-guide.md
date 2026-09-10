@@ -5,8 +5,9 @@
 > topology is historical archive material, not the current installation or a
 > product limit. This is not a current Show-design reference. The immutable
 > original Show source is
-> `assets/energy-wakeup/energy-wakeup.yaml`; the approved, runnable current
-> copy and compatibility baseline is `config/shows/energy-wakeup.yaml`.
+> `assets/energy-wakeup/energy-wakeup.yaml`, discovered by the production Host.
+> `config/shows/energy-wakeup.yaml` is only a test / explicit CLI validation /
+> compatibility fixture, not a replacement production entry.
 > Current topology authority is `CLAUDE.md`.
 
 ## Current production and maintenance boundary

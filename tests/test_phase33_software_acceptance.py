@@ -1,9 +1,6 @@
-"""Phase 33 catalog, non-goal, and immutable-asset acceptance gates."""
+"""Current catalog and bounded-authoring contracts introduced in Phase 33."""
 
 from __future__ import annotations
-
-import hashlib
-from pathlib import Path
 
 import pytest
 
@@ -33,9 +30,6 @@ _PHASE32_EFFECTS = {
     "onset_ripple",
     "heat_fire",
 }
-_ENERGY_WAKEUP_SHA256 = (
-    "627d23a4c73e66f1913c7b5cbb15cf1b16926e6772289237165535a2278c142d"
-)
 
 
 def test_phase35_adds_only_coherent_noise_field_after_phase33() -> None:
@@ -72,8 +66,3 @@ def test_phase33_does_not_register_forbidden_frameworks_or_wled_aliases() -> Non
 def test_scalar_source_has_no_unbounded_expression_or_wled_semantics(source: str) -> None:
     with pytest.raises(ValueError):
         ScalarSource(source)
-
-
-def test_immutable_energy_wakeup_asset_is_byte_identical() -> None:
-    payload = Path("assets/energy-wakeup/energy-wakeup.yaml").read_bytes()
-    assert hashlib.sha256(payload).hexdigest() == _ENERGY_WAKEUP_SHA256

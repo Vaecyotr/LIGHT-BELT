@@ -33,15 +33,17 @@ hot-switch. All physical behavior is **NOT HARDWARE VERIFIED**.
 
 ## Current Show authority
 
-The immutable original Show source is
-`assets/energy-wakeup/energy-wakeup.yaml`; do not edit or run it as the current
-Show. The current approved and runnable copy is
-`config/shows/energy-wakeup.yaml`, which is the sole current Show compatibility
-baseline. The 32 retired YAML files are categorized under
+The production Host discovers Shows under `assets/`, including the immutable
+original `assets/energy-wakeup/energy-wakeup.yaml`; do not edit its content.
+`config/shows/energy-wakeup.yaml` is used only for tests, explicit CLI
+validation, and the current Show compatibility baseline. It is not the Host's
+production Show entry, and need not be byte- or semantic-identical to the
+original. This declaration does not change Host discovery or playback.
+The 32 retired YAML files are categorized under
 `config/shows/archive/`; all are legacy replay/regression fixtures and must not
 be used to infer current effects, parameters, topology, timing, authoring
 style, or product requirements. The `config/shows/` root contains only the
-approved current Show. Newly approved Shows must follow
+current compatibility fixture. New fixtures must follow
 `config/shows/README.md`.
 
 ## Historical compatibility mission (not current production)
@@ -257,19 +259,34 @@ If the bundled interpreter does not exist or cannot run, stop and report the err
 
 ## Verification
 
-Before editing:
+Before editing, establish or reuse a valid baseline with the bundled interpreter.
+Reuse it only while relevant code, dependencies, configuration, artifacts,
+environment and hardware state are unchanged.
 
-`.\\.python\\Scripts\\python.exe -m pytest -q`
+| When | Command |
+| --- | --- |
+| Daily development | Relevant targeted tests plus `.\.python\Scripts\python.exe -m pytest -q --suite fast` |
+| Ordinary task completion | `.\.python\Scripts\python.exe -m pytest -q` (default production, includes fast) |
+| Large/cross-layer changes or before release | `.\.python\Scripts\python.exe -m pytest -q --suite full` |
+| Historical investigation alone | `.\.python\Scripts\python.exe -m pytest -q --suite history` |
 
-After each coherent change, run relevant tests using the same bundled interpreter.
+Full includes production, maintenance and history. Default `pytest -q` is not
+the complete test corpus. Explicit test paths bypass layer filtering unless
+`--suite` is specified; new unclassified test files default to production.
+See `tests/README.md` for selection and measurement details.
 
-Before finishing, run:
+Use behavior tests for functional correctness, `git diff` / review for accidental
+file changes, and SHA for exact release/firmware/protocol or deliberately
+byte-locked fixture identity. Do not freeze evolving Show/YAML/source files or
+retain temporary cleanup hashes. Historical Phase hashes belong only in history
+or historical documentation; never update old goldens just to make tests pass.
 
-`.\\.python\\Scripts\\python.exe -m pytest -q`
+Run the benchmark only for performance-relevant changes or an explicit Phase/release gate:
 
-`.\\.python\\Scripts\\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800`
+`.\.python\Scripts\python.exe -m light_engine benchmark --effect video_audio_fusion --frames 1800`
 
-If firmware projects exist or are added:
+Run the following firmware validation only for relevant firmware/protocol changes
+or an explicit Phase/release gate, not merely because firmware projects exist:
 
 `pio run -d firmware/stm32_rgbcct_node`
 

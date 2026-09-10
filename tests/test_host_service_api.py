@@ -917,11 +917,17 @@ def test_playback_play_resets_brightness_scale(client, auth_headers, monkeypatch
     assert engine_adapter._state["brightness_scale"] == pytest.approx(0.5)
 
 
-def test_brightness_set_calls_wled(client, auth_headers, monkeypatch):
-    """POST /brightness/set invokes wled_brightness.apply_scale with correct args."""
+@pytest.mark.parametrize("enabled", [True, False])
+def test_brightness_set_sends_http_only_to_enabled_wled(client, auth_headers, monkeypatch, enabled):
+    """Observe the outgoing HTTP payload, independent of internal helper calls."""
+    import json
     from host_services import wled_brightness
-    calls = []
-    monkeypatch.setattr(wled_brightness, "apply_scale", lambda devices, scale, timeout=1.0: calls.append((devices, scale)))
+    monkeypatch.setattr(engine_adapter, "_devices", [{
+        "host": "192.0.2.1", "enabled": enabled, "device_type": "wled_board",
+    }])
+    requests = []
+    monkeypatch.setattr(wled_brightness.urllib.request, "urlopen",
+                        lambda request, **kwargs: requests.append(request))
 
     r = client.post(
         "/api/v1/brightness/set",
@@ -929,10 +935,11 @@ def test_brightness_set_calls_wled(client, auth_headers, monkeypatch):
         headers=auth_headers,
     )
     assert r.status_code == 200
-    # In mock/test mode _devices is empty, so no HTTP call, but apply_scale is reached
-    # (it returns early when hosts is empty — the important thing is it was called)
-    assert len(calls) == 1
-    assert calls[0][1] == pytest.approx(0.6)
+    assert r.json()["data"]["brightness_scale"] == pytest.approx(0.6)
+    assert [(request.full_url, json.loads(request.data)) for request in requests] == (
+        [("http://192.0.2.1/json/state", {"on": True, "bri": 153, "v": False})]
+        if enabled else []
+    )
 
 
 def test_brightness_scale_in_runtime_snapshot(monkeypatch):

@@ -1,18 +1,18 @@
-# Active Show Admission Rules
+# Show Test and CLI Compatibility Fixtures
 
-This directory contains the approved, runnable current Show copy. The immutable
-original source for the current copy is
-`assets/energy-wakeup/energy-wakeup.yaml`; do not edit or run that source as
-the current Show. Retired Shows are classified under
-`config/shows/archive/`; they are not current references. Any future current
-Show must be intentionally approved under the rules below.
+This directory contains fixtures for tests and explicit CLI validation.
+Production Host discovery remains under `assets/`, including the immutable
+`assets/energy-wakeup/energy-wakeup.yaml`; do not edit its content.
+Nothing in this directory changes that discovery or selects a production Show.
+Retired fixtures are classified under `config/shows/archive/`.
 
 `config/shows/energy-wakeup.yaml` is the only current Show compatibility
-baseline. Files under `config/shows/archive/` are legacy regression material
+baseline, used only for tests and CLI validation. It need not be identical to
+the production original. Files under `config/shows/archive/` are legacy regression material
 and must not be used to infer current visual, parameter, topology, or authoring
 requirements.
 
-## Adding a Show
+## Adding a compatibility fixture
 
 Every new YAML must start with this comment header because the current loader
 rejects unknown schema keys:
@@ -20,7 +20,7 @@ rejects unknown schema keys:
 ```yaml
 # created_at: YYYY-MM-DD
 # purpose: one sentence describing the intended experience or operation
-# status: draft | approved | production
+# status: draft | approved
 # source: assets/energy-wakeup/energy-wakeup.yaml | independent
 # hardware_verified: false
 ```
@@ -37,10 +37,11 @@ Rules:
    32 legacy Shows or their archives.
 4. Validate the file with the bundled interpreter and add only the focused
    tests needed by its new behavior.
-5. Set `status: approved` or `production` only after explicit review. Set
+5. Set `status: approved` only after explicit review; this does not make a
+   fixture a production Show. Set
    `hardware_verified: true` only with real hardware evidence.
 6. Archive retired Shows under `config/shows/archive/<category>/`. Keep the
    archive categories stable and preserve retired YAML bytes exactly.
 
-Diagnostic and regression fixtures belong in dedicated test/acceptance or
-archive locations, not in this active directory.
+Other diagnostic and regression fixtures belong in dedicated test/acceptance
+or archive locations, not alongside the current compatibility baseline.

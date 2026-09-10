@@ -1,6 +1,7 @@
 # created_at: 2026-07-20
 # migrated_at: 2026-08-19
-# purpose: Canonical 305-second energy-wakeup experience
+# purpose: Tests / explicit CLI validation / current Show compatibility baseline only
+# production_discovery: Host discovers Shows under assets/; this fixture does not replace them
 # status: approved
 # source: assets/energy-wakeup/energy-wakeup.yaml
 # hardware_verified: false

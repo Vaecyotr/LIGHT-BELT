@@ -49,19 +49,23 @@ def _shows():
     }
 
 
-def test_acc_01_generator_is_deterministic_and_checked_in_outputs_match(tmp_path):
-    first_out, first_base = tmp_path / "first", tmp_path / "first-baseline"
+def test_acc_01_generator_is_deterministic_and_checked_in_outputs_match(
+    tmp_path, single_strip_regeneration, assert_campaign_evidence,
+):
+    first_out, first_base = single_strip_regeneration
     second_out, second_base = tmp_path / "second", tmp_path / "second-baseline"
-    generate(first_out, first_base)
     generate(second_out, second_base)
     relative_files = [*SHOW_FILES, "coverage-plan.json", "README.md"]
     for name in relative_files:
         first = (first_out / name).read_bytes()
         assert first == (second_out / name).read_bytes()
-        assert first == (OUTPUT_DIR / name).read_bytes()
+        if name == "coverage-plan.json":
+            assert_campaign_evidence(first_out / name, OUTPUT_DIR / name)
+        else:
+            assert first == (OUTPUT_DIR / name).read_bytes()
     evidence = (first_base / "software-baseline.json").read_bytes()
     assert evidence == (second_base / "software-baseline.json").read_bytes()
-    assert evidence == (BASELINE_DIR / "software-baseline.json").read_bytes()
+    assert_campaign_evidence(first_base / "software-baseline.json", BASELINE_DIR / "software-baseline.json")
 
 
 def test_acc_02_all_three_shows_validate_against_live_profile():

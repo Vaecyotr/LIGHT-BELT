@@ -36,8 +36,8 @@ include = ["light_engine*", "host_services*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "--basetemp=.tmp/pytest"
-cache_dir = ".tmp/pytest-cache"
+addopts = "--basetemp=tmp/pytest"
+cache_dir = "tmp/pytest-cache"
 
 [dependency-groups]
 dev = [

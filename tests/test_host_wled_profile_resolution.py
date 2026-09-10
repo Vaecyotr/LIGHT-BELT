@@ -253,12 +253,17 @@ def test_deferred_refresh_never_restarts_active_adapter(monkeypatch) -> None:
     monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
     monkeypatch.setattr(engine_adapter, "_real_adapter", adapter)
     monkeypatch.setattr(engine_adapter.time, "sleep", lambda _seconds: None)
-    monkeypatch.setattr(
-        engine_adapter,
-        "_refresh_wled_profile",
-        lambda *, reason: events.append(reason) or {"strip_11"},
-    )
+    monkeypatch.setattr(engine_adapter, "_run_resolve_nodes", lambda: None)
+    previous = [{"device_id": "node_1", "host": "wled-strip-11.local"}]
+    resolved = [{"device_id": "node_1", "host": "192.0.2.11"}]
+    monkeypatch.setattr(engine_adapter, "_devices", previous)
+    monkeypatch.setattr(engine_adapter, "_valid_target_ids", {"strip_11"})
+    monkeypatch.setattr(engine_adapter, "_capability_targets", [])
+    monkeypatch.setattr(engine_adapter, "_load_layout_vocab",
+                        lambda: ({"strip_11"}, [{"target_id": "strip_11"}], resolved))
 
     engine_adapter._deferred_re_resolve()
 
-    assert events == ["deferred re-resolve"]
+    assert engine_adapter._devices == resolved
+    assert engine_adapter._valid_target_ids == {"strip_11"}
+    assert events == []  # Discovery must not invoke any active playback operation.
