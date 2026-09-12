@@ -1,0 +1,17 @@
+[Unit]
+Description=LIGHT-BELT Host Service
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/LIGHT-BELT
+Environment=ENGINE_ADAPTER=real
+Environment=ENGINE_PROFILE_PATH=config/runtime/wled-ddp-mdns.yaml
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+RuntimeDirectory=light-belt
+ExecStart=/home/pi/LIGHT-BELT/.venv/bin/python -m host_services
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

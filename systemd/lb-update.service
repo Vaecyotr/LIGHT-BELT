@@ -1,0 +1,7 @@
+[Unit]
+Description=LIGHT-BELT self-update
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/home/pi/LIGHT-BELT/scripts/update.sh

@@ -1,0 +1,11 @@
+[Unit]
+Description=LIGHT-BELT HDMI resolution setup
+After=graphical.target
+
+[Service]
+Type=oneshot
+User=pi
+ExecStart=/home/pi/LIGHT-BELT/scripts/hdmi-setup.sh
+
+[Install]
+WantedBy=graphical.target
