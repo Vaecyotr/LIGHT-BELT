@@ -9,7 +9,7 @@
 # 目标模式不可用时退回显示器的首选模式，不会把屏幕搞黑。
 
 export DISPLAY=:0
-export XAUTHORITY=/home/topeet/.Xauthority
+export XAUTHORITY=/home/pi/.Xauthority
 
 PREFERRED_MODE="1920x1080"      # 素材都是 1080p，分辨率对齐避免缩放
 PREFERRED_RATE="60"

@@ -9,6 +9,7 @@ Environment=ENGINE_ADAPTER=real
 Environment=ENGINE_PROFILE_PATH=config/runtime/wled-ddp-mdns.yaml
 Environment=DISPLAY=:0
 Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=MPV_XAUTHORITY=/home/pi/.Xauthority
 RuntimeDirectory=light-belt
 ExecStart=/home/pi/LIGHT-BELT/.venv/bin/python -m host_services
 Restart=always

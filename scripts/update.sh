@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # LIGHT-BELT 自更新 + 自动回滚
 # 由 systemd timer 调用，以 pi 身份运行（sudo 免密可重启服务）。
-# 板子部署分支为 validation/energy-wakeup-strip31-20260831：只跟该远端分支，不跟 main。
+# 板子部署分支为 validation/energy-wakeup-strip31-20260831：只跟 origin/validation/energy-wakeup-strip31-20260831，不跟 main。
 # 设计前提：板子出站能访问 github；只依赖出站，不需要任何入站/穿透。
 #
 # 流程：记录当前 commit → fetch → 有新版本则 ff-only 合并 → 依赖变更则重装 →
