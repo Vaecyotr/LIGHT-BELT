@@ -1,7 +1,7 @@
 # CURRENT RK3588 PRODUCTION SOURCE TEMPLATE — nine independent WLED/DDP strips.
 # This tracked file is the source of truth for topology and pixel counts.
 # Do not edit site-profile.yaml directly: the deployed systemd ExecStartPre
-# runs scripts/resolve_nodes.py to generate it with current mDNS results.
+# runs scripts/runtime/resolve_nodes.py to generate it with current mDNS results.
 # Unresolved nodes become disabled. NOT HARDWARE VERIFIED unless separately recorded.
 outputs:
   mode: production
@@ -23,15 +23,15 @@ layout:
   zones: []
   analog_nodes: []
   strips:
-    - {id: strip_32, type: digital, pixel_count: 40, video_zone: left, direction: forward}
+    - {id: strip_32, type: digital, pixel_count: 10, video_zone: left, direction: forward}
     - {id: strip_31, type: digital, pixel_count: 10, video_zone: left, direction: forward}
     - {id: strip_41, type: digital, pixel_count: 10, video_zone: right, direction: forward}
-    - {id: strip_43, type: digital, pixel_count: 20, video_zone: right, direction: forward}
-    - {id: strip_44, type: digital, pixel_count: 20, video_zone: right, direction: forward}
+    - {id: strip_43, type: digital, pixel_count: 10, video_zone: right, direction: forward}
+    - {id: strip_44, type: digital, pixel_count: 10, video_zone: right, direction: forward}
     - {id: strip_11, type: digital, pixel_count: 10, video_zone: top, direction: forward}
-    - {id: strip_12, type: digital, pixel_count: 40, video_zone: top, direction: forward}
+    - {id: strip_12, type: digital, pixel_count: 17, video_zone: top, direction: forward}
     - {id: strip_21, type: digital, pixel_count: 10, video_zone: bottom, direction: forward}
-    - {id: strip_22, type: digital, pixel_count: 40, video_zone: bottom, direction: forward}
+    - {id: strip_22, type: digital, pixel_count: 20, video_zone: bottom, direction: forward}
   digital_nodes:
     - {node_id: 1, host: wled-strip-32.local, port: 4048}
     - {node_id: 2, host: wled-strip-41.local, port: 4048}
