@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import shlex
+import sys
 
 import pytest
 
@@ -64,7 +66,8 @@ systemctl)
  esac;;
 curl)
  if [[ "$(head)" == b* && "$MODE" == *fail* ]]; then exit 1; fi
- printf '{"commit":"%.12s"}\n' "$(head)";;
+ if [[ "$MODE" == legacy-health ]]; then printf '{"commit":"%.12s"}\n' "$(head)"; exit 0; fi
+ printf '{"ok":true,"data":{"service":"light-belt-host","adapter":"real","ready":true,"source_clean":true,"commit":"%s"}}\n' "$(head)";;
 esac
 '''
 
@@ -82,7 +85,10 @@ def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh"):
     (repo / "uv.lock").write_text("fixture lock\n")
     (repo / "systemd/disabled.timer").write_text("new timer\n")
     (repo / "systemd/user/session.service").write_text("new session unit\n")
-    (repo / ".venv/bin/python").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (repo / ".venv/bin/python").write_text(
+        '#!/usr/bin/env bash\nexec ' + shlex.quote(sys.executable.replace('\\', '/')) + ' "$@"\n',
+        encoding='utf-8', newline='\n',
+    )
     (tmp_path / "head").write_text(OLD + "\n")
     (tmp_path / "active").write_text("1\n")
     (tmp_path / "units").mkdir()
@@ -124,6 +130,15 @@ def test_lock_only_update_syncs_stopped_host_and_preserves_disabled_units(tmp_pa
     assert "systemctl enable " not in events and "restart disabled.timer" not in events
     assert (tmp_path / "units/disabled.timer").read_text() == "new timer\n"
     assert (tmp_path / "user-units/session.service").read_text() == "new session unit\n"
+
+
+def test_incompatible_running_health_rejects_update_before_mutation(tmp_path):
+    result, events, log = run_case(tmp_path, 'legacy-health')
+    assert result.returncode == 1, (result.stderr, log)
+    assert 'systemctl stop ' not in events
+    assert 'git merge ' not in events
+    assert 'uv sync ' not in events
+    assert (tmp_path / 'head').read_text().strip() == OLD
 
 
 @pytest.mark.parametrize("mode", ["sync-fail", "start-fail", "health-fail", "stale-new-lock", "unit-copy-fail", "reload-fail"])

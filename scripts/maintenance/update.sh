@@ -15,12 +15,34 @@ SYSTEM_UNITS="${LIGHT_BELT_SYSTEM_UNIT_DIR:-/etc/systemd/system}"
 USER_UNITS="${LIGHT_BELT_USER_UNIT_DIR:-$LB_HOME/.config/systemd/user}"
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }
 fail() { log "ERROR: $*"; exit 1; }
+# Capture the parser before a Git transition can replace files on disk.
+HEALTH_CHECK_PY="$(cat <<'PY_HEALTH'
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+    data = payload["data"]
+    healthy = (
+        payload.get("ok") is True
+        and data.get("service") == "light-belt-host"
+        and data.get("adapter") == "real"
+        and data.get("ready") is True
+        and data.get("source_clean") is True
+        and data.get("commit") == sys.argv[1]
+    )
+except (ValueError, TypeError, KeyError, AttributeError):
+    healthy = False
+sys.exit(0 if healthy else 1)
+PY_HEALTH
+)"
 health_ok() {
-    local want="${1:0:12}" i body got
+    local want="$1" i body
     for ((i=1; i<=HEALTH_RETRIES; i++)); do
         body="$(curl -fsS -m 5 "$HEALTH_URL" 2>/dev/null)" || body=""
-        got="$(printf '%s' "$body" | sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([0-9a-f]*\)".*/\1/p')"
-        [[ "$got" == "$want" ]] && return 0
+        if [[ -n "$body" ]] && "$REPO/.venv/bin/python" -c "$HEALTH_CHECK_PY" "$want" <<< "$body"; then
+            return 0
+        fi
         sleep "$HEALTH_INTERVAL"
     done
     return 1
@@ -100,6 +122,7 @@ main() {
     check_host_lock >> "$LOG" 2>&1 || fail "Current lock invalid; recovery not guaranteed"
     OLD_COMMIT="$(git rev-parse HEAD)" || fail "Cannot read HEAD"
     [[ "$OLD_COMMIT" =~ ^[0-9a-f]{40}$ ]] || fail "Invalid HEAD"
+    health_ok "$OLD_COMMIT" || fail "Current Host lacks compatible running identity/readiness; install the health contract before automatic updates"
     if ! git fetch origin "$BRANCH" >> "$LOG" 2>&1; then
         log "Fetch unavailable; unchanged"; return 0
     fi
