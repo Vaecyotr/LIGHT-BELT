@@ -31,7 +31,7 @@ async def play(body: PlayRequest, request: Request):
 async def pause(request: Request):
     data, err = engine_adapter.playback_pause()
     if err:
-        return error(request, err, "Cannot pause: not playing", 409)
+        return error(request, err, f"Cannot pause: {err}", 409)
     return ok(request, data)
 
 
@@ -39,13 +39,15 @@ async def pause(request: Request):
 async def resume(request: Request):
     data, err = engine_adapter.playback_resume()
     if err:
-        return error(request, err, "Cannot resume: not paused", 409)
+        return error(request, err, f"Cannot resume: {err}", 409)
     return ok(request, data)
 
 
 @router.post("/stop")
 async def stop(request: Request):
-    data, _ = engine_adapter.playback_stop()
+    data, err = engine_adapter.playback_stop()
+    if err:
+        return error(request, err, f"Cannot stop: {err}", 503)
     return ok(request, data)
 
 
@@ -53,7 +55,7 @@ async def stop(request: Request):
 async def seek(body: SeekRequest, request: Request):
     data, err = engine_adapter.playback_seek(body.position_ms)
     if err:
-        return error(request, err, "No show loaded", 409)
+        return error(request, err, f"Cannot seek: {err}", 409)
     return ok(request, data)
 
 

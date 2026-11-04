@@ -324,7 +324,7 @@ def test_audio_set_volume_scale_to_mpv(client, auth_headers, monkeypatch):
     from host_services.engine_adapter import MpvClient
     sent = []
     mc = MpvClient.__new__(MpvClient)
-    mc._send = lambda cmd: sent.append(cmd) or {}
+    mc._send = lambda cmd: sent.append(cmd) or {"error": "success"}
     mc.set_volume(0.75)
     assert sent == [["set_property", "volume", 75.0]]
 
@@ -467,10 +467,14 @@ def test_ensure_mpv_stale_socket(monkeypatch):
     monkeypatch.setattr(engine_adapter.socket, "socket", MagicMock(return_value=mock_probe))
     monkeypatch.setattr(engine_adapter.subprocess, "Popen", mock_popen)
     monkeypatch.setattr(engine_adapter, "_wait_until", lambda *a, **kw: True)
+    client = MagicMock()
+    monkeypatch.setattr(engine_adapter, "MpvClient", lambda _path: client)
 
     result = engine_adapter._ensure_mpv()
 
     assert result is not None
+    client.set_volume.assert_called_once()
+    client.set_mute.assert_called_once()
     assert len(unlinked) == 1           # stale socket was removed
     assert mock_popen.called            # mpv was relaunched
     command = mock_popen.call_args.args[0]
@@ -493,6 +497,7 @@ def test_ensure_mpv_exposes_local_media_audio_identity(monkeypatch):
         return_value=MagicMock(stderr=iter([]), poll=MagicMock(return_value=None)))
     )
     monkeypatch.setattr(engine_adapter, "_wait_until", lambda *args, **kwargs: True)
+    monkeypatch.setattr(engine_adapter, "MpvClient", lambda _path: MagicMock())
 
     engine_adapter._ensure_mpv()
 
@@ -1044,7 +1049,7 @@ def test_mpv_client_default_factory_preserves_unix_stream_socket(monkeypatch):
             pass
 
         def recv(self, _n):
-            return b'{"error":"success","data":true}\n'
+            return b'{"request_id":1,"error":"success","data":true}\n'
 
         def close(self):
             closed.append(True)
@@ -1058,7 +1063,7 @@ def test_mpv_client_default_factory_preserves_unix_stream_socket(monkeypatch):
 
     result = engine_adapter.MpvClient("/tmp/fake.sock")._send(["get_property", "pause"])
 
-    assert result == {"error": "success", "data": True}
+    assert result == {"request_id": 1, "error": "success", "data": True}
     assert calls == [(123, engine_adapter.socket.SOCK_STREAM)]
     assert closed == [True]
 
@@ -1130,16 +1135,17 @@ class _StopWatchdogLoop(Exception):
 
 def _run_watchdog_ticks(monkeypatch, ticks):
     """Run `_natural_end_watchdog` for exactly `ticks` iterations by making
-    time.sleep raise after the desired number of calls (sleep is the first thing
-    each loop iteration does, so this cleanly stops the loop between ticks)."""
+    the stop event's wait raise after the desired number of ticks."""
     calls = {"n": 0}
 
-    def fake_sleep(_s):
+    def fake_wait(_s):
         calls["n"] += 1
         if calls["n"] > ticks:
             raise _StopWatchdogLoop()
 
-    monkeypatch.setattr(engine_adapter.time, "sleep", fake_sleep)
+    monkeypatch.setattr(engine_adapter, "_watchdog_stop", MagicMock(wait=fake_wait))
+    monkeypatch.setattr(engine_adapter, "_real_adapter", None)
+    monkeypatch.setattr(engine_adapter, "_media_loading_generation", None)
     with pytest.raises(_StopWatchdogLoop):
         engine_adapter._natural_end_watchdog()
 
@@ -1157,11 +1163,11 @@ def test_natural_end_watchdog_finalizes_on_dead_process(monkeypatch):
     monkeypatch.setattr(engine_adapter, "_mpv", MagicMock())
 
     finalize_calls = []
-    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+    monkeypatch.setattr(engine_adapter, "_finalize_playback_error", lambda _gen, code, _msg: finalize_calls.append(code))
 
     _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_CRASH_STREAK)
 
-    assert len(finalize_calls) == 1
+    assert finalize_calls == ["MPV_EXITED"]
 
 
 def test_natural_end_watchdog_finalizes_on_ipc_unreachable(monkeypatch):
@@ -1179,11 +1185,11 @@ def test_natural_end_watchdog_finalizes_on_ipc_unreachable(monkeypatch):
     monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
 
     finalize_calls = []
-    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+    monkeypatch.setattr(engine_adapter, "_finalize_playback_error", lambda _gen, code, _msg: finalize_calls.append(code))
 
     _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_CRASH_STREAK)
 
-    assert len(finalize_calls) == 1
+    assert finalize_calls == ["MPV_UNAVAILABLE"]
     mock_mpv._send.assert_called_with(["get_property", "idle-active"])
 
 
@@ -1202,8 +1208,15 @@ def test_natural_end_watchdog_still_finalizes_on_idle_streak(monkeypatch):
     monkeypatch.setattr(engine_adapter, "_mpv", mock_mpv)
 
     finalize_calls = []
-    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda: finalize_calls.append(1))
+    monkeypatch.setattr(engine_adapter, "_finalize_natural_end", lambda _gen: finalize_calls.append(1))
 
     _run_watchdog_ticks(monkeypatch, engine_adapter._WATCHDOG_IDLE_STREAK)
 
     assert len(finalize_calls) == 1
+
+
+def test_scene_apply_reports_audio_failure(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(engine_adapter, 'scene_apply', lambda *_: (None, 'MPV_UNAVAILABLE'))
+    response = client.post('/api/v1/scenes/apply', json={'scene_id': 'demo'}, headers=auth_headers)
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'MPV_UNAVAILABLE'

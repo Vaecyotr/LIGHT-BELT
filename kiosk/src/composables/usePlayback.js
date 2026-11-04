@@ -10,7 +10,7 @@ export function usePlayback() {
 
   const isPlaying = computed(() => state.value === 'playing')
   const isPaused = computed(() => state.value === 'paused')
-  const isActive = computed(() => isPlaying.value || isPaused.value)
+  const isActive = computed(() => isPlaying.value || isPaused.value || state.value === 'error')
 
   const progress = computed(() => {
     if (!durationMs.value) return 0
@@ -54,8 +54,9 @@ export function usePlayback() {
   }
 
   async function setBrightness(scale) {
-    brightnessScale.value = scale
-    await api.setBrightness(scale)
+    const result = await api.setBrightness(scale)
+    if (result.ok) brightnessScale.value = result.data.brightness_scale ?? scale
+    else await refresh()
   }
 
   return { state, show, positionMs, durationMs, brightnessScale, progress, isPlaying, isPaused, isActive, play, pause, stop, setBrightness, refresh }

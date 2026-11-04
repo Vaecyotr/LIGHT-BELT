@@ -13,17 +13,44 @@ LIGHT-BELT Host Service 入口。
 
 import logging
 import os
+from contextlib import asynccontextmanager
+from pathlib import Path
+from .runtime_health import capture_identity
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .config import HOST, PORT, ENABLE_TLS, TLS_CERTFILE, TLS_KEYFILE, MPV_DISPLAY, MPV_XAUTHORITY
+from .config import validate_security_configuration
+
+validate_security_configuration()
 
 _log = logging.getLogger(__name__)
 
-app = FastAPI(title="LIGHT-BELT Host Service", version="1.0")
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    try:
+        await _disable_dpms()
+        await _start_runtime()
+        yield
+    finally:
+        await _stop_runtime()
+
+
+app = FastAPI(title="LIGHT-BELT Host Service", version="1.0", lifespan=_lifespan)
+app.state.runtime_identity = capture_identity(Path(__file__).resolve().parent.parent)
+app.state.ready = False
+
+
+@app.exception_handler(HTTPException)
+async def _http_exception_handler(request: Request, exc: HTTPException):
+    if isinstance(exc.detail, dict) and "code" in exc.detail:
+        from .response import error
+        return error(request, exc.detail["code"], exc.detail["message"], exc.status_code)
+    return await http_exception_handler(request, exc)
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,7 +60,6 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
 async def _disable_dpms():
     """禁用 X11 屏保 / DPMS，防止 HDMI 无信号导致黑屏后无法唤醒。"""
     import subprocess as _sp
@@ -105,8 +131,25 @@ app.include_router(brightness.router)
 app.include_router(ws.router)
 
 
+async def _start_runtime():
+    import asyncio
+    from . import engine_adapter
+    if engine_adapter.ENGINE_ADAPTER == "real":
+        from light_engine.config import Config
+        Config(Path(engine_adapter.ENGINE_PROFILE_PATH))
+    ws.bind_event_loop(asyncio.get_running_loop())
+    engine_adapter._start_natural_end_watchdog()
+    app.state.ready = engine_adapter.ENGINE_ADAPTER != "real" or engine_adapter._real_adapter is not None
+
+
+async def _stop_runtime():
+    from . import engine_adapter
+    app.state.ready = False
+    await ws.close_event_loop()
+    engine_adapter.shutdown()
+
+
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 
 _kiosk_dist = Path(__file__).resolve().parent.parent / "kiosk" / "dist"
 if _kiosk_dist.is_dir():

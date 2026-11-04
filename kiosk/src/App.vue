@@ -9,6 +9,16 @@
       <StatusIndicator />
     </header>
 
+    <form v-if="authState.needsPairing" class="pairing-panel" @submit.prevent="pairKiosk">
+      <label for="pairing-code">输入 Host 配对码</label>
+      <input id="pairing-code" v-model="pairingCode" type="password" autocomplete="off" required />
+      <button type="submit" :disabled="pairing">{{ pairing ? '配对中…' : '配对' }}</button>
+      <span>页面重新加载后需重新配对。</span>
+    </form>
+    <div v-if="authState.error" class="request-error" role="alert">
+      {{ authState.error }} <button @click="auth.clearError">关闭提示</button>
+    </div>
+
     <!-- Main content -->
     <main class="kiosk-main">
       <!-- Shows column -->
@@ -93,13 +103,33 @@ import { usePlayback } from './composables/usePlayback.js'
 import { useShows } from './composables/useShows.js'
 import { useVolume } from './composables/useVolume.js'
 import { useKeyboard } from './composables/useKeyboard.js'
+import { auth, authState } from './api.js'
 
 const { state, show, positionMs, durationMs, brightnessScale, progress, isPlaying, isPaused, isActive, play, pause, stop, setBrightness } = usePlayback()
-const { shows, loading: showsLoading, DEMO_SHOW } = useShows()
-const { volume, muted, setVolume, toggleMute } = useVolume()
+const { shows, loading: showsLoading, DEMO_SHOW, reload: reloadShows } = useShows()
+const { volume, muted, setVolume, toggleMute, refresh: refreshVolume } = useVolume()
 
 // HUD auto-hide
 import { ref } from 'vue'
+const pairingCode = ref('')
+const pairing = ref(false)
+
+async function pairKiosk() {
+  pairing.value = true
+  try {
+    await auth.pair(pairingCode.value)
+  } finally {
+    pairingCode.value = ''
+    pairing.value = false
+  }
+}
+
+watch(() => authState.authenticated, (authenticated) => {
+  if (authenticated) {
+    reloadShows()
+    refreshVolume()
+  }
+})
 const hudVisible = ref(false)
 let hudTimer = null
 
@@ -151,6 +181,11 @@ useKeyboard({
 </script>
 
 <style>
+.pairing-panel { display: flex; align-items: center; gap: 12px; padding: 12px 24px; background: #202030; }
+.pairing-panel input { max-width: 180px; padding: 8px; }
+.pairing-panel button { padding: 8px 16px; }
+.pairing-panel span { color: #b8b8cc; }
+.request-error { padding: 10px 24px; color: #ffd0d0; background: #4a2028; }
 .kiosk-root {
   display: flex;
   flex-direction: column;

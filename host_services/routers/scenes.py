@@ -36,6 +36,8 @@ async def scene_apply(body: SceneApplyRequest, request: Request):
     if err == "INVALID_ARGUMENT":
         details = data.get("error_detail") if data else None
         return invalid_argument(request, "Scene validation failed", details)
+    if err:
+        return error(request, err, f"Scene apply failed: {err}", 503)
     return ok(request, data)
 
 

@@ -23,7 +23,7 @@ async def refresh(body: RefreshRequest, request: Request):
     info = auth_manager.consume_refresh_token(body.refresh_token)
     if info is None:
         return error(request, "UNAUTHORIZED", "Invalid or expired refresh token", 401)
-    tokens = auth_manager.issue_token_pair(info["client_id"])
+    tokens = auth_manager.issue_token_pair(info["client_id"], info["scope"])
     return ok(request, tokens)
 
 
@@ -33,5 +33,5 @@ async def ws_ticket(body: WsTicketRequest, request: Request):
         if t not in VALID_WS_TYPES:
             return invalid_argument(request, f"Unknown message type: {t}")
     host = request.headers.get("host", "0.0.0.0:8443")
-    data = auth_manager.create_ws_ticket(body.subscribe, host=host)
+    data = auth_manager.create_ws_ticket(body.subscribe, host=host, secure=request.url.scheme == "https")
     return ok(request, data)

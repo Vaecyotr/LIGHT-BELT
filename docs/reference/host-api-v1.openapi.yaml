@@ -1119,6 +1119,19 @@ components:
         time_ms:
           type: number
           minimum: 0
+        commit:
+          type: string
+          nullable: true
+          description: Full Git commit captured when the running application imports.
+        source_clean:
+          type: boolean
+          description: Whether the source checkout was clean when the instance started.
+        ready:
+          type: boolean
+          description: Whether application startup and adapter configuration are ready.
+        adapter:
+          type: string
+          enum: [mock, real]
     StatusResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessEnvelope"

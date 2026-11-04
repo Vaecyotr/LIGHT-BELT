@@ -61,17 +61,32 @@ APP 调用 `POST /api/v1/auth/pair`，提交：
 
 ### REST 鉴权
 
-除 `/auth/pair` 与 `/auth/refresh` 外，REST 请求使用：
+文档中的 `123456` 为开发配对示例。真实模式要求独立配置配对码与JWT密钥。
+HTTPS地址和证书指纹描述目标接入合同，设备部署须另行配置TLS或可信加密通道。
+
+`/status`、`/auth/pair` 与 `/auth/refresh` 公开访问。其余 REST 请求使用 Bearer，`/session/ws-ticket` 同样需要鉴权。
 
 ```http
 Authorization: Bearer <access_token>
 ```
+
+GET 查询及 WS ticket 签发要求 `state:read`。播放控制要求 `playback:write`，
+灯光与亮度控制要求 `lights:write`，灯效、音频和场景写入分别要求
+`effects:write`、`audio:write` 和 `scenes:write`。刷新保留原授权范围。
+
+`/status` 保留原必填字段，并提供可选的 `commit`、`source_clean`、`ready` 和
+`adapter`。构建身份在应用导入时捕获，运行中切换磁盘版本不会改变该实例的身份。
+OTA 要求完整提交身份一致、源码干净、真实适配器已就绪。设备离线单独呈现，
+不将所有节点在线作为服务版本健康的前提。
 
 ### 刷新 token
 
 当 REST 返回 `TOKEN_EXPIRED` 时，APP 调用 `POST /api/v1/auth/refresh`，提交 `refresh_token`，获得新的 `access_token` 和 `refresh_token`。
 
 ### WebSocket ticket
+
+票据返回的 `ws_url` 跟随服务端识别的请求传输，HTTPS返回`wss`，HTTP返回`ws`。
+使用TLS终止代理时，应正确配置可信代理的转发信息。
 
 WebSocket 连接前，APP 调用 `POST /api/v1/session/ws-ticket`：
 

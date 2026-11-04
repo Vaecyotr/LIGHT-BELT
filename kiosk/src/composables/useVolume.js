@@ -15,18 +15,19 @@ export function useVolume() {
   }
 
   async function setVolume(v) {
-    volume.value = v
-    await api.setVolume(v)
+    const result = await api.setVolume(v)
+    if (result.ok) volume.value = result.data.volume ?? v
+    else await refresh()
   }
 
   async function toggleMute() {
-    muted.value = !muted.value
-    await api.setMuted(muted.value)
+    const result = await api.setMuted(!muted.value)
+    if (result.ok) muted.value = result.data.muted ?? !muted.value
   }
 
   let timer = null
   onMounted(() => { refresh(); timer = setInterval(refresh, 3000) })
   onUnmounted(() => clearInterval(timer))
 
-  return { volume, muted, setVolume, toggleMute }
+  return { volume, muted, setVolume, toggleMute, refresh }
 }

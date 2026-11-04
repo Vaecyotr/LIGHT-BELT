@@ -4,6 +4,7 @@ All subprocess and socket calls are monkeypatched.  No real processes start.
 """
 
 import threading
+import subprocess
 from unittest.mock import MagicMock, patch, call
 
 import pytest
@@ -16,7 +17,8 @@ _SOCKET = "/fake/mpv.sock"
 
 
 @pytest.fixture
-def adapter():
+def adapter(monkeypatch):
+    monkeypatch.setattr("host_services.real_engine_adapter._await_engine_ready", lambda *_args, **_kwargs: True)
     return RealEngineAdapter(
         profile_path=_PROFILE,
         mpv_socket_path=_SOCKET,
@@ -71,6 +73,8 @@ def test_playback_start_launches_subprocess(adapter):
     assert "/fake/show.yaml" in cmd
     assert "--clock" in cmd
     assert "mpv" in cmd
+    assert "--ready-stdout" in cmd
+    assert mock_popen.call_args.kwargs["stdout"] == subprocess.PIPE
 
 
 def test_playback_start_with_audio_file_adds_audio_flag(adapter):

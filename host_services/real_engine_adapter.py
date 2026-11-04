@@ -4,8 +4,9 @@ This adapter is activated when ENGINE_ADAPTER=real.  It manages two kinds of
 subprocesses:
 
   - Playback subprocess: `python -m light_engine --config <profile> run
-      --show <show_yaml> --clock mpv --mpv-socket <socket>`
-      (audio shows add --audio <media_path>)
+      --show <show_yaml> --clock mpv --mpv-socket <socket> --ready-stdout`
+      (media inputs add --video and/or --audio as appropriate). A readiness
+      marker confirms media, show and output initialization.
   - Manual subprocess: same binary but `--clock internal`, re-created each time
       lights_set / effects_set is called (replaces previous manual process).
 
@@ -41,6 +42,26 @@ def _drain_stderr(proc: subprocess.Popen, label: str) -> None:
     threading.Thread(target=_reader, daemon=True, name=f"stderr-{label}").start()
 
 
+def _await_engine_ready(proc: subprocess.Popen, timeout: float = 10.0) -> bool:
+    ready_or_eof = threading.Event()
+    state = {"ready": False}
+
+    def read_stdout() -> None:
+        try:
+            for raw in proc.stdout:
+                line = raw.decode(errors="replace").rstrip()
+                if line == "LIGHT_BELT_ENGINE_READY":
+                    state["ready"] = True
+                    ready_or_eof.set()
+                else:
+                    _log.info("[playback-engine] %s", line)
+        finally:
+            ready_or_eof.set()
+
+    threading.Thread(target=read_stdout, daemon=True, name="stdout-playback-engine").start()
+    return ready_or_eof.wait(timeout) and state["ready"]
+
+
 def _kill_proc(proc: subprocess.Popen | None, name: str = "engine") -> None:
     if proc is None or proc.poll() is not None:
         return
@@ -53,7 +74,7 @@ def _kill_proc(proc: subprocess.Popen | None, name: str = "engine") -> None:
             proc.kill()
             proc.wait(timeout=3)
     except Exception as exc:
-        _log.warning("error stopping %s: %s", name, exc)
+        raise RuntimeError(f"Unable to stop {name}: {exc}") from exc
 
 
 class RealEngineAdapter:
@@ -76,6 +97,7 @@ class RealEngineAdapter:
         self._aux_poll_thread: threading.Thread | None = None
         self._aux_stop_event = threading.Event()
         self._active_show: dict | None = None
+        self._playback_started_at: float | None = None
 
         # Temp file for manual show YAML (cleaned up on replace/stop).
         self._manual_yaml_tmp: str | None = None
@@ -84,9 +106,9 @@ class RealEngineAdapter:
 
     def on_playback_start(self, show: dict, start_ms: float | None) -> None:
         """Launch engine subprocess for show playback."""
-        self._active_show = show
         self._stop_manual()
         _kill_proc(self._playback_proc, "playback engine")
+        self._active_show = show
 
         show_yaml = show.get("show_yaml")
         media_path = show.get("media_path")
@@ -103,24 +125,28 @@ class RealEngineAdapter:
             "--show", show_yaml,
             "--clock", "mpv",
             "--mpv-socket", self._mpv_socket,
+            "--ready-stdout",
         ]
         _AUDIO_SUFFIXES = {".mp3", ".wav", ".flac", ".ogg", ".aac"}
         if audio_path:
             cmd += ["--audio", audio_path]
         elif media_path and Path(media_path).suffix.lower() in _AUDIO_SUFFIXES:
             cmd += ["--audio", media_path]
+        if media_path and Path(media_path).suffix.lower() in {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}:
+            cmd += ["--video", media_path]
 
         _log.info("real adapter: starting playback engine: %s", " ".join(cmd))
         self._playback_proc = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
+        self._playback_started_at = time.monotonic()
         _drain_stderr(self._playback_proc, "playback-engine")
-        time.sleep(0.3)
-        if self._playback_proc.poll() is not None:
-            _log.error(
-                "real adapter: playback engine exited immediately (exit code %s)",
-                self._playback_proc.returncode,
-            )
+        if not _await_engine_ready(self._playback_proc):
+            _kill_proc(self._playback_proc, "playback engine")
+            raise RuntimeError("playback engine exited or timed out before ready")
+        code = self._playback_proc.poll()
+        if isinstance(code, int):
+            raise RuntimeError(f"playback engine exited immediately (exit code {code})")
 
         # Start aux_triggers polling thread.
         aux_triggers = show.get("aux_triggers") or []
@@ -162,25 +188,29 @@ class RealEngineAdapter:
             "--show", show_yaml,
             "--clock", "mpv",
             "--mpv-socket", self._mpv_socket,
+            "--ready-stdout",
         ]
         _AUDIO_SUFFIXES = {".mp3", ".wav", ".flac", ".ogg", ".aac"}
         if audio_path:
             cmd += ["--audio", audio_path]
         elif media_path and Path(media_path).suffix.lower() in _AUDIO_SUFFIXES:
             cmd += ["--audio", media_path]
+        if media_path and Path(media_path).suffix.lower() in {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}:
+            cmd += ["--video", media_path]
 
         _log.info("real adapter: resuming playback engine: %s", " ".join(cmd))
         _kill_proc(self._playback_proc, "playback engine")
         self._playback_proc = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
+        self._playback_started_at = time.monotonic()
         _drain_stderr(self._playback_proc, "playback-engine")
-        time.sleep(0.3)
-        if self._playback_proc.poll() is not None:
-            _log.error(
-                "real adapter: resumed playback engine exited immediately (exit code %s)",
-                self._playback_proc.returncode,
-            )
+        if not _await_engine_ready(self._playback_proc):
+            _kill_proc(self._playback_proc, "playback engine")
+            raise RuntimeError("resumed playback engine exited or timed out before ready")
+        code = self._playback_proc.poll()
+        if isinstance(code, int):
+            raise RuntimeError(f"resumed playback engine exited immediately (exit code {code})")
 
         aux_triggers = self._active_show.get("aux_triggers") or []
         if aux_triggers:
@@ -188,7 +218,33 @@ class RealEngineAdapter:
 
         return True
 
+    def on_playback_seek_prepare(self) -> None:
+        """Stop the renderer before the media clock changes discontinuously."""
+        self._stop_aux_poll()
+        self._stop_manual()
+        _kill_proc(self._playback_proc, "playback engine")
+        self._playback_proc = None
+
     # ── manual lights / effects ────────────────────────────────────────────────
+
+    def process_failure(self, position_ms: float | None = None) -> str | None:
+        if self._manual_proc is not None:
+            code = self._manual_proc.poll()
+            if code is not None:
+                return f"manual engine exited with code {code}"
+        if self._playback_proc is not None:
+            code = self._playback_proc.poll()
+            if code is not None:
+                show = self._active_show or {}
+                duration_ms = show.get("_engine_duration_ms", show.get("duration_ms", 0))
+                if show.get("media_path"):
+                    early = position_ms is not None and duration_ms > 0 and position_ms < duration_ms - 1000
+                else:
+                    elapsed = time.monotonic() - (self._playback_started_at or time.monotonic())
+                    early = not duration_ms or elapsed < duration_ms / 1000 - 1.0
+                if code != 0 or early:
+                    return f"playback engine exited with code {code}"
+        return None
 
     def on_manual_command(self, target_states: list[dict]) -> None:
         """Render target_states as a temp show YAML and launch manual engine."""

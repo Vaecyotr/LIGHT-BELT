@@ -17,6 +17,7 @@ import uuid
 import socket
 import subprocess
 import threading
+from functools import wraps
 from typing import Any, Callable
 from light_engine.effects import get_effect_registration, list_effect_registrations
 from .config import (
@@ -33,7 +34,7 @@ CUSTOM_UDP_V3_DEVICE_TYPE = "custom_esp32_udp_v3"
 
 
 class MpvUnavailableError(RuntimeError):
-    """Raised when mpv cannot be started or its socket directory cannot be created."""
+    """Raised when mpv cannot be started or an IPC command cannot be confirmed."""
 
 
 def _device_type_from_outputs(enabled_outputs: list[str]) -> str:
@@ -178,17 +179,26 @@ class MpvClient:
             )
             s.settimeout(self._SEND_TIMEOUT_S)
             s.connect(self._sock_path)
-            msg = json.dumps({"command": cmd}) + "\n"
+            # Each request uses a fresh connection, so its ID is unique there.
+            request_id = 1
+            msg = json.dumps({"command": cmd, "request_id": request_id}) + "\n"
             s.sendall(msg.encode())
             resp = b""
+            deadline = time.monotonic() + self._SEND_TIMEOUT_S
             while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise socket.timeout()
+                s.settimeout(remaining)
                 chunk = s.recv(4096)
                 if not chunk:
-                    break
+                    return {"error": "mpv IPC connection closed before reply"}
                 resp += chunk
-                if b"\n" in resp:
-                    break
-            return json.loads(resp.split(b"\n")[0])
+                while b"\n" in resp:
+                    line, resp = resp.split(b"\n", 1)
+                    response = json.loads(line)
+                    if isinstance(response, dict) and response.get("request_id") == request_id:
+                        return response
         except socket.timeout:
             _log.warning("mpv IPC timeout (%.1fs) for command: %s", self._SEND_TIMEOUT_S, cmd)
             return {"error": "timeout"}
@@ -201,20 +211,26 @@ class MpvClient:
                 except Exception:
                     pass
 
+    def _command(self, cmd: list) -> dict:
+        response = self._send(cmd)
+        if response.get("error") != "success":
+            raise MpvUnavailableError(f"mpv command {cmd[0]} failed: {response.get('error')}")
+        return response
+
     def play_file(self, path: str):
-        self._send(["loadfile", path, "replace"])
+        self._command(["loadfile", path, "replace"])
 
     def pause(self):
-        self._send(["set_property", "pause", True])
+        self._command(["set_property", "pause", True])
 
     def resume(self):
-        self._send(["set_property", "pause", False])
+        self._command(["set_property", "pause", False])
 
     def stop(self):
-        self._send(["stop"])
+        self._command(["stop"])
 
     def seek(self, position_sec: float):
-        self._send(["seek", position_sec, "absolute"])
+        self._command(["seek", position_sec, "absolute+exact"])
 
     def get_duration(self) -> float:
         r = self._send(["get_property", "duration"])
@@ -225,14 +241,14 @@ class MpvClient:
         return r.get("data") or 0.0
 
     def set_volume(self, volume_0_1: float):
-        self._send(["set_property", "volume", volume_0_1 * 100])
+        self._command(["set_property", "volume", volume_0_1 * 100])
 
     def set_mute(self, muted: bool):
-        self._send(["set_property", "mute", muted])
+        self._command(["set_property", "mute", muted])
 
     def add_audio_track(self, path: str):
         """Add an external audio file as the selected audio track."""
-        self._send(["audio-add", path, "select"])
+        self._command(["audio-add", path, "select"])
 
     def get_idle_active(self) -> bool:
         """Return True when mpv is idle (no file loaded / playback finished)."""
@@ -521,12 +537,150 @@ def get_capabilities() -> dict:
 
 _mpv: MpvClient | None = None
 _mpv_proc: subprocess.Popen | None = None
+_audio_pending = True
+_session_lock = threading.RLock()
+_session_generation = 0
+_mpv_observer = None
+_media_loading_generation = None
+
+
+def _serialized_session(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        with _session_lock:
+            return fn(*args, **kwargs)
+    return wrapped
+
+
+_apply_manual_targets = _serialized_session(_apply_manual_targets)
+
+
+def _close_mpv_observer() -> None:
+    global _mpv_observer
+    observer, _mpv_observer = _mpv_observer, None
+    if observer is not None:
+        observer["stop"].set()
+        observer["socket"].close()
+
+
+def _set_playback_error(code: str, message: str) -> None:
+    global _session_generation
+    _session_generation += 1
+    _close_mpv_observer()
+    _state["playback_state"] = "error"
+    from . import ws
+    ws.publish_error({"code": code, "message": message})
+
+
+@_serialized_session
+def _handle_mpv_event(event: dict, generation: int, observer: dict) -> None:
+    global _media_loading_generation
+    if generation != _session_generation:
+        return
+    kind = event.get("event")
+    if kind == "start-file":
+        observer["entry_id"] = event.get("playlist_entry_id")
+    elif kind == "file-loaded" and observer.get("entry_id") is not None:
+        _media_loading_generation = None
+    elif kind == "end-file" and observer.get("entry_id") is not None:
+        if event.get("playlist_entry_id") != observer["entry_id"]:
+            return
+        reason = event.get("reason")
+        if reason not in ("error", "eof"):
+            return
+        _media_loading_generation = None
+        if reason == "error":
+            _finalize_playback_error(generation, "MEDIA_ERROR", str(event.get("file_error", "media playback failed")))
+        else:
+            _finalize_natural_end(generation)
+
+
+def _start_mpv_observer(sock_path: str, generation: int) -> dict:
+    global _mpv_observer, _media_loading_generation
+    _close_mpv_observer()
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.settimeout(1.0)
+        sock.connect(sock_path)
+    except OSError as exc:
+        sock.close()
+        raise MpvUnavailableError(f"cannot observe mpv events: {exc}") from exc
+    observer = {"socket": sock, "stop": threading.Event(), "entry_id": None,
+                "loaded": threading.Event(), "load_error": None}
+    _mpv_observer = observer
+    _media_loading_generation = generation
+
+    def consume():
+        pending = b""
+        disconnected = False
+        while not observer["stop"].is_set():
+            try:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    disconnected = True
+                    break
+                pending += chunk
+                while b"\n" in pending:
+                    line, pending = pending.split(b"\n", 1)
+                    event = json.loads(line)
+                    if isinstance(event, dict):
+                        kind = event.get("event")
+                        if kind == "start-file":
+                            observer["entry_id"] = event.get("playlist_entry_id")
+                            continue
+                        if kind == "file-loaded" and observer["entry_id"] is not None:
+                            observer["loaded"].set()
+                        elif (kind == "end-file" and event.get("playlist_entry_id") == observer["entry_id"]
+                              and event.get("reason") == "error"):
+                            observer["load_error"] = event.get("file_error", "media playback failed")
+                            observer["loaded"].set()
+                        _handle_mpv_event(event, generation, observer)
+            except socket.timeout:
+                continue
+            except (OSError, ValueError) as exc:
+                if not observer["stop"].is_set():
+                    _log.error("mpv event observer stopped: %s", exc)
+                    disconnected = True
+                break
+        if disconnected and not observer["stop"].is_set():
+            observer["load_error"] = "mpv event connection closed"
+            observer["loaded"].set()
+            with _session_lock:
+                if generation == _session_generation and _state["playback_state"] in ("playing", "paused"):
+                    _finalize_playback_error(generation, "MPV_EVENTS_LOST", observer["load_error"])
+
+    observer["thread"] = threading.Thread(target=consume, name="mpv-events", daemon=True)
+    observer["thread"].start()
+    return observer
 
 
 def _find_show(show_id: str) -> dict | None:
     for s in _load_shows():
         if s["show_id"] == show_id:
             return s
+    return None
+
+
+def _validate_playback_content(show: dict) -> str | None:
+    from pathlib import Path
+    from .shows_loader import _probe_duration_ms
+    media = show.get("media_path")
+    show_yaml = show.get("show_yaml")
+    if not media and not show_yaml:
+        return "no media or show YAML"
+    if not media:
+        return "YAML-only playback mode is not configured"
+    for path in (media, show.get("audio_path")):
+        if path and (not Path(path).is_file() or _probe_duration_ms(path) <= 0):
+            return f"missing or undecodable media: {path}"
+    if show_yaml:
+        try:
+            from light_engine.config import Config
+            from light_engine.cli import _load_show_for_config
+            definition, _ = _load_show_for_config(show_yaml, Config.get_instance(Path(ENGINE_PROFILE_PATH)))
+            show["_engine_duration_ms"] = int(definition.duration * 1000)
+        except Exception as exc:
+            return f"invalid show or target configuration: {exc}"
     return None
 
 
@@ -549,6 +703,13 @@ def _wait_until(cond, timeout_s: float = 3.0, interval_s: float = 0.05) -> bool:
     return cond()
 
 
+def _mpv_position_matches(mpv: MpvClient, position_ms: float) -> bool:
+    reply = mpv._send(["get_property", "time-pos"])
+    value = reply.get("data")
+    return (reply.get("error") == "success" and isinstance(value, (int, float))
+            and abs(value * 1000 - position_ms) <= 250)
+
+
 def _drain_stderr(proc: subprocess.Popen, name: str) -> None:
     import threading
     def _reader():
@@ -557,8 +718,22 @@ def _drain_stderr(proc: subprocess.Popen, name: str) -> None:
     threading.Thread(target=_reader, daemon=True).start()
 
 
+def _stop_owned_mpv() -> None:
+    if _mpv_proc is None or _mpv_proc.poll() is not None:
+        return
+    try:
+        _mpv_proc.terminate()
+        try:
+            _mpv_proc.wait(3)
+        except subprocess.TimeoutExpired:
+            _mpv_proc.kill()
+            _mpv_proc.wait(timeout=3)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise MpvUnavailableError(f"cannot stop stale mpv: {exc}") from exc
+
+
 def _ensure_mpv() -> MpvClient:
-    global _mpv, _mpv_proc
+    global _mpv, _mpv_proc, _audio_pending
     from .config import MPV_SOCKET_PATH, MPV_DISPLAY, MPV_XAUTHORITY, MPV_GEOMETRY
     sock = MPV_SOCKET_PATH
 
@@ -571,22 +746,19 @@ def _ensure_mpv() -> MpvClient:
             probe.close()
         except (ConnectionRefusedError, FileNotFoundError, OSError):
             _log.warning("mpv socket %s is stale; removing and restarting mpv", sock)
+            _stop_owned_mpv()
             try:
                 os.unlink(sock)
             except FileNotFoundError:
                 pass
-            if _mpv_proc is not None and _mpv_proc.poll() is None:
-                _mpv_proc.terminate()
-                try:
-                    _mpv_proc.wait(3)
-                except subprocess.TimeoutExpired:
-                    _mpv_proc.kill()
-                    _mpv_proc.wait()
             _mpv_proc = None
             _mpv = None
         # Probe succeeded — mpv is alive; skip restart.
 
     if not os.path.exists(sock):
+        _stop_owned_mpv()
+        _mpv_proc = None
+        _mpv = None
         try:
             os.makedirs(os.path.dirname(sock), exist_ok=True)
         except Exception as exc:
@@ -631,13 +803,37 @@ def _ensure_mpv() -> MpvClient:
 
     if _mpv is None:
         _mpv = MpvClient(sock)
+        _audio_pending = True
+        _mpv.set_volume(_state["volume"])
+        _mpv.set_mute(_state["muted"])
+        _audio_pending = False
+    elif _audio_pending:
+        _mpv.set_volume(_state["volume"])
+        _mpv.set_mute(_state["muted"])
+        _audio_pending = False
     return _mpv
 
 
+def _active_mpv() -> MpvClient:
+    if ENGINE_ADAPTER != "real":
+        return _ensure_mpv()
+    if _mpv is None or (_mpv_proc is not None and _mpv_proc.poll() is not None):
+        _finalize_playback_error(_session_generation, "MPV_UNAVAILABLE", "active playback has lost its mpv process")
+        raise MpvUnavailableError("active playback has lost its mpv process")
+    return _mpv
+
+
+@_serialized_session
 def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, str | None]:
+    global _session_generation
     show = _find_show(show_id)
     if show is None:
         return None, "NOT_FOUND"
+    if ENGINE_ADAPTER == "real":
+        content_error = _validate_playback_content(show)
+        if content_error:
+            _log.error("playback content not ready: %s", content_error)
+            return None, "CONTENT_NOT_READY"
     if start_ms is not None and start_ms > show["duration_ms"]:
         return None, "INVALID_ARGUMENT"
     if _real_adapter is not None:
@@ -646,25 +842,88 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     # When the new show has media, loadfile(..., "replace") replaces the
     # current media directly; stopping mpv first is unnecessary.
     if _mpv and not show.get("media_path"):
-        _mpv.stop()
-    _manual_targets.clear()
-    if _real_adapter is not None:
-        _real_adapter.on_playback_stop()
-    if show.get("media_path"):
         try:
-            mpv = _ensure_mpv()
+            _mpv.stop()
         except MpvUnavailableError:
             return None, "MPV_UNAVAILABLE"
-        mpv.play_file(show["media_path"])
-        if show.get("audio_path"):
-            if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):
-                _log.warning("mpv did not report duration in time; adding audio track anyway")
-            mpv.add_audio_track(show["audio_path"])
-        if start_ms and start_ms > 0:
-            if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):
-                _log.warning("mpv did not report duration in time; seeking anyway")
-            mpv.seek(start_ms / 1000)
-        mpv.resume()
+    if _real_adapter is not None:
+        try:
+            _real_adapter.on_playback_stop()
+        except RuntimeError as exc:
+            _log.error("cannot stop previous engine: %s", exc)
+            return None, "ENGINE_UNAVAILABLE"
+    _manual_targets.clear()
+    _session_generation += 1
+    _close_mpv_observer()
+    _state.update(playback_state="stopped", show_id=None, position_ms=0, duration_ms=0)
+    if show.get("media_path"):
+        mpv = _mpv
+        try:
+            mpv = _ensure_mpv()
+            if ENGINE_ADAPTER == "real":
+                _start_mpv_observer(mpv._sock_path, _session_generation)
+                mpv.pause()
+            mpv.play_file(show["media_path"])
+            if ENGINE_ADAPTER == "real":
+                observer = _mpv_observer
+                if not observer["loaded"].wait(5.0) or observer["load_error"]:
+                    _log.error("media failed to load: %s", observer["load_error"] or "timeout")
+                    _session_generation += 1
+                    _close_mpv_observer()
+                    try:
+                        mpv.stop()
+                    except MpvUnavailableError:
+                        _log.exception("cannot stop media after loading failure")
+                        _set_playback_error("MPV_UNAVAILABLE", "media cleanup failed after loading timeout")
+                    return None, "MEDIA_NOT_READY"
+            if show.get("audio_path"):
+                if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):
+                    _log.warning("mpv did not report duration in time; adding audio track anyway")
+                mpv.add_audio_track(show["audio_path"])
+            if start_ms and start_ms > 0:
+                if not _wait_until(lambda: mpv.get_duration() > 0, timeout_s=2.0):
+                    _log.warning("mpv did not report duration in time; seeking anyway")
+                mpv.seek(start_ms / 1000)
+                if ENGINE_ADAPTER == "real" and not _wait_until(
+                    lambda: _mpv_position_matches(mpv, start_ms), timeout_s=3.0
+                ):
+                    raise MpvUnavailableError("initial seek position not confirmed")
+            if ENGINE_ADAPTER != "real":
+                mpv.resume()
+        except MpvUnavailableError as exc:
+            _session_generation += 1
+            _close_mpv_observer()
+            cleanup_mpv = _mpv if _mpv is not None else mpv
+            if cleanup_mpv is not None:
+                try:
+                    cleanup_mpv.stop()
+                except MpvUnavailableError:
+                    _log.exception("cannot stop media after start failure")
+                    _set_playback_error("MPV_UNAVAILABLE", "media cleanup failed after playback start")
+            _log.error("playback start failed: %s", exc)
+            return None, "MPV_UNAVAILABLE"
+    if _real_adapter is not None:
+        try:
+            _real_adapter.on_playback_start(show, start_ms)
+            if show.get("media_path") and ENGINE_ADAPTER == "real":
+                mpv.resume()
+        except (RuntimeError, OSError) as exc:
+            error_code = "MPV_UNAVAILABLE" if isinstance(exc, MpvUnavailableError) else "ENGINE_UNAVAILABLE"
+            _session_generation += 1
+            _close_mpv_observer()
+            _log.error("cannot start playback engine: %s", exc)
+            if show.get("media_path"):
+                try:
+                    _real_adapter.on_playback_stop()
+                except RuntimeError:
+                    _log.exception("cannot stop engine after playback start failure")
+                    _set_playback_error("ENGINE_UNAVAILABLE", "engine cleanup failed after playback start")
+                try:
+                    mpv.stop()
+                except MpvUnavailableError:
+                    _log.exception("cannot stop media after engine start failure")
+                    _set_playback_error("MPV_UNAVAILABLE", "media cleanup failed after engine start")
+            return None, error_code
     _state["playback_state"] = "playing"
     _state["show_id"] = show_id
     _state["position_ms"] = start_ms or 0
@@ -673,50 +932,111 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     _state["brightness_scale"] = BRIGHTNESS_SCALE_DEFAULT
     _manual_targets.clear()
     if _real_adapter is not None:
-        _real_adapter.on_playback_start(show, start_ms)
         _mark_devices_output()
     _push_brightness_scale()
     return _playback_data(), None
 
 
+@_serialized_session
 def playback_pause() -> tuple[dict | None, str | None]:
     if _state["playback_state"] != "playing":
         return None, "PLAYBACK_NOT_READY"
-    _ensure_mpv().pause()
+    try:
+        _active_mpv().pause()
+    except MpvUnavailableError:
+        return None, "MPV_UNAVAILABLE"
     _state["playback_state"] = "paused"
     return _playback_data(), None
 
 
+@_serialized_session
 def playback_resume() -> tuple[dict | None, str | None]:
     if _state["playback_state"] not in ("playing", "paused"):
         return None, "PLAYBACK_NOT_READY"
-    _ensure_mpv().resume()
+    try:
+        _active_mpv().resume()
+    except MpvUnavailableError:
+        return None, "MPV_UNAVAILABLE"
     _state["playback_state"] = "playing"
     return _playback_data(), None
 
 
-def playback_stop() -> tuple[dict, None]:
+@_serialized_session
+def playback_stop() -> tuple[dict | None, str | None]:
+    global _session_generation
+    if _real_adapter is not None:
+        try:
+            _real_adapter.on_playback_stop()
+        except RuntimeError as exc:
+            _log.error("cannot stop engine: %s", exc)
+            _set_playback_error("ENGINE_UNAVAILABLE", str(exc))
+            return None, "ENGINE_UNAVAILABLE"
     if _mpv:
-        _mpv.stop()
+        try:
+            _mpv.stop()
+        except MpvUnavailableError:
+            _set_playback_error("MPV_UNAVAILABLE", "mpv did not confirm stop")
+            return None, "MPV_UNAVAILABLE"
+    _session_generation += 1
+    _close_mpv_observer()
     _state["playback_state"] = "stopped"
     _state["show_id"] = None
     _state["position_ms"] = 0
     _state["duration_ms"] = 0
     _manual_targets.clear()
     if _real_adapter is not None:
-        _real_adapter.on_playback_stop()
         _push_wled_off()
     return _playback_data(), None
 
 
+@_serialized_session
 def playback_seek(position_ms: float) -> tuple[dict | None, str | None]:
     if _state["playback_state"] not in ("playing", "paused"):
         return None, "SHOW_NOT_LOADED"
-    _ensure_mpv().seek(position_ms / 1000)
+    was_playing = _state["playback_state"] == "playing"
+    engine_stopped = False
+    try:
+        mpv = _active_mpv()
+        if _real_adapter is not None:
+            if was_playing:
+                mpv.pause()
+                _state["playback_state"] = "paused"
+            _real_adapter.on_playback_seek_prepare()
+            engine_stopped = True
+        mpv.seek(position_ms / 1000)
+        if _real_adapter is not None and not _wait_until(
+            lambda: _mpv_position_matches(mpv, position_ms),
+            timeout_s=3.0,
+        ):
+            _log.error("mpv did not confirm seek position %s ms", position_ms)
+            _set_playback_error("SEEK_NOT_READY", "mpv did not confirm the requested position")
+            return None, "SEEK_NOT_READY"
+        _state["position_ms"] = position_ms
+        if _real_adapter is not None:
+            if not _real_adapter.on_playback_resume_yaml():
+                _set_playback_error("NO_ACTIVE_SHOW", "could not restart the active show after seek")
+                return None, "NO_ACTIVE_SHOW"
+            if was_playing:
+                mpv.resume()
+                _state["playback_state"] = "playing"
+    except MpvUnavailableError as exc:
+        _log.error("seek failed: %s", exc)
+        if engine_stopped:
+            try:
+                _real_adapter.on_playback_resume_yaml()
+            except (OSError, RuntimeError):
+                _log.exception("could not restore engine after failed seek")
+                _set_playback_error("ENGINE_UNAVAILABLE", "engine restore failed after seek")
+        return None, "MPV_UNAVAILABLE"
+    except (OSError, RuntimeError) as exc:
+        _log.error("seek engine restart failed: %s", exc)
+        _set_playback_error("ENGINE_UNAVAILABLE", str(exc))
+        return None, "ENGINE_UNAVAILABLE"
     _state["position_ms"] = position_ms
     return _playback_data(), None
 
 
+@_serialized_session
 def playback_reset() -> tuple[dict | None, str | None]:
     """Resume the show's YAML lighting after a manual override.
 
@@ -729,12 +1049,19 @@ def playback_reset() -> tuple[dict | None, str | None]:
     _manual_targets.clear()
     if _real_adapter is not None:
         _refresh_wled_profile(reason="playback resume resolve")
-        ok = _real_adapter.on_playback_resume_yaml()
+        try:
+            ok = _real_adapter.on_playback_resume_yaml()
+        except (RuntimeError, OSError) as exc:
+            _set_playback_error("ENGINE_UNAVAILABLE", str(exc))
+            return None, "ENGINE_UNAVAILABLE"
         if not ok:
             return None, "NO_ACTIVE_SHOW"
     if _state["playback_state"] == "paused":
         if _mpv is not None:
-            _mpv.resume()
+            try:
+                _mpv.resume()
+            except MpvUnavailableError:
+                return None, "MPV_UNAVAILABLE"
         _state["playback_state"] = "playing"
     _push_brightness_scale()
     return _playback_data(), None
@@ -878,8 +1205,10 @@ def get_audio() -> dict:
     }
 
 
+@_serialized_session
 def audio_set(volume: float | None, muted: bool | None,
               transition_ms: float) -> tuple[dict | None, str | None]:
+    global _audio_pending
     if volume is None and muted is None:
         return None, "INVALID_ARGUMENT"
     if volume is not None:
@@ -887,14 +1216,18 @@ def audio_set(volume: float | None, muted: bool | None,
     if muted is not None:
         _state["muted"] = muted
     _state["scene_id"] = None
+    was_pending = _audio_pending
+    _audio_pending = True
     if _mpv is not None:
         try:
             if volume is not None:
                 _mpv.set_volume(volume)
             if muted is not None:
                 _mpv.set_mute(muted)
+            _audio_pending = was_pending
         except Exception as exc:
             _log.warning("audio_set: mpv IPC failed: %s", exc)
+            return None, "MPV_UNAVAILABLE"
     else:
         _log.warning("audio_set: mpv not running, state updated in memory only")
     return {
@@ -991,6 +1324,7 @@ def scene_save(scene_id: str | None, name: str,
     return {"scene_id": scene_id, "saved": True}, None
 
 
+@_serialized_session
 def scene_apply(scene_id: str,
                 transition_ms: float | None) -> tuple[dict | None, str | None]:
     if scene_id not in _scenes:
@@ -1000,21 +1334,15 @@ def scene_apply(scene_id: str,
     if error is not None:
         return {"error_detail": validation_error}, error
     if _state["playback_state"] == "playing":
-        playback_stop()
+        _, stop_error = playback_stop()
+        if stop_error:
+            return None, stop_error
     if scene.get("audio"):
         a = scene["audio"]
-        if "volume" in a and a["volume"] is not None:
-            _state["volume"] = a["volume"]
-        if "muted" in a and a["muted"] is not None:
-            _state["muted"] = a["muted"]
-        if _mpv is not None:
-            try:
-                if a.get("volume") is not None:
-                    _mpv.set_volume(a["volume"])
-                if a.get("muted") is not None:
-                    _mpv.set_mute(a["muted"])
-            except Exception as exc:
-                _log.warning("scene_apply: mpv IPC failed: %s", exc)
+        if a.get("volume") is not None or a.get("muted") is not None:
+            _, audio_error = audio_set(a.get("volume"), a.get("muted"), transition_ms or 0)
+            if audio_error:
+                return None, audio_error
     if scene.get("entries"):
         _manual_targets.clear()
         for e in scene["entries"]:
@@ -1122,11 +1450,22 @@ _WATCHDOG_INTERVAL_S = 1.0
 _WATCHDOG_IDLE_STREAK = 3      # 连续 3 次读到 idle 才认定结束，躲开加载中的空窗
 _WATCHDOG_CRASH_STREAK = 5     # 连续 5 次进程已死/IPC 不可达才判定 mpv 崩溃
 _watchdog_thread: threading.Thread | None = None
+_watchdog_stop = threading.Event()
 
 
-def _finalize_natural_end() -> None:
+@_serialized_session
+def _finalize_natural_end(expected_generation: int | None = None) -> None:
     """等价于一次 playback_stop。如果 mpv 进程已死，顺带清理引用以便下次重建。"""
     global _mpv, _mpv_proc
+    if expected_generation is not None and expected_generation != _session_generation:
+        return
+    if _real_adapter is not None:
+        try:
+            _real_adapter.on_playback_stop()
+            _push_wled_off()
+        except RuntimeError as exc:
+            _set_playback_error("ENGINE_UNAVAILABLE", str(exc))
+            return
     _state["playback_state"] = "stopped"
     _state["show_id"] = None
     _state["position_ms"] = 0
@@ -1147,48 +1486,86 @@ def _finalize_natural_end() -> None:
                 pass
         _mpv = None
         _mpv_proc = None
+
+
+@_serialized_session
+def _finalize_playback_error(generation: int, code: str, message: str) -> None:
+    if generation != _session_generation:
+        return
+    if _mpv is not None:
+        try:
+            _mpv.stop()
+        except MpvUnavailableError:
+            _log.exception("could not stop mpv after playback failure")
     if _real_adapter is not None:
-        _real_adapter.on_playback_stop()
-        _push_wled_off()
+        try:
+            _real_adapter.on_playback_stop()
+            _push_wled_off()
+        except RuntimeError:
+            _log.exception("could not stop engine after playback failure")
+    _set_playback_error(code, message)
 
 def _natural_end_watchdog() -> None:
     streak = 0
     dead_streak = 0
     ipc_streak = 0
-    while True:
-        time.sleep(_WATCHDOG_INTERVAL_S)
+    last_generation = None
+    while not _watchdog_stop.wait(_WATCHDOG_INTERVAL_S):
         try:
+            with _session_lock:
+                generation = _session_generation
+                mpv = _mpv
+                proc = _mpv_proc
+                adapter = _real_adapter
+                active = (_state["playback_state"] == "playing" and bool(_state["duration_ms"])
+                          and _media_loading_generation != generation)
+                engine_failure = None
+                engine_proc = adapter._playback_proc if adapter is not None else None
+            position_ms = None
+            if engine_proc is not None and engine_proc.poll() is not None and mpv is not None:
+                response = mpv._send(["get_property", "time-pos"])
+                if response.get("error") == "success" and isinstance(response.get("data"), (float, int)):
+                    position_ms = response["data"] * 1000
+            with _session_lock:
+                if generation == _session_generation and adapter is _real_adapter and adapter is not None:
+                    engine_failure = adapter.process_failure(position_ms=position_ms)
+            if engine_failure:
+                _finalize_playback_error(generation, "ENGINE_EXITED", engine_failure)
+                continue
+            if generation != last_generation:
+                streak = dead_streak = ipc_streak = 0
+                last_generation = generation
             # 只管「我们以为在播、且确实有媒体」的情况。
             # duration_ms == 0 的占位节目本来就没有 mpv 参与，跳过。
-            if _state["playback_state"] != "playing" or not _state["duration_ms"]:
+            if not active:
                 streak = 0
                 dead_streak = 0
                 ipc_streak = 0
                 continue
 
             # mpv 子进程已经退出（被 kill / 崩溃）——不用等 IPC 超时，直接判定。
-            if _mpv_proc is not None and _mpv_proc.poll() is not None:
+            if proc is not None and proc.poll() is not None:
                 dead_streak += 1
                 if dead_streak >= _WATCHDOG_CRASH_STREAK:
                     _log.error(
                         "watchdog: mpv process dead (exit %s) while state='playing'; "
                         "finalizing as crash",
-                        _mpv_proc.returncode,
+                        proc.returncode,
                     )
                     dead_streak = 0
                     ipc_streak = 0
-                    _finalize_natural_end()
+                    _finalize_playback_error(generation, "MPV_EXITED", f"mpv exited with code {proc.returncode}")
                 continue
             dead_streak = 0
 
-            if _mpv is None:
+            if mpv is None:
                 streak = 0
                 continue
 
             # 直接调用 _send 而不是 get_idle_active()，因为后者把 IPC 失败
             # 和「IPC 成功但 idle=False」都折叠成同一个 False，无法区分
             # 「mpv 半死不活/超时」和「mpv 正常在播」。
-            r = _mpv._send(["get_property", "idle-active"])
+            r = mpv._send(["get_property", "idle-active"])
             if r.get("error") != "success":
                 ipc_streak += 1
                 if ipc_streak >= _WATCHDOG_CRASH_STREAK:
@@ -1197,7 +1574,7 @@ def _natural_end_watchdog() -> None:
                         ipc_streak, r.get("error"),
                     )
                     ipc_streak = 0
-                    _finalize_natural_end()
+                    _finalize_playback_error(generation, "MPV_UNAVAILABLE", "mpv IPC is unreachable")
                 streak = 0
                 continue
             ipc_streak = 0
@@ -1210,7 +1587,7 @@ def _natural_end_watchdog() -> None:
                 continue
             streak = 0
             _log.info("watchdog: mpv idle while playing; finalizing natural show end")
-            _finalize_natural_end()
+            _finalize_natural_end(generation)
         except Exception as exc:                        # noqa: BLE001
             _log.debug("watchdog: %s: %s", type(exc).__name__, exc)
             streak = 0
@@ -1223,10 +1600,40 @@ def _start_natural_end_watchdog() -> None:
         return
     if _watchdog_thread is not None and _watchdog_thread.is_alive():
         return
+    _watchdog_stop.clear()
     _watchdog_thread = threading.Thread(
         target=_natural_end_watchdog, name="natural-end-watchdog", daemon=True)
     _watchdog_thread.start()
     _log.info("engine_adapter: natural-end watchdog started")
+
+
+def shutdown() -> None:
+    """Stop background observation and owned processes during Host shutdown."""
+    global _mpv, _mpv_proc, _session_generation
+    _watchdog_stop.set()
+    observer = _mpv_observer
+    _close_mpv_observer()
+    if observer is not None and observer.get("thread") is not threading.current_thread():
+        observer["thread"].join(timeout=2)
+    if _watchdog_thread is not None and _watchdog_thread is not threading.current_thread():
+        _watchdog_thread.join(timeout=_WATCHDOG_INTERVAL_S + MpvClient._SEND_TIMEOUT_S + 1)
+    with _session_lock:
+        _session_generation += 1
+        errors = []
+        if _real_adapter is not None:
+            try:
+                _real_adapter.on_playback_stop()
+            except (RuntimeError, OSError) as exc:
+                errors.append(str(exc))
+        try:
+            _stop_owned_mpv()
+        except MpvUnavailableError as exc:
+            errors.append(str(exc))
+        else:
+            _mpv = None
+            _mpv_proc = None
+        if errors:
+            raise RuntimeError("shutdown cleanup failed: " + "; ".join(errors))
 
 
 _start_natural_end_watchdog()
