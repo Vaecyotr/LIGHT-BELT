@@ -1,10 +1,12 @@
 # LIGHT-BELT 功能完成度、开发缺口与执行流程（原始8～54）
 
-需求依据为《micro_oxygen_codex_checklist_08-54.md》，其中注明来源为《微压氧舱光声电联动及体征数据云控系统实施方案功能明细.docx》。初查为2026-11-02，源码独立复核与任务审订为2026-11-03（Asia/Singapore）。核查对象为当前工作区 `A:/BaiduNetdiskDownload/LIGHT-BELT/.agent-worktrees/WT04-github-main-reference`，HEAD为 `fbaab17dd953b0c968fa00e11db941ffea775926`。工作区已有暂存、未暂存及未跟踪文件，结论对应当前文件内容，HEAD不足以单独复原该快照。
+需求依据为《micro_oxygen_codex_checklist_08-54.md》，其中注明来源为《微压氧舱光声电联动及体征数据云控系统实施方案功能明细.docx》。初查为2026-11-02，源码独立复核与任务审订为2026-11-03（Asia/Singapore）。核查对象为工作区 `A:/BaiduNetdiskDownload/LIGHT-BELT/.agent-worktrees/WT04-github-main-reference`。调查时 HEAD 为 `fbaab17dd953b0c968fa00e11db941ffea775926`，当时尚有暂存、未暂存及未跟踪文件。
+
+2026-11-04 已将核查后的项目文件提交并推送到修复前备份分支 `pre-overall_fix-1104`，完整提交为 `af7aa9d9fde4df672da6ba51817c239787330969`，本地与 GitHub 远端 SHA 一致。从该提交创建的 `overall_fix-1104` 用于软件修复。第1～8节保留修复前调查事实和需求拆分，第10节记录当前实现、回归证据和剩余条件。整体功能验收仍需对应的产品合同和实机证据。
 
 原始清单为[micro_oxygen_codex_checklist_08-54.md](C:/Users/19141/Downloads/micro_oxygen_codex_checklist_08-54.md)。
 
-本报告覆盖8～54共47条，保留原始名称和需求文本。1～7、55～62仅在依赖分析必要时涉及。`docs/reports/2026-10-26-four-requirements`未用作调查依据。后续任务为待批准的开发建议。
+本报告覆盖8～54共47条，保留原始名称和需求文本。1～7、55～62仅在依赖分析必要时涉及。`docs/reports/2026-10-26-four-requirements`未用作调查依据。T01、T03a/c、T04a、T05、T18a、T20及具备条件的T02a、T03b、T04b、T09a、T10a、T15a/b软件工作已获准实施。外部条件与未决合同继续约束相应分支。
 
 ## 1. 判定口径与主要结论
 
@@ -12,7 +14,9 @@
 
 原文没有统一规定每个参数必须通过Kiosk、REST还是Show配置交付。第8、16～23项因此暂列无法确认，逐项列出软件事实和不同接口下的条件结论，等待D01。该口径替代此前默认把Kiosk作为唯一交付接口的判断。第15项明确要求预设色板，命名色板能力的缺失仍是有效缺口。Show v2可作为第9、11、12项的场景程序，原文未要求新增JSON场景格式或多视频队列。
 
-### 1.1 可确认的缺口
+### 1.1 修复前确认的缺口（2026-11-03）
+
+下表保留原始反例及任务对应关系。修复后的状态与验证见第10节。
 
 | 问题 | 证据与后果 | 任务 |
 | --- | --- | --- |
@@ -1045,9 +1049,9 @@ flowchart TD
 | 同步/色彩/照度仪器与阈值 | T16a先测，D04/D06批准，T17按相同条件复测 | 物理同步与柔光达标 |
 | Git访问、sudo、uv和维护副本 | 在干净ARM副本执行成功/失败/回滚 | 54真实部署，软件事务可先验证 |
 
-## 9. 变更与验证记录
+## 9. 2026-11-03 报告审订与验证记录
 
-本文件是唯一交付文件。报告审订使用只读搜索、源码读取、已有测试inventory及P5/P6内存探针。业务源码、配置、测试和固件均保持原有文件内容，未执行开发、真实部署、提交或推送。当前报告审订新增验证为P5/P6/P7及结构校验，既有E1～E4基线按未变更源码复用。
+2026-11-03 报告审订的唯一交付文件为本报告。该次审订使用只读搜索、源码读取、已有测试inventory及P5/P6内存探针，业务源码、配置、测试和固件保持原有文件内容，未执行开发、真实部署、提交或推送。审订新增验证为P5/P6/P7及结构校验，既有E1～E4基线按未变更源码复用。
 
 主要命令为git status/diff、rg、带行号Get-Content、仓库自带Python身份检查及`-B -X utf8 -`标准输入探针。身份检查、P5、P6、P7及最终结构校验均返回0。P5/P6/P7是三组复现，不与pytest用例相加，耗时见3.2。部分源码搜索无匹配时rg返回1，按搜索语义解释。验证脚本全程禁止字节码写入，未产生新的计划/报告/测试文件。
 
@@ -1059,4 +1063,214 @@ git diff --cached --stat
 git diff --no-index --stat -- NUL feature_gap_08-54.md
 ```
 
-完成审订后只等待用户批准所选任务及待决口径，再进入实施。
+报告审订后的软件实施授权与完成状态记录于下节。
+
+## 10. 2026-11-04 软件修复与验收
+
+### 10.1 修复前 GitHub 备份
+
+备份分支为 [pre-overall_fix-1104](https://github.com/Vaecyotr/LIGHT-BELT/tree/pre-overall_fix-1104)，
+提交为 [af7aa9d9fde4df672da6ba51817c239787330969](https://github.com/Vaecyotr/LIGHT-BELT/commit/af7aa9d9fde4df672da6ba51817c239787330969)。
+远端通过 `git ls-remote --heads origin refs/heads/pre-overall_fix-1104` 独立读取，
+与本地 `git rev-parse pre-overall_fix-1104` 完整一致。
+
+收尾时Git直连远端查询两次因连接重置/无法连接返回128。
+随后使用GitHub连接器比较备份提交与远端分支，结果为identical，
+ahead_by=0、behind_by=0、total_commits=0，确认远端备份仍对应同一完整提交。
+
+逐路径审查清单包含273个路径，暂存后的无重命名差异与该清单完全相等。
+Git识别迁移后提交摘要为243个文件、32867行增加、657行删除。提交后工作区干净，
+再创建 `overall_fix-1104`，此后才修改业务代码。原暂存/未暂存补丁与摘要清单保留于
+本地忽略目录 `tmp/backup-1104/`。已明确排除的本地节目视频与
+`artifacts/local-archives/` 按用户确认保留本地。环境、缓存、测试输出及生成的现场配置
+继续按仓库规则忽略。备份保留原有许可证与证据原文中的空白，完整暂存差异的
+`git diff --cached --check` 因这些既有空白返回2，未为格式检查改写修复前材料。
+
+### 10.2 软件实现与验证范围
+
+| 任务 | 实现与软件证据 | 剩余条件 |
+| --- | --- | --- |
+| T01 | 复核仓库自带Python与包路径，建立fast和production修复前基线。`npm ci --ignore-scripts`恢复锁定前端依赖，源码构建成功，实际Host静态页面配对与控制验证通过。 | npm审计仍报告6项依赖漏洞，其中5 high、1 moderate。目标设备部署与浏览器版本需现场验证。 |
+| T03a | Host IPC加入request_id、分片/多行及无关事件过滤，EOF/超时/命令拒绝传播为失败。已确认拒绝的播放、暂停、恢复、seek和音频操作通过既有错误包装返回。 | Unix socket替身证明软件协议处理，真实mpv/目标环境仍需联调。 |
+| T03c | 子进程停止失败拒绝替换，Host会话入口串行化，旧看门狗结果以代际隔离。进程异常、媒体错误通过当前ASGI事件循环发布error.event。部分停止失败使用V1已有error状态并保留停止重试，关闭时分别清理观察者及拥有的进程。 | 实际黑帧送达、设备掉线回落及目标机故障恢复保持NOT HARDWARE VERIFIED。 |
+| T03d | seek前暂停媒体并停止旧渲染器，确认媒体位置后重建渲染器并恢复原播放状态，避免旧Engine接收倒退时钟。 | 软件恢复限于当前时间对齐。状态型效果历史重建仍需D05，真实设备偏差由T16c验证。 |
+| T04a | 通道255限制在第7箱，平均色与主色使用独立平滑状态，reset同时清除。纯绿/蓝/白及状态隔离先复现4个失败，再通过回归。 | 区域直方图与显式明暗趋势仍按D02决定。 |
+| T05 | 创建或重建mpv时重放期望音量与静音，拒绝时保留待应用值并返回错误。Kiosk音量提交失败后刷新服务端状态并保留错误提示。V1音量/静音字段表示期望值，命令确认由内部pending状态与错误结果区分。 | 公开状态没有独立的mpv实际音量回读证据。手机流、系统音量和设备响度边界由D07及现场验收决定。 |
+| T18a | status兼容增加启动时冻结的完整commit、source_clean、ready和adapter。更新器解析真实JSON data层，同时核对版本、源码及真实适配器就绪。旧实例健康合同不兼容时在事务修改前拒绝。 | ready表示Host核心配置及适配器初始化，不证明媒体解码、节点在线或物理输出。旧版需维护窗口安装兼容版本。ARM升级/回滚由T18b验证。 |
+| T20 | Bearer校验签名、有效期、令牌类型、必要声明和已有scope。refresh保留授权范围并一次性轮换，ticket签发受保护，WS地址跟随ASGI请求协议选择ws/wss，status/pair/refresh及静态资源保持公开。真实模式拒绝开发凭据。Kiosk提供配对、令牌轮换、会话代际和可恢复错误提示。 | 采用报告D10-A的页面内存会话，页面重载后重新配对。无人值守凭据持久化及TLS部署仍需明确交付方式。 |
+| T02a | 真实播放入口检查媒体存在及ffprobe时长、Show/YAML与目标配置，失败在替换旧会话前返回CONTENT_NOT_READY。媒体-only可播放媒体，完整节目提供媒体与Show。YAML-only条目明确返回就绪错误。 | 最终交付节目、完整媒体、灯光-only模式和物理Profile由D03/T02b决定。 |
+| T03b | loadfile前建立按会话归属的事件观察，等待file-loaded。媒体保持暂停，Engine在媒体/Show/输出初始化成功后发送READY，Host有界等待并持续排空stdout，确认后释放mpv。异步解码错误、EOF与旧playlist_entry事件分别处理。 | READY表示初始化完成，不证明首帧已输出。实际声画灯起播偏差受D04和目标机测量约束。 |
+| T04b | 完整节目在Host初播/恢复时传入真实视频，Engine暂停首帧和seek后重新取帧，时段内解码错误显式失败。临时真实MP4验证颜色特征到灯光输出，并覆盖较晚时间采样。短视频先结束时清空视频特征并继续较长音频。 | 无Show的媒体-only条目只验证媒体播放。RK3588解码CPU、305秒节目性能及真实同步尚待现场验证。 |
+| T09a | 复用并运行逻辑路径贡献、反向、间隙、重叠拒绝及单点跨缝测试，未重写路径引擎。 | 交互选择由D01决定，实物顺序/方向与接缝由T09c/T16验证。 |
+| T10a | 复用受控静音、纯音、音频reset、合法构造WLED包、stale归零和恢复测试。 | 构造包不代表真实设备采集。标注鼓点质量、命中率/延迟阈值及手机音源仍依赖D06/D07。 |
+| T15a/b | 将已知IPC、会话、主色、鉴权、OTA及真实视频输入反例纳入回归，定向和跨模块结果分开记录。 | 整项需求的最终设备验收仍按T16～T19执行。 |
+
+真实模式使用 `/etc/light-belt/host.env` 提供独立的 `LIGHT_BELT_JWT_SECRET`
+和 `LIGHT_BELT_PAIRING_CODE`，systemd读取该文件。密钥至少32字节，配对码须替换
+开发默认值。凭据文件由设备管理员保护，不提交Git。
+
+### 10.3 已执行的验证
+
+| 验证 | 实际结果 | 范围 |
+| --- | --- | --- |
+| 修复前fast | 返回0，381 passed，30.38秒 | 当前软件基线 |
+| 修复前production | 返回0，1224 passed/1 skipped/3 warnings，82.96秒 | symlink环境限制保留为skip |
+| 主色反例 | 修复前4 failed，7.68秒；修复后4 passed，5.13秒 | T04a |
+| IPC/Host定向 | 返回0，152 passed/1 warning，18.75秒 | 停止、代际、媒体/Engine就绪、音量、视频参数、seek软件顺序及API |
+| 视频/分析/路径联合定向 | 返回0，161 passed，23.00秒 | 真实MP4/WAV、正常EOF、Engine/CLI及既有分析/路径/音频效果 |
+| 鉴权/健康/静态/V1组合 | 返回0，31 passed/1 warning，9.08秒 | 包含畸形有效期JWT拒绝 |
+| 更新事务 | 返回0，21 passed，163.93秒 | 隔离的外部命令替身，包含不兼容旧实例的事务前拒绝 |
+| Kiosk Node回归 | 返回0，10 passed，0.439秒 | Bearer、并发刷新、旧响应/命令代际隔离、网络恢复与错误提示 |
+| WS线程桥接 | 返回0，1 passed，1.86秒 | 后台错误在绑定的ASGI循环发布，关闭后停止接收 |
+| CLI就绪/视频联合 | 返回0，10 passed，12.33秒 | 就绪标记仅在初始化成功后发送，保留真实视频回归 |
+| Kiosk构建 | 返回0，Vite源码构建成功 | 构建产物由Host静态路由服务 |
+
+Python命令均使用 `.\.python\Scripts\python.exe`。组合定向命令如下。
+
+```powershell
+.\.python\Scripts\python.exe -m pytest -q tests/test_host_auth_contracts.py tests/test_host_update_health.py tests/test_host_static_ui.py tests/test_app_host_api_v1_freeze.py --basetemp=tmp/pytest-main
+.\.python\Scripts\python.exe -m pytest -q tests/test_update_transaction.py --basetemp=tmp/pytest-main --inventory-json=tmp/backup-1104/ota-after.json
+npm.cmd --prefix kiosk test
+npm.cmd --prefix kiosk run build
+```
+
+首次并行验证共用了仓库固定的 `tmp/pytest`，造成夹具互相清理，
+其中一组结果为3 failed/43 passed、150.36秒。该结果保留为失败记录。
+随后为Host、视频、主审和独立审查分别指定临时目录，重跑受影响验证。
+同组失败还发现启动健康检查调用了不存在的配置加载函数，已改用既有Config解析器，
+相关组合回归通过。独立审查还复现了Kiosk旧失败响应清除新会话、
+网络恢复提示不清除及畸形有效期JWT异常，均加入回归后修复。
+短视频自然EOF曾被严格解码错误检查误判，已加入真实短MP4与较长WAV的回归，
+保留原先各媒体分别结束的行为。前端构建曾因Windows HTML换行混合导致
+`git diff --check`报错，现将Kiosk HTML明确为LF并重新构建。
+
+实际浏览器在本机mock Host上验证错误配对提示、正确配对后节目列表加载、
+受保护静音操作及页面重载后重新配对。该验证服务只监听127.0.0.1，验证后已停止。
+上述证据不包含真实设备、固件烧录、真实OTA或目标系统部署。**NOT HARDWARE VERIFIED**。
+
+### 10.4 软件修复批次集中验证与剩余工作
+
+以下为WS票据传输修正前的软件修复批次证据。后续收尾结果见第11节。
+三个测试集合存在包含关系，数量不相加。
+
+| 命令 | 返回码 | 实际结果 |
+| --- | --- | --- |
+| `.\.python\Scripts\python.exe -m pytest -q --suite fast --basetemp=tmp/pytest-final-fast --inventory-json=tmp/backup-1104/fast-after.json` | 0 | 381 passed，5.96秒 |
+| `.\.python\Scripts\python.exe -m pytest -q --basetemp=tmp/pytest-final-production --inventory-json=tmp/backup-1104/production-after.json` | 0 | 1301 passed、1 skipped、1 warning，56.16秒 |
+| `.\.python\Scripts\python.exe -m pytest -q --suite full --basetemp=tmp/pytest-final-full --inventory-json=tmp/backup-1104/full-after.json` | 0 | 1630 passed、1 skipped、1 warning，552.89秒 |
+| `npm.cmd --prefix kiosk test` | 0 | 10 passed，0.439秒 |
+| `npm.cmd --prefix kiosk run build` | 0 | Vite构建成功，1.42秒 |
+| `npm.cmd --prefix kiosk audit --json` | 1 | 6项依赖漏洞，5 high、1 moderate，结果保留于本地npm-audit.json |
+
+skip为现有目录symlink环境限制，warning为Starlette TestClient弃用提示。
+full包含history和maintenance。源码、依赖、配置或环境后续发生相关变化时，
+需重新执行受影响验证。最终集中验证之前的一次production运行因复审继续修复而主动中止，
+未计入通过证据。
+
+独立审查覆盖鉴权、Kiosk令牌竞态、OTA生产者/消费者、真实视频EOF、
+Host启动/停止/seek和关闭故障分支。已修正旧媒体清理遗漏、resume错误归类、
+关闭一个进程失败后跳过另一个进程，以及把新建空闲mpv误当作原会话恢复的问题。
+最终复核没有未解决的确定性阻塞发现。
+
+剩余工作包括D01交付入口、D02分析扩展、D03内容与灯光-only模式、
+D04实际同步上限、D05历史恢复语义、D06音频质量指标、D07手机音源、
+D08厂商协议，以及目标设备上的T16～T19联调。T10a当前证据覆盖受控软件响应，
+标注鼓点与真实采集质量仍待补。npm审计所列依赖漏洞继续保留为未解决项。
+
+生产凭据、TLS和维护窗口需在设备部署时配置。首次迁入新的健康合同须安排维护窗口，
+不能由不兼容的旧健康实例直接开始自动升级。`source_clean`只反映启动时Git状态，
+不检查被忽略文件，也不持续监控启动后的磁盘修改。
+
+软件修复按视频分析、Host与鉴权Kiosk、OTA事务及文档边界保存于
+`overall_fix-1104`。修复前备份分支保留原提交，代码保存范围覆盖第10.5节所列文件。
+
+### 10.5 修改文件
+
+以下为相对修复前备份的软件修改范围，包含源码、回归、部署合同及重建发布包。
+
+```text
+.gitattributes
+docs/current/host-service-deployment.md
+docs/reference/host-api-v1.md
+docs/reference/host-api-v1.openapi.yaml
+feature_gap_08-54.md
+host_services/auth_manager.py
+host_services/config.py
+host_services/deps.py
+host_services/engine_adapter.py
+host_services/main.py
+host_services/real_engine_adapter.py
+host_services/routers/auth.py
+host_services/routers/playback.py
+host_services/routers/scenes.py
+host_services/routers/status.py
+host_services/runtime_health.py
+host_services/ws.py
+kiosk/package.json
+kiosk/index.html
+kiosk/src/App.vue
+kiosk/src/api.js
+kiosk/src/composables/usePlayback.js
+kiosk/src/composables/useVolume.js
+kiosk/test/auth.test.js
+kiosk/dist/index.html
+kiosk/dist/assets/index-Bi5t1qjS.css
+kiosk/dist/assets/index-Ddfqr2w_.js
+light_engine/analysis/video.py
+light_engine/cli/__init__.py
+light_engine/engine/__init__.py
+scripts/maintenance/update.sh
+systemd/light-belt-host.service
+tests/test_analysis.py
+tests/test_cli.py
+tests/test_host_auth_contracts.py
+tests/test_host_playback_contracts.py
+tests/test_host_real_engine_adapter.py
+tests/test_host_service_api.py
+tests/test_host_update_health.py
+tests/test_host_video_input.py
+tests/test_host_ws_runtime.py
+tests/test_update_transaction.py
+```
+
+Kiosk构建替换了旧哈希产物 `index-CNuPkrwr.css` 和 `index-Cn3SIYE8.js`。
+
+## 11. 2026-11-04 代码保存与收尾审查
+
+逐项核对34个Git差异项、9个新增文件及HTML换行状态，共44个候选路径。
+其中43个路径存在Git内容变更，`kiosk/index.html`经LF规范化后与既有Git内容一致。
+审查范围覆盖源码、回归、API与部署说明、报告和Host提供的Kiosk发布包。
+敏感模式扫描及人工核对未发现真实密钥、凭据或未知来源文件。
+开发默认值和测试令牌为已知示例，真实模式会拒绝开发认证默认值。
+视频、环境、缓存、测试输出和本地恢复归档继续按既有规则排除。
+
+收尾审查修正了两处内容。T05公开状态返回的是音量/静音期望值，
+刷新接口不构成mpv实际属性已应用的独立回读证据，相关表述已收窄。
+HTTPS票据原先固定返回ws地址，与既有WSS接入合同冲突。
+新增HTTP/HTTPS两个用例先复现1 failed、1 passed、6.49秒，再修复地址生成。
+路由依据ASGI请求协议选择WS/WSS，原有HTTP调用保持兼容，
+未直接信任任意客户端提供的转发头。
+
+独立复核覆盖Host生命周期、鉴权、Kiosk、OTA及文档声明。
+视频分析、真实文件输入与正常EOF行为经调用链和既有回归交叉核对。
+前端重建后所有候选文件的字节摘要与重建前一致，发布包可重复生成。
+
+| 收尾验证命令 | 返回码 | 实际结果 |
+| --- | --- | --- |
+| `.\.python\Scripts\python.exe -m pytest -q tests/test_host_auth_contracts.py tests/test_host_service_api.py tests/test_app_host_api_v1_freeze.py --basetemp=tmp/pytest-close-auth --inventory-json=tmp/closeout-1104/auth-after.json` | 0 | 104 passed、1 warning，10.16秒 |
+| `.\.python\Scripts\python.exe -m pytest -q --suite fast --basetemp=tmp/pytest-close-fast --inventory-json=tmp/closeout-1104/fast-final.json` | 0 | 381 passed，11.08秒 |
+| `.\.python\Scripts\python.exe -m pytest -q --basetemp=tmp/pytest-close-production --inventory-json=tmp/closeout-1104/production-final.json` | 0 | 1303 passed、1 skipped、1 warning，87.25秒 |
+| `.\.python\Scripts\python.exe -m pytest -q --suite full --basetemp=tmp/pytest-close-full --inventory-json=tmp/closeout-1104/full-final.json` | 0 | 1632 passed、1 skipped、1 warning，833.03秒 |
+| `npm.cmd --prefix kiosk test` | 0 | 10 passed，0.409秒 |
+| `npm.cmd --prefix kiosk run build` | 0 | Vite构建成功，1.43秒，产物摘要一致 |
+
+skip仍为目录symlink环境限制，warning为TestClient弃用提示。
+已有依赖审计中的6项漏洞继续保留。默认TLS关闭与API的HTTPS目标合同分开记录，
+真实设备接入前需配置TLS或可信加密通道。此处验证不构成设备部署验收。
+**NOT HARDWARE VERIFIED**。
+
+保存采用四个功能边界，分别为视频分析与Engine/CLI输入、Host与鉴权Kiosk、
+OTA事务健康合同，以及部署说明和本报告。Host鉴权与Kiosk令牌流程在同一提交中保存。
+暂存路径来自逐文件审查清单，检查每组暂存集合与预期blob一致。
+修复前分支 `pre-overall_fix-1104` 保留
+`af7aa9d9fde4df672da6ba51817c239787330969`。
