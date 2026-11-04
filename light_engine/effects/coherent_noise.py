@@ -20,10 +20,11 @@ def derive_coherent_seed(base_seed: int, namespace: str) -> int:
 def _lattice_value(x_lattice: int, t_lattice: int, seed: int) -> float:
     """Return one deterministic pseudo-random lattice value in ``[0, 1]``."""
 
-    # This local integer avalanche mix is deliberately an implementation
-    # detail, designed here for this bounded native field.  It shares neither
-    # a visual algorithm nor numeric compatibility constants with WLED or
-    # FastLED, and avoids the per-pixel cryptographic-hash cost.
+    # The final avalanche below is the SplitMix64 finalizer, published in
+    # 2015 by Sebastiano Vigna with a public-domain dedication:
+    # https://prng.di.unimi.it/splitmix64.c
+    # The surrounding seed/lattice combination is local to this field.
+    # See docs/compliance/WLED_PROVENANCE.md for the source comparison.
     mask = (1 << 64) - 1
     state = (seed & mask) ^ ((x_lattice & mask) * 0xD6E8FEB86659FD93 & mask)
     state ^= ((t_lattice & mask) * 0xA5A3564E27F6C5A9) & mask

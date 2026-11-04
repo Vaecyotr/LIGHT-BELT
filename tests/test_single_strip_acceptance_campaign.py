@@ -13,7 +13,7 @@ from light_engine.config import Config
 from light_engine.effects import list_effect_registrations
 from light_engine.mapping import Layout
 from light_engine.show import TargetCatalog, load_show
-from scripts.generate_single_strip_acceptance_campaign import (
+from scripts.acceptance.generate_single_strip_acceptance_campaign import (
     ALLOWED_COVERAGE,
     BASELINE_DIR,
     EFFECT_DESIGN,

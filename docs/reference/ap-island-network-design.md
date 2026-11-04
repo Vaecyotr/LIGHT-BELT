@@ -2,8 +2,10 @@
 
 > 版本：v0.2（Phase 41A 同步版）
 > 日期：2026-08-25
-> 状态：架构与部署语义已同步；RK3568 现场门禁尚未执行，见 §10。
+> 状态：AP 相关实现已存在于当前源码；RK3568 现场门禁尚未执行，见 §10。硬件门禁为 **NOT RUN**。
 > 本文档不声称硬件通过。所有未实测项均标记为 **NOT HARDWARE VERIFIED / NOT RUN**。
+
+> 治理记录：当前权威 `docs/IMPLEMENTATION_PLAN.md` 没有可核对的 Phase 41A 批准记录，但现有源码和本设计文档包含该工作。本文仅记录批准时间线缺口，不构成追认、授权或回退指令；不得据本文宣称 Phase 41A 获批或硬件验收完成。
 
 ---
 
@@ -126,7 +128,7 @@
 
 ## 9. 部署配置与持久 AP 语义
 
-`scripts/setup_service.py` 支持且只支持两种网络模式：`site_client` 与 `portable_ap`。部署通过环境变量提供参数，不在 Python 中按 RK3568/NanoPC-T6 分支：
+`scripts/runtime/provisioning/setup_service.py` 支持且只支持两种网络模式：`site_client` 与 `portable_ap`。部署通过环境变量提供参数，不在 Python 中按 RK3568/NanoPC-T6 分支：
 
 ```text
 LIGHT_BELT_NETWORK_MODE=site_client|portable_ap
@@ -204,7 +206,7 @@ curl --fail --connect-timeout 3 http://wled-strip-11.local/json/info
 在不编辑 tracked topology 的前提下生成运行时 profile，并确认只启用已解析节点：
 
 ```sh
-./.python/bin/python scripts/resolve_nodes.py \
+./.python/bin/python scripts/runtime/resolve_nodes.py \
   --template config/profiles/rk3588-host-service.yaml \
   --out config/runtime/wled-ddp-mdns.yaml
 grep -n -A4 -B2 'strip_11\|wled-strip-11' config/runtime/wled-ddp-mdns.yaml
@@ -217,7 +219,7 @@ grep -n -A4 -B2 'strip_11\|wled-strip-11' config/runtime/wled-ddp-mdns.yaml
 用实际 Host/Show 产生静态色和 chase 等移动效果，观察 WS2811 像素更新、颜色基本正确且移动到达真实灯带；可用现有 DDP smoke 工具辅助验证当前解析目标（像素数按现场 WLED 配置替换）：
 
 ```sh
-./.python/bin/python scripts/wled_ddp_smoke_test.py \
+./.python/bin/python scripts/hardware/wled_ddp_smoke_test.py \
   --host wled-strip-11.local --port 4048 --pixels <led-count> \
   --pattern chase --seconds 10
 ```

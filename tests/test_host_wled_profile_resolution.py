@@ -29,7 +29,7 @@ def test_real_mode_resolves_only_the_default_wled_runtime_profile(monkeypatch) -
 
     assert len(calls) == 1
     assert calls[0][1:] == [
-        str(Path("scripts/resolve_nodes.py").resolve()),
+        str(Path("scripts/runtime/resolve_nodes.py").resolve()),
         "--template", str(host_config.WLED_TEMPLATE_PROFILE),
         "--out", str(host_config.WLED_RUNTIME_PROFILE),
     ]

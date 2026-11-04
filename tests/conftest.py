@@ -8,7 +8,7 @@ import pytest
 
 @pytest.fixture(scope="session")
 def single_strip_regeneration(tmp_path_factory):
-    from scripts.generate_single_strip_acceptance_campaign import generate
+    from scripts.acceptance.generate_single_strip_acceptance_campaign import generate
 
     root = tmp_path_factory.mktemp("single-strip-evidence")
     output, baseline = root / "show", root / "baseline"

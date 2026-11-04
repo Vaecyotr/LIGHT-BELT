@@ -25,6 +25,7 @@ output/
 logs/
 *.log
 artifacts/runs/
+/artifacts/local-archives/
 data/
 /config/profiles/site-profile.yaml
 /config/runtime/
@@ -74,6 +75,9 @@ LIGHT-BELT-codex-one-esp-per-strip/
 
 # Kiosk frontend build outputs
 kiosk/node_modules/
+# The Host serves this committed delivery bundle; keep new hashed assets and notices visible.
+!/kiosk/dist/
+!/kiosk/dist/**
 
 # Large local media fixtures: ignore by extension so YAML/README under assets/ stay tracked
 *.mp4

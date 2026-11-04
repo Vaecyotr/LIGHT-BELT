@@ -21,6 +21,9 @@ For other development phases, software acceptance may instead rely on focused te
 
 ## Governance & Interpretation Rules
 
+本次工作区清理与结构治理的实际结果见
+[2026-11-02 治理记录](workspace-governance-20261102.md)。
+
 1. **Declared Scope Only**: Each acceptance report proves only the specific software features, contract boundaries, and assertions explicitly documented in its text.
 2. **No Retroactive Topology Authority**: An older phase acceptance report (such as Phase 29 or Phase 31 reports) reflects the system state at that phase's completion; it does not override subsequent production profiles or the canonical authority defined in [CLAUDE.md](../../CLAUDE.md) and [config/profiles/rk3588-host-service.yaml](../../config/profiles/rk3588-host-service.yaml).
 3. **Software Acceptance ≠ Hardware Verification**: Software acceptance demonstrates code correctness, protocol serialization, and offline engine performance under simulated environments. All physical installation, Wi-Fi networking, and electrical timing claims remain **`NOT HARDWARE VERIFIED`** unless supported by real physical measurements and completed checklists.

@@ -1,7 +1,7 @@
 # WS2811 Show-Stability Freeze Record
 
-This directory is the publish-safe record for the 2026-07-17 two-node asset
-freeze. The corresponding local snapshot preserves the exact field binaries,
+This directory preserves the historical 2026-07-17 two-node asset freeze
+record. The corresponding local snapshot preserves the exact field binaries,
 Host sources, firmware sources, profiles, Shows, tests, and investigation
 documents.
 
@@ -33,7 +33,8 @@ field identities.
 
 The live evidence ledger remains
 `docs/current/ws2811-show-stability-investigation.md`; the concise operational
-handoff remains `docs/current/ws2811-emergency-handoff.md`.
+handoff is preserved alongside this campaign at
+`docs/history/campaigns/ws2811-show-stability-20260717/ws2811-emergency-handoff.md`.
 
 ## Frozen conclusion
 

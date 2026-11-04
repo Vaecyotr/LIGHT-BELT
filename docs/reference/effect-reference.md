@@ -45,7 +45,7 @@ source。尤其 dominant frequency 没有全局颜色含义。
 Registry 是效果 ID、renderer、不可变 `ParameterSpec`、参数校验和 common capability 的唯一运行时权威。
 `parameter_keys` 是从 `ParameterSpec` 派生的兼容视图，不能另行维护。内部类型、边界、枚举、
 运行时可变性与可调制性可通过
-`./.python/Scripts/python.exe scripts/export_authoring_contract.py` 导出为 JSON；该导出不是 Host API，
+`./.python/Scripts/python.exe scripts/dev/export_authoring_contract.py` 导出为 JSON；该导出不是 Host API，
 也不会改变 APP V1 公开能力表。完整内部约定见
 `docs/reference/effect-parameter-metadata.md`。
 

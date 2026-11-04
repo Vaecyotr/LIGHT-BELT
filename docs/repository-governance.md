@@ -9,7 +9,7 @@
 | Reference | `docs/reference/` | Stable user-facing API or feature reference |
 | Acceptance | `docs/acceptance/`, `artifacts/baselines/` | Accepted evidence; normal tests do not rewrite it |
 | History | `docs/history/`, `.agent/archive/`, `.claude/archive/` | Preserved provenance; never used as current instruction |
-| Runtime output | `artifacts/runs/`, `output/`, build caches | Disposable and ignored by Git |
+| Runtime output | `artifacts/runs/`, `output/`, build caches | Ignored by Git; inspect provenance and rescue unique evidence or inputs before cleanup |
 
 ## Lifecycle rules
 
@@ -20,7 +20,11 @@
 3. Put acceptance inputs under `config/acceptance` and accepted outputs under
    `artifacts/baselines`.
 4. Tests and ordinary scripts write only to pytest temporary directories or
-   `artifacts/runs`.
+   `artifacts/runs/`; maintained source belongs in its source/tool directory.
+   Before cleaning ignored `artifacts/runs/` output, identify and preserve any
+   unique evidence, source, or media in the local archive. Remove only output
+   confirmed to be disposable; this is a cleanup precondition, not a script
+   write-time check.
 5. Keep generated protocol headers only when firmware builds consume them;
    their JSON golden vector remains the single source of truth.
 6. Delete a file only after confirming it is generated, accidental, or both

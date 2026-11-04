@@ -4,4 +4,4 @@ Description=LIGHT-BELT data backup
 [Service]
 Type=oneshot
 User=pi
-ExecStart=/home/pi/LIGHT-BELT/scripts/backup-data.sh
+ExecStart=/bin/bash /home/pi/LIGHT-BELT/scripts/maintenance/backup-data.sh

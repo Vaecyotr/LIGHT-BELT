@@ -307,16 +307,6 @@ host = [
     { name = "websockets" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "pyjwt" },
-    { name = "pytest" },
-    { name = "uvicorn" },
-    { name = "websockets" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "fastapi", marker = "extra == 'host'", specifier = ">=0.115" },
@@ -334,16 +324,6 @@ requires-dist = [
     { name = "websockets", marker = "extra == 'host'", specifier = ">=12" },
 ]
 provides-extras = ["dev", "host"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "fastapi", specifier = ">=0.139.2" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pyjwt", specifier = ">=2.13.0" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "uvicorn", specifier = ">=0.51.0" },
-    { name = "websockets", specifier = ">=16.1.1" },
-]
 
 [[package]]
 name = "numpy"

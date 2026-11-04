@@ -4,3 +4,6 @@
 /firmware/shared/udp_v3_golden.json text eol=lf
 /firmware/stm32_rgbcct_node/test/golden_vectors.h text eol=lf
 /firmware/esp32_ws2811_node/test/golden_vectors.h text eol=lf
+/scripts/*.sh text eol=lf
+/scripts/deploy/**/*.sh text eol=lf
+/scripts/maintenance/*.sh text eol=lf

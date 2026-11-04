@@ -34,9 +34,13 @@ When documents or code disagree, resolve conflicts in this exact order:
   - *Acceptance Evidence Chain*: [docs/acceptance/README.md](acceptance/README.md)
   - *Machine-Readable Counterparts*: [artifacts/README.md](../artifacts/README.md)
   - *Test Fixtures*: [config/acceptance/README.md](../config/acceptance/README.md)
+  - *Test governance audit*: [testing-audit.md](acceptance/testing-audit.md)
 
 - **[Historical Archives (`docs/history/`)](history/README.md)**:
   Preserved historical plans, early prototype notes, and completed campaign artifacts retained strictly for provenance.
+  - *WS2811 stability campaign*: [Emergency handoff](history/campaigns/ws2811-show-stability-20260717/ws2811-emergency-handoff.md)
+  - *WLED Phase 32 research*: [Primitive gap analysis](history/campaigns/wled-portability-phase32/wled-1d-primitive-gap-analysis.md), [effect portability study](history/campaigns/wled-portability-phase32/wled-effect-portability-study.md)
+  - *Cabin lighting archive*: [Early connection record](history/campaigns/cabin-lighting-v3/硬件连接数据留档.txt) (date unconfirmed)
 
 ## Governance & Verification Boundaries
 

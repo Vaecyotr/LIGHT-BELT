@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.branch_lifecycle_benchmark import (
+from scripts.benchmarks.branch_lifecycle_benchmark import (
     STRIP_COUNT,
     STRIP_PIXEL_COUNTS,
     TOTAL_PIXELS,

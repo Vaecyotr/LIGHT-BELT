@@ -51,7 +51,7 @@ Phase 38 的 `parameter_modulation` 只消费上述 live 元数据；完整语�
 在仓库根目录执行：
 
 ```powershell
-.\.python\Scripts\python.exe scripts\export_authoring_contract.py > authoring-contract.json
+.\.python\Scripts\python.exe scripts\dev\export_authoring_contract.py > authoring-contract.json
 ```
 
 输出是由 live registry 直接导出的 JSON，带稳定的 registration 顺序；它适合开发者、Show 作者和

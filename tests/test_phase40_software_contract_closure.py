@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.export_authoring_contract import authoring_contract
+from scripts.dev.export_authoring_contract import authoring_contract
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -126,7 +126,7 @@ def test_guide_discovery_reaches_the_frozen_live_inventory() -> None:
             encoding="utf-8"
         )
     for discovery_source in (
-        "scripts\\export_authoring_contract.py",
+        "scripts\\dev\\export_authoring_contract.py",
         "light_engine\\effects\\scalar_source.py",
         "docs\\reference\\parameter-modulation.md",
         "docs\\reference\\color-source.md",

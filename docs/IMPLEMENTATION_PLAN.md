@@ -13,6 +13,17 @@ primitive/effect migration and casual Show-contract redesign do not. This is a
 software authoring-contract boundary, not hardware or product-release
 acceptance. Do not begin or prepare Phase 41 without new user approval.
 
+## Approved workspace maintenance — 2026-11-02
+
+The user-approved WT04 cleanup and structure-governance work preserves product
+behavior and is separate from new product Phases. It covers verified duplicate
+and cache removal, evidence preservation, documentation placement and current
+declarations, plus locked installation/update consistency. Shared live Python
+environments and hardware deployments are excluded from mutation. Its actual
+results and remaining verification are recorded in
+[the maintenance record](acceptance/workspace-governance-20261102.md).
+This maintenance approval does not authorize Phase 41 product work.
+
 ## Current Phase 40 closeout: Lighting Language Pro-Max
 
 The Phase 35-40 campaign completed the approved strict-superset contract while
@@ -44,7 +55,7 @@ Completed closeout scope:
 Current authoring sources are indexed by
 `docs/current/show-authoring-source-index.md`. The canonical Show overview is
 `docs/current/show-v2-authoring.md`; the live effect contract is exported with
-`scripts/export_authoring_contract.py`; effect details, parameter modulation,
+`scripts/dev/export_authoring_contract.py`; effect details, parameter modulation,
 and ColorSource are documented under `docs/reference/`.
 
 Closeout boundaries:

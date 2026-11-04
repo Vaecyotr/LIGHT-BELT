@@ -151,7 +151,7 @@ ColorSource 主要替换颜色采样策略（RGB 色彩生成），但底层 eff
 ## Live effect-support audit
 
 The audit is stored on each live internal `EffectRegistration` and exported by
-`scripts/export_authoring_contract.py`; APP V1 does not project it.
+`scripts/dev/export_authoring_contract.py`; APP V1 does not project it.
 
 | Support | Effects |
 |---|---|

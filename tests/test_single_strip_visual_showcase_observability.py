@@ -30,7 +30,7 @@ from light_engine.effects import create_effect
 
 REPO = Path(__file__).resolve().parents[1]
 SHOW = REPO / "config" / "acceptance" / "single-strip-visual-showcase-v2" / "show.yaml"
-PROFILE = REPO / "config" / "profiles" / "rk3588-host-service.yaml"
+REPLAY_PROFILE = REPO / "config" / "profile-archive" / "rk3588-wled-200-groups-before-20260917.yaml"
 TARGET, FPS, SEED = "strip_43", 30, 74043
 
 @dataclass
@@ -44,7 +44,7 @@ def _fail(cue, t, group, actual, expected):
     return f"{cue} at {t:.3f}s group {group}: actual uint8={actual}; expected {expected}"
 
 def _load():
-    Config.reset(); config=Config.get_instance(PROFILE); layout=Layout.from_config(config)
+    Config.reset(); config=Config.get_instance(REPLAY_PROFILE); layout=Layout.from_config(config)
     return config, layout, load_show(SHOW, TargetCatalog.from_layout(layout))
 
 def _transform(config):

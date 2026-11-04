@@ -1,0 +1,13 @@
+[Unit]
+Description=Keep Bluetooth Discoverable and Pairable
+Requires=bluetooth.service
+After=bluetooth.service bluetooth-auto-agent.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /home/pi/LIGHT-BELT/scripts/deploy/rk3588/bluetooth-public-mode.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 
-from scripts.show_acceptance import run_acceptance
+from scripts.acceptance.show_acceptance import run_acceptance
 
 
 SHOW = Path("config/acceptance/show-orchestration-v1/show.yaml")

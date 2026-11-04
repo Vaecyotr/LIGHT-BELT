@@ -15,7 +15,7 @@ Machine coverage is in `coverage-plan.json`; deterministic render evidence is in
 ## Generate and validate
 
 ```powershell
-.\.python\Scripts\python.exe scripts\generate_single_strip_acceptance_campaign.py
+.\.python\Scripts\python.exe scripts\acceptance\generate_single_strip_acceptance_campaign.py
 .\.python\Scripts\python.exe -m light_engine --config config/profiles/rk3588-host-service.yaml validate-show --show config/acceptance/single-strip-visual-v1/baseline-show.yaml
 .\.python\Scripts\python.exe -m light_engine --config config/profiles/rk3588-host-service.yaml validate-show --show config/acceptance/single-strip-visual-v1/live-audio-show.yaml
 .\.python\Scripts\python.exe -m light_engine --config config/profiles/rk3588-host-service.yaml validate-show --show config/acceptance/single-strip-visual-v1/video-fusion-show.yaml
@@ -24,7 +24,7 @@ Machine coverage is in `coverage-plan.json`; deterministic render evidence is in
 Optional stimuli go under `artifacts/runs`, never this fixture directory:
 
 ```powershell
-.\.python\Scripts\python.exe scripts\generate_single_strip_acceptance_campaign.py --stimulus-dir artifacts/runs/single-strip-visual-v1/stimuli
+.\.python\Scripts\python.exe scripts\acceptance\generate_single_strip_acceptance_campaign.py --stimulus-dir artifacts/runs/single-strip-visual-v1/stimuli
 ```
 
 ## H0–H7 RK3568 physical runbook

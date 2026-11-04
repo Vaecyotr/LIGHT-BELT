@@ -36,7 +36,7 @@ does not replace that entry or require semantic equality with the original.
   — immutable `ParameterSpec` rules and the command that exports the live
   registry as JSON; use this for exact parameter names, kinds, bounds, choices,
   runtime mutability, and modulatable flags.
-- [`scripts/export_authoring_contract.py`](../../scripts/export_authoring_contract.py)
+- [`scripts/dev/export_authoring_contract.py`](../../scripts/dev/export_authoring_contract.py)
   — the live, machine-readable registry exporter; it is internal and not a
   Host API surface.
 - [Parameter modulation](../reference/parameter-modulation.md) — opt-in

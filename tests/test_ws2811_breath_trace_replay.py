@@ -1,6 +1,6 @@
 """Frozen breath trace preparation and replay-file contracts."""
 
-from scripts.replay_ws2811_breath_trace import (
+from scripts.hardware.replay_ws2811_breath_trace import (
     DEFAULT_PROFILE,
     DEFAULT_SHOW,
     build_trace,

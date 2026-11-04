@@ -28,13 +28,13 @@
 
 ## 一页速查 Cheat Sheet
 
-### 1. 当前 production software profile 的 Target（共 9 条数字灯带 / 200 组像素）
+### 1. 当前 production software profile 的 Target（共 9 条数字灯带 / 107 组像素）
 这里按当前 profile 的 **`video_zone` 软件分区**列出；`video_zone` 用于视频取色，不等同于对现场物理位置的重新命名。
 
-- **`video_zone: top`**: `strip_11` (10 组), `strip_12` (40 组)
-- **`video_zone: bottom`**: `strip_21` (10 组), `strip_22` (40 组)
-- **`video_zone: left`**: `strip_31` (10 组), `strip_32` (40 组)
-- **`video_zone: right`**: `strip_41` (10 组), `strip_43` (20 组), `strip_44` (20 组)
+- **`video_zone: top`**: `strip_11` (10 组), `strip_12` (17 组)
+- **`video_zone: bottom`**: `strip_21` (10 组), `strip_22` (20 组)
+- **`video_zone: left`**: `strip_31` (10 组), `strip_32` (10 组)
+- **`video_zone: right`**: `strip_41` (10 组), `strip_43` (10 组), `strip_44` (10 组)
 
 ### 2. 空间坐标原点 (4 种 Origins)
 `origin` 改变的是 **Show 的逻辑坐标映射**，不是 profile 中物理布线的 `direction`：
@@ -201,26 +201,26 @@ show:
 
 # 第 2 章：当前舱体可用 Target 速查表
 
-当前 production software profile（`config/profiles/rk3588-host-service.yaml`）声明 **9 个独立 ESP32/DDP 数字输出目标**，对应 **9 条数字灯带（总计 200 组 WS2811 controllable groups）**。这是软件部署快照；本文不据此宣称九节点实物链路已经完成硬件验收。
+当前 production software profile（`config/profiles/rk3588-host-service.yaml`）声明 **9 个独立 ESP32/DDP 数字输出目标**，对应 **9 条数字灯带（总计 107 组 WS2811 controllable groups）**。这是软件部署快照；本文不据此宣称九节点实物链路已经完成硬件验收。
 
 ### 2.1 当前可用数字灯带速查表
 
 | Target ID | 像素组数 (Groups) | 视频采样区 (Video Zone) | 方向 (Direction) | 物理安装位置说明（保守声明） |
 |---|:---:|:---:|:---:|---|
 | `strip_11` | 10 | `top` | `forward` | 软件目标：`strip_11`；安装位置以现场实际布局图纸为准 |
-| `strip_12` | 40 | `top` | `forward` | 软件目标：`strip_12`；安装位置以现场实际布局图纸为准 |
+| `strip_12` | 17 | `top` | `forward` | 软件目标：`strip_12`；安装位置以现场实际布局图纸为准 |
 | `strip_21` | 10 | `bottom` | `forward` | 软件目标：`strip_21`；安装位置以现场实际布局图纸为准 |
-| `strip_22` | 40 | `bottom` | `forward` | 软件目标：`strip_22`；安装位置以现场实际布局图纸为准 |
+| `strip_22` | 20 | `bottom` | `forward` | 软件目标：`strip_22`；安装位置以现场实际布局图纸为准 |
 | `strip_31` | 10 | `left` | `forward` | 软件目标：`strip_31`；安装位置以现场实际布局图纸为准 |
-| `strip_32` | 40 | `left` | `forward` | 软件目标：`strip_32`；安装位置以现场实际布局图纸为准 |
+| `strip_32` | 10 | `left` | `forward` | 软件目标：`strip_32`；安装位置以现场实际布局图纸为准 |
 | `strip_41` | 10 | `right` | `forward` | 软件目标：`strip_41`；安装位置以现场实际布局图纸为准 |
-| `strip_43` | 20 | `right` | `forward` | 软件目标：`strip_43`；安装位置以现场实际布局图纸为准 |
-| `strip_44` | 20 | `right` | `forward` | 软件目标：`strip_44`；安装位置以现场实际布局图纸为准 |
+| `strip_43` | 10 | `right` | `forward` | 软件目标：`strip_43`；安装位置以现场实际布局图纸为准 |
+| `strip_44` | 10 | `right` | `forward` | 软件目标：`strip_44`；安装位置以现场实际布局图纸为准 |
 
 > [!NOTE]
-> - **拓扑快照性质**：上述 9 节点 / 200 组是当前环境的运行快照，并非引擎容量上限。
+> - **拓扑快照性质**：上述 9 节点 / 107 组是当前环境的运行快照，并非引擎容量上限。
 > - **纯数字 DDP 传输**：当前 production profile 中**没有**激活模拟 RGB+CCT 灯带（`analog_zone`）、STM32 或 RS-485 路径。
-> - **`strip_32` 说明**：当前拓扑中 `strip_32` 是一条 40 组像素的**数字灯带**，切勿与历史文档中的模拟 COB `zone_32` 混淆。
+> - **`strip_32` 说明**：当前拓扑中 `strip_32` 是一条 10 组像素的**数字灯带**，切勿与历史文档中的模拟 COB `zone_32` 混淆。
 
 ### 2.2 舱体编号布局的物理位置参考（辅助信息）
 
@@ -498,7 +498,7 @@ virtual_paths:
     origin: start
     targets:
       - { type: digital_strip, id: strip_11 }  # 10 组
-      - { type: digital_strip, id: strip_12 }  # 40 组 (整条虚拟路径共 50 组)
+      - { type: digital_strip, id: strip_12 }  # 17 组 (整条虚拟路径共 27 组)
 ```
 
 ---
@@ -528,7 +528,7 @@ branches:
     lifecycle: pre_roll
 ```
 
-例如 `top_ceiling_run = strip_11(10) + strip_12(40)` 且 `origin: start` 时，`after: strip_11` 的 release progress 是 `10/50 = 0.2`。30 秒 Cue 会约在 Cue 局部时间 6 秒释放；这与父 effect 的可见光头实际是否在该位置无关。
+例如 `top_ceiling_run = strip_11(10) + strip_12(17)` 且 `origin: start` 时，`after: strip_11` 的 release progress 是 `10/27 ≈ 0.3704`。30 秒 Cue 会约在 Cue 局部时间 11.11 秒释放；这与父 effect 的可见光头实际是否在该位置无关。
 
 ---
 
@@ -1564,7 +1564,7 @@ ScalarSource 只接受**自然归一化**输入，不接受 raw-domain 三项。
 ---
 
 ### 配方 B：一条光束跨多条物理灯带连续奔跑
-利用 `virtual_path` 将 4 条灯带串联成 90 组像素的长跑道：
+利用 `virtual_path` 将 4 条当前 production profile 灯带串联成 47 组像素的长跑道：
 ```yaml
 # [YAML FRAGMENT]
 virtual_paths:
@@ -1572,9 +1572,9 @@ virtual_paths:
     origin: start
     targets:
       - { type: digital_strip, id: strip_11 }  # 10 组
-      - { type: digital_strip, id: strip_12 }  # 40 组
-      - { type: digital_strip, id: strip_43 }  # 20 组
-      - { type: digital_strip, id: strip_44 }  # 20 组
+      - { type: digital_strip, id: strip_12 }  # 17 组
+      - { type: digital_strip, id: strip_43 }  # 10 组
+      - { type: digital_strip, id: strip_44 }  # 10 组
 cues:
   - id: recipe_b_continuous_chase
     start: 0.0
@@ -1777,7 +1777,7 @@ virtual_paths:
     origin: start
     targets:
       - { type: digital_strip, id: strip_11 }  # 10 / 50
-      - { type: digital_strip, id: strip_12 }  # 40 / 50
+      - { type: digital_strip, id: strip_12 }  # 17 / 27
 cues:
   - id: recipe_i_fire_reveal
     start: 0.0
@@ -1798,7 +1798,7 @@ cues:
     branches:
       - after:
           virtual_path: corridor_run
-          target: strip_11          # release progress = 10/50 = 0.2
+          target: strip_11          # release progress = 10/27 ≈ 0.3704
         target:
           type: digital_set
           ids: [strip_43, strip_44]
@@ -1806,7 +1806,7 @@ cues:
         lifecycle: pre_roll
 ```
 
-在这个 30 秒 Cue 中，`origin: start` 下约在 Cue 局部时间 6 秒释放。**这不表示 heat/fire 或任何可见波前“刚好走完 strip_11”**；release 只由 Cue 归一化时间进度和 path member 长度决定。
+在这个 30 秒 Cue 中，`origin: start` 下约在 Cue 局部时间 11.11 秒释放。**这不表示 heat/fire 或任何可见波前“刚好走完 strip_11”**；release 只由 Cue 归一化时间进度和 path member 长度决定。
 
 ---
 
@@ -1889,7 +1889,7 @@ show:
 ---
 
 ### Example 2：45 秒跨灯带连续空间 Show (虚拟路径流动与明暗轨迹)
-通过 `virtual_path` 串联 `video_zone=top` 与 `video_zone=right` 中的 4 条 strip，共 90 组像素，并叠加明暗轨迹衰减：
+通过 `virtual_path` 串联 `video_zone=top` 与 `video_zone=right` 中的 4 条当前 profile strip，共 47 组像素，并叠加明暗轨迹衰减：
 
 ```yaml
 # [COMPLETE RUNNABLE SHOW]
@@ -1912,9 +1912,9 @@ show:
       origin: start
       targets:
         - { type: digital_strip, id: strip_11 }  # 10 组
-        - { type: digital_strip, id: strip_12 }  # 40 组
-        - { type: digital_strip, id: strip_43 }  # 20 组
-        - { type: digital_strip, id: strip_44 }  # 20 组
+        - { type: digital_strip, id: strip_12 }  # 17 组
+        - { type: digital_strip, id: strip_43 }  # 10 组
+        - { type: digital_strip, id: strip_44 }  # 10 组
   brightness_tracks:
     - id: right_wall_accent_dimmer
       target:
@@ -1974,9 +1974,9 @@ show:
       origin: start
       targets:
         - { type: digital_strip, id: strip_21 }  # 10 组
-        - { type: digital_strip, id: strip_22 }  # 40 组
+        - { type: digital_strip, id: strip_22 }  # 20 组
         - { type: digital_strip, id: strip_31 }  # 10 组
-        - { type: digital_strip, id: strip_32 }  # 40 组
+        - { type: digital_strip, id: strip_32 }  # 10 组
   cues:
     - id: cue_aurora_audio_reactive
       start: 0.0

@@ -26,7 +26,7 @@ _NETWORK_ENV = (
     "LIGHT_BELT_CABIN_AP_IPV4_CIDR",
     "LIGHT_BELT_CABIN_AP_CONNECTION",
 )
-_SERVICE_PATH = Path("scripts/setup_service.py").resolve()
+_SERVICE_PATH = Path("scripts/runtime/provisioning/setup_service.py").resolve()
 
 
 class _FlaskStub:

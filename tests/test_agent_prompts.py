@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_script(name: str):
-    path = ROOT / "scripts" / f"{name}.py"
+    path = ROOT / "scripts" / "agents" / f"{name}.py"
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
@@ -44,7 +44,7 @@ def make_context(tmp_path: Path):
         phase_id=phase_id,
         task_path=repo_root / task_relative,
         task_relative=task_relative,
-        allowed_patterns=("scripts/agent_pipeline.py",),
+        allowed_patterns=("scripts/agents/agent_pipeline.py",),
         forbidden_patterns=(),
         targeted_commands=(".\\.python\\Scripts\\python.exe -m pytest tests/test_agent_prompts.py -q",),
         full_commands=(".\\.python\\Scripts\\python.exe -m pytest -q",),
@@ -82,7 +82,7 @@ def test_repair_prompt_supplies_quality_path_and_diff_artifact(
         "iteration": 1,
         "passed": False,
         "commands": [{"command": "pytest", "returncode": 1}],
-        "changed_files": ["scripts/agent_pipeline.py"],
+        "changed_files": ["scripts/agents/agent_pipeline.py"],
         "scope_error": "",
         "recorded_at_utc": "2026-07-05T00:00:00+00:00",
     }
@@ -97,7 +97,7 @@ def test_repair_prompt_supplies_quality_path_and_diff_artifact(
     monkeypatch.setattr(
         agent_pipeline,
         "git_diff_text",
-        lambda _ctx: "diff --git a/scripts/agent_pipeline.py b/scripts/agent_pipeline.py\n",
+        lambda _ctx: "diff --git a/scripts/agents/agent_pipeline.py b/scripts/agents/agent_pipeline.py\n",
     )
 
     prompt = agent_pipeline.build_repair_prompt(

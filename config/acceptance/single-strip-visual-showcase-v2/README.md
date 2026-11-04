@@ -1,5 +1,7 @@
 # strip_43 单灯带视觉 Showcase v2
 
+> **2026-11-02 回放范围说明：** 下文保留 2026-08-31 的 20-group 观看编排及当时运行检查。当前生产模板的 `strip_43` 已为 10 groups，总计 107；历史几何验收使用 `config/profile-archive/rk3588-wled-200-groups-before-20260917.yaml` 的独立离线输入。该档案不是生产默认，也不据此修改当前配置或固定摘要。下列历史现场命令不能直接视为当前设备已匹配、已解析或已验收。
+
 **READY FOR HARDWARE VIEWING / NOT HARDWARE VERIFIED**。指定软件门禁已通过；没有真实硬件观看记录，现场观察栏仍须由人填写。此状态不代表下方尚未解析的 runtime 已可直接输出。
 
 这是独立实物观看编排：**356.8 秒、30 FPS、10,704 帧、11 个 family、44 个 Variant、49 个核心 cue、74 个总 cue**。唯一编排来源是本目录 [show.yaml](show.yaml)，只目标 `strip_43` 的 20 个控制 groups。不启动新产品 Phase，不依赖音视频文件、媒体触发、音视频效果、media ColorSource 或 audio modulation。
@@ -12,7 +14,7 @@
 .\.python\Scripts\python.exe -c "import sys, pathlib, light_engine; cwd=pathlib.Path.cwd().resolve(); exe=pathlib.Path(sys.executable).resolve(); pkg=pathlib.Path(light_engine.__file__).resolve(); candidates=[cwd/'.python'/'Scripts'/'python.exe', cwd/'.python'/'python.exe']; existing=[c for c in candidates if c.exists()]; assert existing, 'No bundled Python found'; assert any(c.resolve()==exe for c in existing), 'Executable mismatch'; assert exe.name.lower()=='python.exe'; assert str(pkg).startswith(str(cwd)); print('executable=', exe); print('package=', pkg); print('PROJECT_PYTHON_OK')"
 ```
 
-生产源模板为 `config/profiles/rk3588-host-service.yaml`；它冻结九节点逻辑拓扑与 group 数量。现有解析器 `scripts/resolve_nodes.py` 在目标 Host 通过 Avahi 解析唯一名 `wled-strip-<label>.local`，生成忽略跟踪的 `config/runtime/wled-ddp-mdns.yaml`。源模板不代表现场已解析，不能直接把源模板当作完成现场解析的 runtime 使用。现场按现有部署流程生成 runtime，本任务不修改或自动重新生成它；无解析结果就禁用该节点，不用旧 IP、缓存 IP、HTTP 探测或网段扫描回退。
+生产源模板为 `config/profiles/rk3588-host-service.yaml`；它冻结九节点逻辑拓扑与 group 数量。现有解析器 `scripts/runtime/resolve_nodes.py` 在目标 Host 通过 Avahi 解析唯一名 `wled-strip-<label>.local`，生成忽略跟踪的 `config/runtime/wled-ddp-mdns.yaml`。源模板不代表现场已解析，不能直接把源模板当作完成现场解析的 runtime 使用。现场按现有部署流程生成 runtime，本任务不修改或自动重新生成它；无解析结果就禁用该节点，不用旧 IP、缓存 IP、HTTP 探测或网段扫描回退。
 
 **本次只读快照（2026-08-31）：** 源模板与现有 runtime 均定义 `strip_43 = 20 groups`，对应 node 7 / output 1；现有 runtime 的 node 7 仍为 `enabled: false`、host 为未解析的 mDNS 名（九节点均禁用）。因此当前文件不能直接用于观看：必须在现场完成现有 mDNS 解析流程并通过下述检查。本任务没有连接硬件或宣称解析成功。
 

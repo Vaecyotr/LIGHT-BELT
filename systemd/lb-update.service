@@ -4,4 +4,4 @@ Description=LIGHT-BELT self-update
 [Service]
 Type=oneshot
 User=pi
-ExecStart=/home/pi/LIGHT-BELT/scripts/update.sh
+ExecStart=/bin/bash /home/pi/LIGHT-BELT/scripts/maintenance/update.sh

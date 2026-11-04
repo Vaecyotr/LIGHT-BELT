@@ -10,14 +10,14 @@
 
 This section overrides older topology and production wording elsewhere in this
 file. The sole current/default deployment is DDP to nine independent ESP32
-nodes: node 1 `strip_32` (40), node 2 `strip_41` (10), node 3 `strip_44`
-(20), node 4 `strip_12` (40), node 5 `strip_22` (40), node 6 `strip_31`
-(10), node 7 `strip_43` (20), node 8 `strip_11` (10), and node 9 `strip_21`
+nodes: node 1 `strip_32` (10), node 2 `strip_41` (10), node 3 `strip_44`
+(10), node 4 `strip_12` (17), node 5 `strip_22` (20), node 6 `strip_31`
+(10), node 7 `strip_43` (10), node 8 `strip_11` (10), and node 9 `strip_21`
 (10). Every node has only `output_id: 1`; GPIO16 is topology metadata only.
 There are no analog zones/nodes, STM32 devices, or RS-485 transport in this
 Profile. **NOT HARDWARE VERIFIED.**
 
-The 9 nodes and 200 digital pixels above describe only this Profile snapshot;
+The 9 nodes and 107 digital pixels above describe only this Profile snapshot;
 they are not runtime, resolver, protocol, firmware, or product capacity limits.
 
 The Host default is the resolver-generated,

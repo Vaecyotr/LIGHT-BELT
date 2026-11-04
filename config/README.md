@@ -13,22 +13,27 @@
 Hardware endpoints, GPIO mappings, and physical topology remain configurable.
 Files under `acceptance/` are test fixtures, not production profiles; see [acceptance/README.md](acceptance/README.md).
 
-The immutable original Show source is
-`assets/energy-wakeup/energy-wakeup.yaml`; do not edit or use it as the runtime
-input. The approved, runnable current copy is
-`config/shows/energy-wakeup.yaml`, and it is the only current Show
-compatibility baseline. The 32 legacy Shows are retained byte-identically under
+The immutable original production Show is
+`assets/energy-wakeup/energy-wakeup.yaml`; the Host discovers Shows under
+`assets/`, where associated media is also found. An optional manifest can
+overlay discovery metadata; it is not the sole source of truth. The
+`config/shows/energy-wakeup.yaml` file is used for tests, explicit CLI
+validation, and the current Show compatibility baseline. The 32 legacy Shows are retained byte-identically under
 `shows/archive/` in stable categories. They are legacy replay/regression
 material, not design references. New Shows must follow `shows/README.md`.
 
 `profile-archive/wled-five-board-phase-17.yaml` is the historical five-board WLED
 Profile retained for compatibility. The current nine-board Host
-template is `profiles/rk3588-host-service.yaml`; `scripts/resolve_nodes.py`
+template is `profiles/rk3588-host-service.yaml`; `scripts/runtime/resolve_nodes.py`
 copies it to ignored `config/runtime/wled-ddp-mdns.yaml` after Avahi mDNS
 resolution. Do not edit or deploy the tracked template as a resolved profile.
-Its nine nodes and 200 pixel groups are a current Profile snapshot, not runtime
+Its nine nodes and 107 pixel groups are a current Profile snapshot, not runtime
 capacity limits. Unresolved nodes are disabled, not redirected to an old
 address. This is **NOT HARDWARE VERIFIED**.
+
+The separate UDP v3 maintenance Profile retains nine custom-firmware strips
+with 200 groups. That is a maintenance configuration snapshot, not the current
+WLED/DDP production total or a system capacity limit.
 
 The same RK3588 template enables `system.audio.source.kind:
 wled_audio_sync_v2`. Missing source fields inherit the tracked defaults in

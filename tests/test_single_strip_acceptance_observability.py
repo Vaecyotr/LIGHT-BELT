@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from scripts.generate_single_strip_acceptance_campaign import (
+from scripts.acceptance.generate_single_strip_acceptance_campaign import (
     BASELINE_DIR,
     IDENTITY_METRIC_EVALUATORS,
     OUTPUT_DIR,

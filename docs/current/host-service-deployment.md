@@ -1,76 +1,53 @@
-# Host Service Deployment
+# 主机接口服务：开发与部署说明
 
-The host service (`host_services/`) is a FastAPI application that exposes the
-LIGHT-BELT REST and WebSocket API on the RK3588 production brain or on a
-development machine.
+`host_services/` 协调 APP 接口、节目发现、播放器与灯光引擎。本页说明本地开发、节目资料与服务配置；目标设备的完整安装入口是 [RK3588 一键部署](rk3588-bootstrap.md)。
 
-## Local development
+## Windows 开发环境
 
-Install the package with the `host` extra from the repository root:
+在仓库根目录运行：
 
-```
-pip install -e ".[dev,host]"
-```
-
-Start the service:
-
-```
-python -m host_services
+```powershell
+& .\scripts\dev\bootstrap_python.ps1
+.\.python\Scripts\python.exe -m host_services
 ```
 
-The service listens on `http://0.0.0.0:8443` by default.
-Interactive docs: `http://localhost:8443/docs`
-Status check: `GET http://localhost:8443/api/v1/status`
+开发启动默认使用模拟适配器。不要把接口响应正常当作设备已经输出灯光。共享 `.python` 目录连接只做验证，不安装、删除或同步依赖；需要修复共享环境时，由其拥有者协调全部工作树。
 
-## RK3588 deployment
+独立环境使用 `pyproject.toml` 的 `host`、`dev` extras 和 `uv.lock` 同步。`host_services/requirements.txt` 是从锁文件导出的兼容清单，不单独维护版本，也不作为自动更新入口。
 
-1. Clone the repository and install with the `host` extra (or install from
-   a built wheel).
-2. Create runtime data directory and copy the manifest:
-   ```
-   mkdir -p /opt/light-belt/data
-   cp config/examples/shows-manifest.example.json \
-      /opt/light-belt/data/shows_manifest.json
-   ```
-   Edit `shows_manifest.json` to point `media_path` fields at the real asset
-   files on the device.
-3. Set `SHOWS_MANIFEST_PATH` in `host_services/config.py` to the full path
-   if you place the manifest somewhere other than `data/shows_manifest.json`
-   relative to the working directory.
-4. Run as a systemd service or via a process supervisor:
-   ```
-   python -m host_services
-   ```
+## RK3588 部署与后续更新
 
-## TLS certificates
+当前目标路径为 `/home/pi/LIGHT-BELT`，用户为 `pi`。按专用安装说明运行 bootstrap；它准备 `.venv`、生成运行配置并安装系统服务。Host 的启动入口为 `.venv/bin/python -m host_services`，生产模式由服务配置显式选择 `ENGINE_ADAPTER=real`。
 
-By default the service runs over plain HTTP (`ENABLE_TLS = False`).
+首次安装与后续更新共同使用部署目录中的依赖同步逻辑，按锁文件安装 Host 依赖，排除开发依赖。声明与锁文件不一致时失败，设备端不重新解析或改写锁文件。已有兼容 Python 环境复用；系统蓝牙工具的 Python 与系统库单独管理。
 
-To enable HTTPS:
+更新脚本在修改依赖前停止 Host，并检查同步、服务启动及健康状态；失败时尝试恢复旧代码和旧锁对应环境。旧包若未缓存且网络不可用，恢复也可能失败，此时保留恢复记录并报告停止状态，不能宣称更新成功。后台更新、备份和显示服务的启用策略以设备说明为准，整理文件不代表开启定时任务。
 
-1. Place the certificate and key at:
-   - `/etc/light-belt/cert.pem`
-   - `/etc/light-belt/key.pem`
-2. Set `ENABLE_TLS = True` in `host_services/config.py`.
+本次脚本与依赖整改只有本地软件验证。设备开机、显示、音视频、蓝牙和安装更新生命周期仍需实机验收：**NOT HARDWARE VERIFIED**。
 
-The paths are configurable via `TLS_CERTFILE` and `TLS_KEYFILE` in `config.py`.
-Self-signed certificates are sufficient for local LAN use; on RK3588 a
-Let's Encrypt or internal CA certificate is recommended.
+## 节目定义、媒体与可选覆盖清单
 
-## Shows manifest
+Host 从 `assets/<show_id>/` 自动发现节目，视频、音频或 YAML 均可构成可发现条目。目录名参与 `show_id`，不能作为普通资料文件夹随意改名。
 
-`data/shows_manifest.json` is the runtime source of truth for available shows.
-It is not checked into git (covered by `.gitignore`). Each entry:
+`assets/energy-wakeup/energy-wakeup.yaml` 是保留的生产节目原件；`config/shows/energy-wakeup.yaml` 是独立测试与显式 CLI 校验资料，两者不要求相同。
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `show_id` | string | Unique identifier used in API calls |
-| `name` | string | Human-readable display name |
-| `duration_ms` | integer | Total duration in milliseconds |
-| `description` | string | Short description for the UI |
-| `media_path` | string | Absolute path to the video/audio asset |
+可选的 `data/shows_manifest.json` 在发现后覆盖名称、媒体路径等字段，也可以补入兼容条目。缺少它不会清空 `assets` 已发现的节目；目录没有可发现内容时，列表才可能为空。示例见 `host_services/shows_manifest.example.json`。
 
-An example is committed at `config/examples/shows-manifest.example.json`.
+| 字段 | 用途 |
+|---|---|
+| `show_id` | 与发现目录关联或新增条目的接口标识 |
+| `name`、`description` | 人可读名称和说明 |
+| `duration_ms` | 覆盖已发现时长，单位毫秒 |
+| `media_path` | 指向实际可读媒体的路径 |
 
-If the file is absent at startup, the service starts with an empty show list
-and logs a warning. No crash occurs.
+以 `shows_loader.py` 的发现及覆盖行为为准。当前 `engine_adapter._load_shows()` 没有传入 `config.py` 中的 `SHOWS_MANIFEST_PATH`；不能承诺修改该声明就能改变加载位置。本轮不改变加载逻辑。媒体、生成配置和运行数据通常不进入 Git，必须在设备上独立准备。
+
+## 网页与接口检查
+
+接口默认监听 `0.0.0.0:8443`；状态入口为 `/api/v1/status`，交互式接口说明为 `/docs`。网页由 `kiosk/dist/` 提供，只有该目录存在时才挂载。
+
+检查部署时，除了状态接口，还要打开 `/`，核对 HTML 引用的 JS、CSS 和 `/THIRD_PARTY_NOTICES.txt`。API 正常不代表网页发布包完整。网页源码修改后的构建由 `kiosk/package.json` 和 npm 锁文件管理；Python 安装不会自动构建网页。
+
+## TLS 配置
+
+当前默认 `ENABLE_TLS=False`。如显式启用 HTTPS，在设备上准备 `/etc/light-belt/cert.pem` 与 `/etc/light-belt/key.pem`，并核对 `host_services/config.py` 的 `TLS_CERTFILE`、`TLS_KEYFILE` 和 `ENABLE_TLS`。私钥留在设备受保护目录，不纳入仓库。

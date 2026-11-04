@@ -13,7 +13,7 @@ physical topology.
 An effect registration binds its stable ID, renderer/factory, immutable typed
 `ParameterSpec` metadata, validation, common capabilities, and ColorSource
 support classification. The live registry is the single parameter authority;
-use `scripts/export_authoring_contract.py` for machine-readable discovery.
+use `scripts/dev/export_authoring_contract.py` for machine-readable discovery.
 Target dispatch does not change. Cue color is a separate compatibility
 `ColorSpec`: `effect_default` leaves the renderer default intact, `solid`
 supplies one RGB color, and `palette` selects authored RGB entries

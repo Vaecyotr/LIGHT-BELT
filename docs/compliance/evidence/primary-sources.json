@@ -1,0 +1,135 @@
+{
+  "audit_date": "2026-10-26",
+  "sources": [
+    {
+      "id": "WLED-EUPL-1.2",
+      "path": "docs/compliance/licenses/WLED-EUPL-1.2.txt",
+      "url": "https://raw.githubusercontent.com/wled/WLED/v0.15.1/LICENSE",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "GPL-2.0",
+      "path": "docs/compliance/licenses/GPL-2.0.txt",
+      "url": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "GPL-3.0",
+      "path": "docs/compliance/licenses/GPL-3.0.txt",
+      "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "LGPL-2.1",
+      "path": "docs/compliance/licenses/LGPL-2.1.txt",
+      "url": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "LGPL-3.0",
+      "path": "docs/compliance/licenses/LGPL-3.0.txt",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.txt",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "GCC-exception-3.1",
+      "path": "docs/compliance/licenses/GCC-exception-3.1.txt",
+      "url": "https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-14.2.0/COPYING.RUNTIME",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "Vue",
+      "path": "docs/compliance/licenses/Vue.txt",
+      "url": "https://raw.githubusercontent.com/vuejs/core/v3.5.40/LICENSE",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "Arduino-ESP32-2.0.17-reference",
+      "path": "docs/compliance/licenses/Arduino-ESP32-2.0.17-reference.txt",
+      "url": "https://raw.githubusercontent.com/espressif/arduino-esp32/2.0.17/LICENSE.md",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "FastLED-3.10.3",
+      "path": "docs/compliance/licenses/FastLED-3.10.3.txt",
+      "url": "https://raw.githubusercontent.com/FastLED/FastLED/3.10.3/LICENSE",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "ESP-IDF-4.4.7-reference",
+      "path": "docs/compliance/licenses/ESP-IDF-4.4.7-reference.txt",
+      "url": "https://raw.githubusercontent.com/espressif/esp-idf/v4.4.7/LICENSE",
+      "status_code": 200,
+      "kind": "primary-source text extraction",
+      "retrieved_date": "2026-10-26",
+      "not_target_binary_version_evidence": true
+    },
+    {
+      "id": "WLED-v0.14.4-MIT",
+      "url": "https://raw.githubusercontent.com/wled/WLED/v0.14.4/LICENSE",
+      "kind": "official source read 2026-10-26; not a target binary license determination"
+    },
+    {
+      "id": "WLED-fixed-modern-EUPL",
+      "url": "https://raw.githubusercontent.com/wled/WLED/29b389df1c1aaec6ff53aea742d17063b985906c/LICENSE",
+      "kind": "official source read 2026-10-26; not a target binary license determination"
+    },
+    {
+      "id": "WLED-commercial-FAQ",
+      "url": "https://kno.wled.ge/basics/faq/#bundling-wled-with-custom-hardware-license",
+      "kind": "official source read 2026-10-26; not a target binary license determination"
+    },
+    {
+      "id": "FFmpeg-legal",
+      "url": "https://ffmpeg.org/legal.html",
+      "kind": "official source read 2026-10-26; not a target binary license determination"
+    },
+    {
+      "id": "mpv-Copyright",
+      "url": "https://raw.githubusercontent.com/mpv-player/mpv/master/Copyright",
+      "kind": "official source read 2026-10-26; not a target binary license determination"
+    },
+    {
+      "id": "WIPO-copyright",
+      "url": "https://www.wipo.int/en/web/copyright/faq-copyright",
+      "kind": "official source read 2026-10-26; not a target binary license determination"
+    }
+  ],
+  "additional_sources": [
+    {"id": "MPL-2.0", "url": "https://www.mozilla.org/en-US/MPL/2.0/", "path": "docs/compliance/licenses/MPL-2.0.txt", "retrieved_date": "2026-10-26", "kind": "official full license text extraction"},
+    {"id": "pyserial-3.5", "url": "https://raw.githubusercontent.com/pyserial/pyserial/v3.5/LICENSE.txt", "path": "docs/compliance/licenses/pyserial-3.5-BSD-3-Clause.txt", "retrieved_date": "2026-10-26", "kind": "official version-specific license text extraction"}
+  ],
+  "notes": [
+    "Text extractions identify license terms; exact target package license files and matching source still required.",
+    "No license in this directory applies blanketly to LIGHT-BELT proprietary source.",
+    "Arduino/ESP-IDF samples do not establish resolved product dependency versions.",
+    "WLED fixed modern/old license extraction identities are recorded in evidence/wled-comparison.json."
+  ]
+}

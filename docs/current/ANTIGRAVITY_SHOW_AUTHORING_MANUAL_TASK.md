@@ -51,7 +51,7 @@ source that is absent from their results.
 
 ```powershell
 # The definitive effect and parameter inventory (save/review its JSON output).
-.\.python\Scripts\python.exe scripts\export_authoring_contract.py
+.\.python\Scripts\python.exe scripts\dev\export_authoring_contract.py
 
 # Exact Show syntax, targets, common controls, motion, branches, and paths.
 Get-Content -Raw docs\current\show-v2-authoring.md

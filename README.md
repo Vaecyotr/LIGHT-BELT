@@ -1,12 +1,12 @@
 # LIGHT-BELT
 
 LIGHT-BELT's current/default deployment is DDP to nine independent ESP32
-nodes: node 1 `strip_32` (40), node 2 `strip_41` (10), node 3 `strip_44`
-(20), node 4 `strip_12` (40), node 5 `strip_22` (40), node 6 `strip_31`
-(10), node 7 `strip_43` (20), node 8 `strip_11` (10), and node 9 `strip_21`
+nodes: node 1 `strip_32` (10), node 2 `strip_41` (10), node 3 `strip_44`
+(10), node 4 `strip_12` (17), node 5 `strip_22` (20), node 6 `strip_31`
+(10), node 7 `strip_43` (10), node 8 `strip_11` (10), and node 9 `strip_21`
 (10). Every node has only `output_id: 1`; GPIO16 is topology metadata only.
 This Profile has no RGB+CCT zones, analog nodes, STM32 devices, or RS-485
-transport. Nine nodes and 200 pixel groups are this Profile's current snapshot,
+transport. Nine nodes and 107 pixel groups are this Profile's current snapshot,
 not system capacity limits. **NOT HARDWARE VERIFIED.**
 
 The current DDP topology/packetization software contracts and the separate
@@ -17,7 +17,7 @@ and visible output remain **NOT HARDWARE VERIFIED**.
 
 The Host default is the ignored runtime Profile
 `config/runtime/wled-ddp-mdns.yaml`. In real mode it runs
-`scripts/resolve_nodes.py` against the tracked WLED template, resolving unique
+`scripts/runtime/resolve_nodes.py` against the tracked WLED template, resolving unique
 Avahi names `wled-strip-<label>.local`. An unresolved board is disabled; DDP
 continues to every other board without stale-address/cache, HTTP, MAC-derived,
 or subnet-scan fallback. All nine `strip_*` targets remain available to the
@@ -39,8 +39,10 @@ compatibility material, not the current/default installation.
 - [Effect reference](docs/reference/effect-reference.md)
 - [WLED Audio Sync V2 input contract](docs/reference/wled-audio-sync-v2.md)
 
-The runtime registry currently contains 20 effects, including the Phase 32
-native `flowing_bands`, `onset_ripple`, and `heat_fire` implementations. The
+The internal runtime registry currently contains 22 effects. The external APP
+effect vocabulary remains frozen by its compatibility facade. See the
+[effect reference](docs/reference/effect-reference.md) for implementation
+details. The
 RK3588 Profile enables WLED Audio Sync V2 multicast input; this is independent
 from its DDP lighting output. See the two reference documents above for the
 authored parameter and stale/source-priority contracts. Audio multicast and
@@ -87,6 +89,7 @@ they are not the current WLED/DDP deployment path.
 | `docs/acceptance/` | Human-readable accepted software evidence |
 | `docs/history/` | Historical plans and legacy prototype documentation |
 | `artifacts/baselines/` | Committed acceptance evidence; normal tests do not write here |
-| `artifacts/runs/` | Disposable local acceptance output; ignored by Git |
+| `artifacts/runs/` | Local run output; inspect provenance before cleanup |
+| `artifacts/local-archives/` | Ignored local evidence and recovery archives |
 
 License: proprietary, internal use.

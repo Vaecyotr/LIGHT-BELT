@@ -8,7 +8,7 @@ from collections import Counter
 import pytest
 import yaml
 
-from scripts import resolve_nodes
+from scripts.runtime import resolve_nodes
 
 
 TEMPLATE = Path("config/profiles/rk3588-host-service.yaml")
@@ -37,7 +37,7 @@ def test_resolver_uses_stable_strip_mdns_names_and_disables_unresolved_nodes(tmp
 
 
 def test_resolver_has_no_identity_or_old_address_fallback_mechanism() -> None:
-    source = Path("scripts/resolve_nodes.py").read_text(encoding="utf-8").lower()
+    source = Path("scripts/runtime/resolve_nodes.py").read_text(encoding="utf-8").lower()
     for forbidden in ("node_macs", "urllib", "http", "cache", "scan", "getaddrinfo"):
         assert forbidden not in source
 

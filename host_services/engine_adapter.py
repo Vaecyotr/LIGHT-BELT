@@ -84,7 +84,7 @@ def _run_resolve_nodes() -> None:
     from pathlib import Path as _P
     if _P(ENGINE_PROFILE_PATH).resolve() != WLED_RUNTIME_PROFILE.resolve():
         return
-    script = _P(__file__).resolve().parent.parent / "scripts" / "resolve_nodes.py"
+    script = _P(__file__).resolve().parent.parent / "scripts" / "runtime" / "resolve_nodes.py"
     if not script.exists():
         raise RuntimeError(f"resolve_nodes.py not found at {script}")
     try:
@@ -608,6 +608,7 @@ def _ensure_mpv() -> MpvClient:
                 ["mpv", f"--input-ipc-server={sock}", "--idle=yes",
                  "--keep-open=no", "--no-terminal",
                  "--no-config",
+                 "--audio-client-name=LIGHT-BELT-LocalMedia",
                  "--fullscreen",
                  "--ontop",
                  "--cursor-autohide=always",

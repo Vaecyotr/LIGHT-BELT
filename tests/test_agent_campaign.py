@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_script(filename: str, module_name: str):
-    path = ROOT / "scripts" / f"{filename}.py"
+    path = ROOT / "scripts" / "agents" / f"{filename}.py"
     spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)

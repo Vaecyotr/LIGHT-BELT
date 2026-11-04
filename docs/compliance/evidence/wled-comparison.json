@@ -1,0 +1,352 @@
+{
+  "schemaVersion": 1,
+  "auditDateUtc": "2026-10-26",
+  "auditedHead": "fbaab17dd953b0c968fa00e11db941ffea775926",
+  "scope": "Read-only current and all locally reachable effects plus WLED Audio Sync source provenance; later documentation-only evidence writes authorized by owner.",
+  "baselineProvidedByOwner": {
+    "command": ".\\.python\\Scripts\\python.exe -m pytest -q --suite fast",
+    "exitCode": 0,
+    "passed": 381,
+    "elapsedSeconds": 10.51,
+    "meaning": "Pre-change baseline supplied by owner; this worker ran no Python and no test suite."
+  },
+  "graph": {
+    "reachableCommits": 191,
+    "refs": 74,
+    "isShallow": false,
+    "replaceRefs": 0,
+    "partialCloneConfigObserved": false,
+    "roots": [
+      "f56db3dbdc7bb9907bf91c36d1d300b883c66232",
+      "60bd965a303f8d2a6357d2fcf94499387a4b8110"
+    ],
+    "rootMeaning": [
+      "Baseline snapshot predates recoverable development history of 14 effect source files.",
+      "Untracked-files stash root includes nested copied baseline paths."
+    ],
+    "effectTouchingCommits": 13,
+    "uniqueEffectAndAudioSourceBlobs": 101,
+    "uniqueFileBasenames": 27,
+    "versionsByBasename": {
+      "wled_audio_sync.py": 1,
+      "__init__.py": 6,
+      "audio_pulse.py": 4,
+      "base.py": 9,
+      "bass_pulse.py": 4,
+      "breath.py": 6,
+      "calm.py": 6,
+      "chase.py": 7,
+      "coherent_noise.py": 1,
+      "coherent_noise_field.py": 1,
+      "color_wave.py": 6,
+      "color_wipe.py": 3,
+      "comet.py": 6,
+      "demo.py": 3,
+      "flowing_bands.py": 1,
+      "heat_fire.py": 1,
+      "history_stream.py": 1,
+      "onset_ripple.py": 2,
+      "scalar_source.py": 2,
+      "single_dot.py": 2,
+      "spectrum.py": 5,
+      "static.py": 5,
+      "step_pulse.py": 3,
+      "theater_phase.py": 2,
+      "twinkle.py": 3,
+      "video_ambient.py": 5,
+      "video_audio_fusion.py": 6
+    },
+    "danglingCommitTips": 25,
+    "danglingMetadataDateRange": "2026-07-05 to 2026-08-20",
+    "danglingReview": "Metadata only, not recursive tree/content audit. Mostly WIP/preservation stashes and a Phase 9 firmware commit. No Phase 32-40 named tip observed.",
+    "connectivityFsckExitCode": 0,
+    "connectivityMeaning": "No missing reachable object reported; dangling objects present. Does not prove all historical work was committed, retained, or fetched."
+  },
+  "introductionCommits": [
+    {
+      "commit": "f56db3dbdc7bb9907bf91c36d1d300b883c66232",
+      "date": "2026-07-04",
+      "files": "14 initial effect files, including breath, chase, comet, color_wave; earliest available baseline snapshot"
+    },
+    {
+      "commit": "80ded3a3aa6ffa771d74ebedab0d24c1f510bfab",
+      "date": "2026-07-13",
+      "files": "color_wipe.py, twinkle.py"
+    },
+    {
+      "commit": "70ca1009f3d4427179ebdc7f2d5f62794c065734",
+      "date": "2026-07-17",
+      "files": "single_dot.py, step_pulse.py, theater_phase.py"
+    },
+    {
+      "commit": "0962d74e7b29f0874843a8b4870933308ee0bbb7",
+      "date": "2026-08-22",
+      "files": "flowing_bands.py, heat_fire.py, onset_ripple.py, history_stream.py, scalar_source.py, analysis/wled_audio_sync.py; aggregate Phase 32-34 introduction"
+    },
+    {
+      "commit": "06ae1220d296942029c61f9d9ca61a638db27d51",
+      "date": "2026-08-23",
+      "files": "coherent_noise.py, coherent_noise_field.py; aggregate Phase 35-40 introduction"
+    }
+  ],
+  "sources": [
+    {
+      "id": "wled-v16-fx",
+      "url": "https://raw.githubusercontent.com/wled/WLED/29b389df1c1aaec6ff53aea742d17063b985906c/wled00/FX.cpp",
+      "immutableCommit": "29b389df1c1aaec6ff53aea742d17063b985906c",
+      "version": "v16.0.1",
+      "license": "EUPL-1.2-or-later",
+      "upstreamNotice": "Copyright (c) 2016 Harm Aldick",
+      "retrieval": "Firecrawl scrape markdown field for text/plain URL",
+      "statusCode": 200,
+      "scrapeId": "01a17760-4bd0-746e-9af2-16e0e28d7cc2",
+      "extractedTextSha256": "603972be73b5854edd9823b641b578d7387a337a2e528c344c27c206ec9c866f",
+      "extractedUtf8Bytes": 486097,
+      "extractedLines": 11224,
+      "hashMeaning": "SHA-256 of UTF-8 encoding of retrieved markdown/text field, not verified original HTTP bytes or Git blob ID"
+    },
+    {
+      "id": "wled-v014-fx",
+      "url": "https://raw.githubusercontent.com/wled/WLED/v0.14.4/wled00/FX.cpp",
+      "immutableCommit": null,
+      "version": "v0.14.4",
+      "license": "MIT file header",
+      "upstreamNotice": "Copyright (c) 2016 Harm Aldick",
+      "retrieval": "Firecrawl scrape markdown field for text/plain URL",
+      "statusCode": 200,
+      "scrapeId": "01a17761-fc0a-7732-93b4-679da1329fad",
+      "extractedTextSha256": "3294083fca7161b88c209562ddcb74ada5438a044973ce5fc578f991f20ed304",
+      "extractedUtf8Bytes": 304785,
+      "extractedLines": 7903,
+      "hashMeaning": "SHA-256 of UTF-8 encoding of retrieved markdown/text field, not verified original HTTP bytes or Git blob ID"
+    },
+    {
+      "id": "wled-v16-audio",
+      "url": "https://raw.githubusercontent.com/wled/WLED/29b389df1c1aaec6ff53aea742d17063b985906c/usermods/audioreactive/audio_reactive.cpp",
+      "immutableCommit": "29b389df1c1aaec6ff53aea742d17063b985906c",
+      "version": "v16.0.1",
+      "license": "WLED root EUPL-1.2-or-later; dependencies not adjudicated",
+      "retrieval": "Firecrawl scrape markdown field for text/plain URL",
+      "statusCode": 200,
+      "scrapeId": "01a17761-fcd4-719e-ba2e-b1d62ada4458",
+      "extractedTextSha256": "dc5d996c8f4df5067a5caf1350e0cb0ca79e8770ab50acdf7750e8b687261c92",
+      "extractedUtf8Bytes": 114446,
+      "extractedLines": 2324,
+      "hashMeaning": "SHA-256 of UTF-8 encoding of retrieved markdown/text field, not verified original HTTP bytes or Git blob ID"
+    },
+    {
+      "id": "splitmix-primary",
+      "url": "https://prng.di.unimi.it/splitmix64.c",
+      "resolvedUrl": "https://prng.di.unimi.it/splitmix.c",
+      "immutableCommit": null,
+      "version": null,
+      "license": "Public-domain dedication and unconditional permission in source header",
+      "author": "Sebastiano Vigna",
+      "year": 2015,
+      "retrieval": "Firecrawl scrape markdown field for text/plain URL",
+      "statusCode": 200,
+      "scrapeId": "01a17764-5054-7739-ad08-bb12c2a2af98",
+      "extractedTextSha256": "920282fcf60da413d5d823b4049b4962db16816de59d5cc63507d816f2938742",
+      "extractedUtf8Bytes": 2128,
+      "extractedLines": 45,
+      "hashMeaning": "SHA-256 of UTF-8 encoding of retrieved markdown/text field, not verified original HTTP bytes or Git blob ID"
+    },
+    {
+      "id": "wled-v014-license",
+      "url": "https://raw.githubusercontent.com/wled/WLED/v0.14.4/LICENSE",
+      "version": "v0.14.4",
+      "immutableCommit": null,
+      "license": "MIT",
+      "copyright": "Copyright (c) 2016 Christian Schwinne",
+      "retrieval": "Firecrawl markdown field from official text/plain URL",
+      "statusCode": 200,
+      "scrapeId": "01a1776d-bfd1-704d-9b51-7ed69c4726f5",
+      "extractedTextSha256": "5664450532c9ca337bebfa35d47035a6b401d08bb48df7355fae191468205c8c",
+      "extractedUtf8Bytes": 1074,
+      "savedPath": "docs/compliance/licenses/WLED-v0.14.4-MIT.txt",
+      "savedFileSha256": "1367283a11ed35fdfe18d01d1b7bb1a32577c449ea79a4e55571ee942e1e6c82",
+      "savedUtf8Bytes": 1075,
+      "savedTextDifference": "Exactly one final LF appended to extraction; complete license otherwise preserved.",
+      "hashMeaning": "Extraction and artifact UTF-8 hashes; not verified raw HTTP bytes or upstream Git blob ID."
+    },
+    {
+      "id": "wled-v16-license",
+      "url": "https://raw.githubusercontent.com/wled/WLED/29b389df1c1aaec6ff53aea742d17063b985906c/LICENSE",
+      "version": "v16.0.1",
+      "immutableCommit": "29b389df1c1aaec6ff53aea742d17063b985906c",
+      "license": "EUPL-1.2-or-later",
+      "retrieval": "Firecrawl markdown field from official pinned text/plain URL",
+      "statusCode": 200,
+      "scrapeId": "01a1776d-c01e-704d-af9e-57d9c3a14dbc",
+      "extractedTextSha256": "3154727a66bfa8a3ece1be140cde998746d8501b47d6d63a7f4f6d248009a18b",
+      "extractedUtf8Bytes": 13948,
+      "savedPath": "docs/compliance/licenses/WLED-EUPL-1.2.txt",
+      "savedFileSha256": "5d502840a45abb28b2d7f14239bb8f62934ed1a3923ce2e810c5c6c0958ac086",
+      "savedUtf8Bytes": 13949,
+      "savedTextDifference": "Exactly one final LF appended to extraction. Independently computed saved-file SHA without final LF equals retrieved-extraction SHA.",
+      "hashMeaning": "Extraction and artifact UTF-8 hashes; not verified raw HTTP bytes or upstream Git blob ID."
+    }
+  ],
+  "officialLicenseAndIdentitySources": [
+    {
+      "url": "https://github.com/wled/WLED/releases/tag/v16.0.1",
+      "observed": "Release page links 29b389d, corresponding to the immutable full commit used here."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/wled/WLED/29b389df1c1aaec6ff53aea742d17063b985906c/LICENSE",
+      "observed": "EUPL v1.2 or later; Christian Schwinne and individual WLED contributors."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/wled/WLED/v0.14.4/LICENSE",
+      "observed": "MIT; Christian Schwinne 2016. Legacy file and dependency notices must still be checked."
+    }
+  ],
+  "screens": {
+    "method": "git rev-list --objects --all; retain paths matching light_engine/effects/[^/]+.py or light_engine/analysis/wled_audio_sync.py including nested copies; deduplicate Git blob IDs; git cat-file blob; inspect all 101 versions for source-notice keywords and distinctive >=4-digit/hex numeric constants.",
+    "headerDiffSearch": "git log --all -p -- light_engine/effects; search added/deleted lines for word-bounded WLED|Copyright|FastLED|EUPL|MIT License|Aldick|Schwinne.",
+    "observedHeaderRemovals": 0,
+    "headerCaveat": "No such removal observed in reachable effect diffs. Root snapshots cannot reveal earlier removal. This is not a proof that no notice was ever removed.",
+    "commentScreen": {
+      "method": "For all 101 blobs, deduplicate full Python # comment lines containing >=6 whitespace-delimited words. Lowercase and replace non-[a-z0-9] runs with spaces. Test every contiguous six-word phrase against similarly normalized full upstream extractions.",
+      "uniqueCandidateLines": 56,
+      "upstreamSourceIds": [
+        "wled-v16-fx",
+        "wled-v014-fx",
+        "wled-v16-audio"
+      ],
+      "matchedCandidateLines": 0,
+      "limitations": "Lexical screen only; excludes docstrings, code semantics, identifier renaming, translated comments, line wrapping, other upstream files/versions. Zero matches is not copyright clearance."
+    },
+    "distinctiveLocalHexConstants": [
+      {
+        "constant": "0xD6E8FEB86659FD93",
+        "localLocations": [
+          "light_engine/effects/coherent_noise.py:29"
+        ],
+        "foundInThreeComparedWledExtractions": false,
+        "historicalLocalLocations": [
+          "light_engine/effects/coherent_noise.py:28"
+        ]
+      },
+      {
+        "constant": "0xA5A3564E27F6C5A9",
+        "localLocations": [
+          "light_engine/effects/coherent_noise.py:30"
+        ],
+        "foundInThreeComparedWledExtractions": false,
+        "historicalLocalLocations": [
+          "light_engine/effects/coherent_noise.py:29"
+        ]
+      },
+      {
+        "constant": "0xBF58476D1CE4E5B9",
+        "localLocations": [
+          "light_engine/effects/coherent_noise.py:32"
+        ],
+        "foundInThreeComparedWledExtractions": false,
+        "historicalLocalLocations": [
+          "light_engine/effects/coherent_noise.py:31"
+        ]
+      },
+      {
+        "constant": "0x94D049BB133111EB",
+        "localLocations": [
+          "light_engine/effects/coherent_noise.py:34"
+        ],
+        "foundInThreeComparedWledExtractions": false,
+        "historicalLocalLocations": [
+          "light_engine/effects/coherent_noise.py:33"
+        ]
+      }
+    ]
+  },
+  "comparisons": [
+    {
+      "id": "heat-fire",
+      "local": "light_engine/effects/heat_fire.py:64-126",
+      "upstream": "wled-v16-fx:2157 onward, mode_fire_2012; v0.14.4 Fire2012 also reviewed",
+      "sharedIdea": "Cooling, upward heat transport, random ignition, heat rendering.",
+      "localExpression": "Float lerp from prior same cell and previous lower cell, SHA-256-derived per-strip/tick RNG, 60Hz replay, authored RGB multiplied by heat.",
+      "upstreamDistinctiveExcerpt": "heat[k] = (heat[k - 1] + (heat[k - 2]<<1) ) / 3;",
+      "observation": "Specific weighted two-cell stencil, timing, integer state, ignition and palette expressions differ; shared four-stage idea remains. No numerical-compatibility claim establishes independence by itself."
+    },
+    {
+      "id": "flowing-bands",
+      "local": "light_engine/effects/flowing_bands.py:83-106",
+      "upstream": "wled-v16-fx:594 onward, running_base",
+      "sharedIdea": "Time-varying periodic strip pattern.",
+      "localExpression": "Fixed width/gap mask; discrete highlighted band selected by floor(time*rate), initially none.",
+      "observation": "WLED Running/Saw coordinate waveform mechanism differs from fixed-mask/single-highlight mechanism."
+    },
+    {
+      "id": "onset-ripple",
+      "local": "light_engine/effects/onset_ripple.py:64-83,195-257",
+      "upstream": "wled-v16-fx:6651 onward, mode_ripplepeak; ordinary ripple_base also reviewed",
+      "sharedIdea": "Peak-driven expanding ripples; both use a 16-ripple/wave bound.",
+      "localExpression": "Rising-edge events store birth/motion times, normalized origin and own gain weights; triangular spatial envelope with real-time exponential decay.",
+      "observation": "Power-of-two bound alone is weak evidence; WLED byte-state switch and palette/frequency mapping are not reproduced by the inspected expressions."
+    },
+    {
+      "id": "early-breath",
+      "local": "light_engine/effects/breath.py:49-57; f56db3d baseline version",
+      "upstream": "wled-v16-fx:432 onward, mode_breath; v0.14.4 counterpart reviewed",
+      "sharedIdea": "Brightness breathing.",
+      "localExpression": "Ordinary floating-point sine with cue/delta time and optional triangle/smoothstep.",
+      "observation": "WLED integer folded-counter expression differs. Pre-baseline authorship is not recoverable."
+    },
+    {
+      "id": "twinkle",
+      "local": "light_engine/effects/twinkle.py:236-288; introduced 80ded3a",
+      "upstream": "wled-v16-fx:655 onward, mode_twinkle; v0.14.4 counterpart reviewed",
+      "sharedIdea": "Random lit points and fading.",
+      "localExpression": "Density*length*delta-time spawn accumulation, per-pixel retained colors, exponential decay.",
+      "observation": "Different state evolution from WLED incremental seeded selection; no matching distinctive local numeric constants found."
+    },
+    {
+      "id": "noise",
+      "local": "light_engine/effects/coherent_noise.py:20-70 (current); 20-69 at audited HEAD; coherent_noise_field.py",
+      "upstream": "wled-v16-fx:2237 onward, mode_noise16_1/2",
+      "sharedIdea": "Smooth spatial-temporal noise.",
+      "localExpression": "Hashed lattice value noise, four-corner separable quintic interpolation.",
+      "observation": "The inspected local code does not call or reproduce the inspected WLED Perlin/palette recipe. Quintic smoothing polynomial is a common mathematical mechanism, not alone evidence of copied source."
+    },
+    {
+      "id": "audio-wire",
+      "local": "light_engine/analysis/wled_audio_sync.py:22-27,49-80",
+      "upstream": "wled-v16-audio:800-812,2320",
+      "sharedIdea": "Public 44-byte V2 packet layout, header version, FFT width and multicast interoperability.",
+      "localExpression": "Python struct unpacking with finite/range validation and generic feature normalization.",
+      "observation": "Identical packet fields/constants are required for interoperability; this is not matching renderer expression. No broad no-copy declaration is relied upon."
+    }
+  ],
+  "exactDistinctiveExpression": {
+    "id": "splitmix-finalizer",
+    "local": "light_engine/effects/coherent_noise.py:31-35 (current working tree after owner comment correction)",
+    "introducedBy": "06ae1220d296942029c61f9d9ca61a638db27d51",
+    "source": "splitmix-primary",
+    "matchedOperations": [
+      "xor right-shift 30",
+      "multiply 0xBF58476D1CE4E5B9 modulo 2^64",
+      "xor right-shift 27",
+      "multiply 0x94D049BB133111EB modulo 2^64",
+      "xor right-shift 31"
+    ],
+    "matchedOperationsCount": 5,
+    "unmatchedContext": "Current local spatial/time pre-mixing at lines29-30 and float normalization at36 differ from the source generator state increment; before comment correction these were28-29 and35.",
+    "finding": "The local finalizer uses the same distinctive five-operation expression as the published SplitMix64 mixer. This is stronger than a generic algorithm-name resemblance but does not prove which historical source the author read.",
+    "licenseFinding": "Primary source explicitly dedicates rights to public domain to extent legally possible and grants unconditional use/copy/modify/distribute permission. No attribution condition appears in that header.",
+    "remedy": "Owner completed comment-only correction: current lines23-27 identify SplitMix64 and primary source. Original own-origin wording was at historical lines23-24. Preserve source/permission evidence; no algorithm replacement or WLED/EUPL relicensing follows from this finding.",
+    "historicalLocal": "light_engine/effects/coherent_noise.py:30-34 at audited HEAD fbaab17dd953b0c968fa00e11db941ffea775926 and introduction commit 06ae1220d296942029c61f9d9ca61a638db27d51",
+    "remedyEvidenceBoundary": "The later attribution comment is a remedy, not additional proof of historical authorship or which source was consulted."
+  },
+  "unresolved": [
+    "No complete pre-baseline authoring records or independent clean-room process evidence.",
+    "No proof of actual flashed/shipped WLED build, complete source/dependency notices, build configuration, modifications, controller image identity or delivery source access.",
+    "No remote refresh: local reachable graph is not a claim to possess all historical remote/deleted branches.",
+    "Other upstream files/versions, translated code, third-party ancestry of every effect and two local pre-mix constants are not exhaustively cleared.",
+    "No conclusion that the whole application must be EUPL solely because it communicates with or is shipped beside WLED; any derivative/combined-work assessment needs packaging and actual source facts."
+  ],
+  "boundedConclusion": "Material implementation differences were observed in selected candidates. No WLED copying or clearance is established by this bounded audit. The supported separate SplitMix provenance comment correction is now completed; the actual shipped firmware license remains version-dependent.",
+  "firmwareLicenseCondition": "Actual delivered controller firmware version is unknown. Pinned v16.0.1 evidence establishes EUPL for that version; an actual older MIT build requires its own source/build/modification/dependency evidence. Do not assume GLEDOPTO's installed firmware matches either audited reference."
+}
+

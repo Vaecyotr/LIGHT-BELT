@@ -65,6 +65,12 @@ not fall back to another Python.
   Prefer its named roles instead of redesigning model/effort routing for every
   delegation. Use an explicit non-default model or effort only when current
   evidence justifies an exception.
+- Proactive delegation is enabled for future tasks: when the objective is
+  clear and there are independent bounded workstreams whose coordination
+  benefit exceeds delegation cost, the main agent should create the needed
+  sub-agent(s) without waiting for a separate per-task delegation request.
+  Keep direct execution for simple, tightly coupled, explanatory, or
+  resource-conflicting work.
 - Before each new spawn, announce the role, configured model/effort, and a short
   reason. Reusing an existing agent with a follow-up is reuse, not a new spawn.
 - Before modifying files, ensure that a valid pre-change baseline exists using
@@ -111,6 +117,10 @@ LIGHT-BELT adds the following repository-specific constraints:
 - A supervisor is introduced only when multiple work items actually require
   continuing coordination, integration, dependency management, or iterative
   correction. Task size or crossing file/module boundaries alone is not enough.
+- The default complex structure is one supervisor with disjoint workers. More
+  than one supervisor is allowed only for genuinely independent coordination
+  domains with separate ownership; supervisors remain at the same level, do
+  not create nested supervisors, and the main agent integrates their results.
 - Each file or tightly coupled interface has one active write owner.
   Parallel workers must not make overlapping changes without explicit
   coordination.
@@ -172,4 +182,3 @@ At the end of a task, report:
 If the final required benchmark or firmware build is in scope for the approved
 Phase, also report its command, return code, and measured output. Never claim
 hardware verification without real evidence.
-

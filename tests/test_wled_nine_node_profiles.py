@@ -19,9 +19,24 @@ WLED_PROFILE = Path("config/profiles/rk3588-host-service.yaml")
 UDP_V3_PROFILE = Path("config/profiles/udp-v3-nine-strip-maintenance.yaml")
 SHOW = Path("config/shows/energy-wakeup.yaml")
 EXPECTED = {
-    1: ("strip_32", 40), 2: ("strip_41", 10), 3: ("strip_44", 20),
-    4: ("strip_12", 40), 5: ("strip_22", 40), 6: ("strip_31", 10),
-    7: ("strip_43", 20), 8: ("strip_11", 10), 9: ("strip_21", 10),
+    1: "strip_32", 2: "strip_41", 3: "strip_44",
+    4: "strip_12", 5: "strip_22", 6: "strip_31",
+    7: "strip_43", 8: "strip_11", 9: "strip_21",
+}
+EXPECTED_WLED_PIXELS = {
+    "strip_32": 10, "strip_31": 10, "strip_41": 10,
+    "strip_43": 10, "strip_44": 10, "strip_11": 10,
+    "strip_12": 17, "strip_21": 10, "strip_22": 20,
+}
+EXPECTED_MAINTENANCE_PIXELS = {
+    "strip_32": 40, "strip_31": 10, "strip_41": 10,
+    "strip_43": 20, "strip_44": 20, "strip_11": 10,
+    "strip_12": 40, "strip_21": 10, "strip_22": 40,
+}
+EXPECTED_VIDEO_ZONES = {
+    "strip_32": "left", "strip_31": "left", "strip_41": "right",
+    "strip_43": "right", "strip_44": "right", "strip_11": "top",
+    "strip_12": "top", "strip_21": "bottom", "strip_22": "bottom",
 }
 
 
@@ -39,16 +54,16 @@ def test_default_wled_profile_is_nine_independent_ddp_nodes_without_analog_place
     assert layout["analog_nodes"] == []
     assert layout["digital_output_policy"] == "one_output_wled"
     assert {node["node_id"] for node in layout["digital_nodes"]} == set(EXPECTED)
-    strip_lengths = {
-        strip["id"]: strip["pixel_count"] for strip in layout["strips"]
-    }
     assert {
-        output["node_id"]: (
-            output["strip_id"],
-            strip_lengths[output["strip_id"]],
-        )
+        output["node_id"]: output["strip_id"]
         for output in layout["digital_outputs"]
     } == EXPECTED
+    assert {strip["id"]: strip["pixel_count"] for strip in layout["strips"]} == EXPECTED_WLED_PIXELS
+    assert sum(EXPECTED_WLED_PIXELS.values()) == 107
+    assert {strip["id"]: strip["video_zone"] for strip in layout["strips"]} == EXPECTED_VIDEO_ZONES
+    assert {strip["id"]: strip["direction"] for strip in layout["strips"]} == {
+        strip_id: "forward" for strip_id in EXPECTED.values()
+    }
     assert all("pixel_count" not in node for node in layout["digital_nodes"])
     assert all("pixel_count" not in output for output in layout["digital_outputs"])
     assert all(output["output_id"] == 1 and output["gpio"] == 16 for output in layout["digital_outputs"])
@@ -105,7 +120,18 @@ def test_ddp_and_udp_v3_maintenance_profiles_share_nine_strip_semantics() -> Non
     udp_v3 = _profile(UDP_V3_PROFILE)
     assert ddp.get("outputs.enabled") == ["ddp"]
     assert udp_v3.get("outputs.enabled") == ["udp_v3"]
-    assert ddp.get("layout.strips") == udp_v3.get("layout.strips")
+    assert {item["id"] for item in ddp.get("layout.strips")} == {
+        item["id"] for item in udp_v3.get("layout.strips")
+    }
+    assert {item["id"]: item["pixel_count"] for item in ddp.get("layout.strips")} == EXPECTED_WLED_PIXELS
+    assert {item["id"]: item["pixel_count"] for item in udp_v3.get("layout.strips")} == EXPECTED_MAINTENANCE_PIXELS
+    assert sum(EXPECTED_MAINTENANCE_PIXELS.values()) == 200
+    for profile in (ddp, udp_v3):
+        strips = profile.get("layout.strips")
+        assert {item["id"]: item["video_zone"] for item in strips} == EXPECTED_VIDEO_ZONES
+        assert {item["id"]: item["direction"] for item in strips} == {
+            strip_id: "forward" for strip_id in EXPECTED.values()
+        }
     assert [item["strip_id"] for item in ddp.get("layout.digital_outputs")] == [
         item["strip_id"] for item in udp_v3.get("layout.digital_outputs")
     ]
@@ -123,6 +149,6 @@ def test_energy_wakeup_has_only_real_digital_targets() -> None:
         for item in [*show_data["show"]["brightness_tracks"], *show_data["show"]["cues"]]
         if item["target"]["type"] == "digital_strip"
     }
-    assert target_ids <= {strip_id for strip_id, _ in EXPECTED.values()}
+    assert target_ids <= set(EXPECTED.values())
     assert "zone_32_placeholder" not in SHOW.read_text(encoding="utf-8")
     assert "zone_32_dim" not in SHOW.read_text(encoding="utf-8")

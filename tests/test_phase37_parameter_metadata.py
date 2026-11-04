@@ -94,7 +94,7 @@ def _wrong_kind_value(spec: ParameterSpec) -> object:
 def test_exporter_is_live_registry_json() -> None:
     root = Path(__file__).resolve().parents[1]
     result = subprocess.run(
-        [sys.executable, str(root / "scripts" / "export_authoring_contract.py")],
+        [sys.executable, str(root / "scripts" / "dev" / "export_authoring_contract.py")],
         cwd=root,
         capture_output=True,
         text=True,

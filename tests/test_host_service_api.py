@@ -474,8 +474,30 @@ def test_ensure_mpv_stale_socket(monkeypatch):
     assert len(unlinked) == 1           # stale socket was removed
     assert mock_popen.called            # mpv was relaunched
     command = mock_popen.call_args.args[0]
-    assert "--vo=xv" in command
+    assert "--no-config" in command
+    assert "--fullscreen" in command
+    assert "--ontop" in command
+    assert "--cursor-autohide=always" in command
+    assert not any(arg.startswith("--vo=") for arg in command)
+    assert not any(arg == "--geometry" or arg.startswith("--geometry=") for arg in command)
     assert "--input-default-bindings=no" in command
+
+
+def test_ensure_mpv_exposes_local_media_audio_identity(monkeypatch):
+    """The production mpv process must be discoverable by PulseAudio identity."""
+    monkeypatch.setattr(engine_adapter, "_mpv", None)
+    monkeypatch.setattr(engine_adapter, "_mpv_proc", None)
+    monkeypatch.setattr(engine_adapter.os.path, "exists", lambda _path: False)
+    monkeypatch.setattr(engine_adapter.os, "makedirs", MagicMock())
+    monkeypatch.setattr(engine_adapter.subprocess, "Popen", MagicMock(
+        return_value=MagicMock(stderr=iter([]), poll=MagicMock(return_value=None)))
+    )
+    monkeypatch.setattr(engine_adapter, "_wait_until", lambda *args, **kwargs: True)
+
+    engine_adapter._ensure_mpv()
+
+    command = engine_adapter.subprocess.Popen.call_args.args[0]
+    assert "--audio-client-name=LIGHT-BELT-LocalMedia" in command
 
 
 # ── New: color params passed through (problems 1 & 2) ────────────────────────

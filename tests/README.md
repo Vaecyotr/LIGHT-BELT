@@ -35,7 +35,7 @@ Complete Windows bundled-Python runs on 2026-09-10:
 | history | 115 | 190.24 s | 0 |
 
 The final counts, measured timings, slowest tests/files, exact commands and
-limitations are recorded in [the audit](../docs/testing-audit.md).
+limitations are recorded in [the audit](../docs/acceptance/testing-audit.md).
 Append `--durations=25 --inventory-json=tmp/test-audit/<run>.json` to a real run
 for individual durations and per-file inventory. Use `--collect-only` only when
 counting; it does not validate tests and reports `null` for unmeasured time.

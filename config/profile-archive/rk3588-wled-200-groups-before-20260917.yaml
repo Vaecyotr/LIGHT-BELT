@@ -1,0 +1,62 @@
+# HISTORICAL REPLAY PROFILE only: pre-fbaab17 RK3588 WLED/DDP topology.
+# Preserves the acceptance input snapshot from 2026-08-31; never use in production.
+# Do not edit site-profile.yaml directly: the deployed systemd ExecStartPre
+# runs scripts/resolve_nodes.py to generate it with current mDNS results.
+# Unresolved nodes become disabled. NOT HARDWARE VERIFIED unless separately recorded.
+outputs:
+  mode: production
+  enabled: [ddp]
+  exit_safe_state: true
+  ddp: {enabled: true, port: 4048}
+  udp_v3: {enabled: false, protocol_version: 3, presentation: {mode: immediate}}
+  rs485_v2: {enabled: false}
+system:
+  platform: linux_arm64
+  output_fps: 30.0
+  clock: {mode: mpv}
+  audio:
+    source: {kind: wled_audio_sync_v2}
+  smoothing: {max_brightness: 0.65, gamma: 1.3}
+layout:
+  topology_version: 3
+  digital_output_policy: one_output_wled
+  zones: []
+  analog_nodes: []
+  strips:
+    - {id: strip_32, type: digital, pixel_count: 40, video_zone: left, direction: forward}
+    - {id: strip_31, type: digital, pixel_count: 10, video_zone: left, direction: forward}
+    - {id: strip_41, type: digital, pixel_count: 10, video_zone: right, direction: forward}
+    - {id: strip_43, type: digital, pixel_count: 20, video_zone: right, direction: forward}
+    - {id: strip_44, type: digital, pixel_count: 20, video_zone: right, direction: forward}
+    - {id: strip_11, type: digital, pixel_count: 10, video_zone: top, direction: forward}
+    - {id: strip_12, type: digital, pixel_count: 40, video_zone: top, direction: forward}
+    - {id: strip_21, type: digital, pixel_count: 10, video_zone: bottom, direction: forward}
+    - {id: strip_22, type: digital, pixel_count: 40, video_zone: bottom, direction: forward}
+  digital_nodes:
+    - {node_id: 1, host: wled-strip-32.local, port: 4048}
+    - {node_id: 2, host: wled-strip-41.local, port: 4048}
+    - {node_id: 3, host: wled-strip-44.local, port: 4048}
+    - {node_id: 4, host: wled-strip-12.local, port: 4048}
+    - {node_id: 5, host: wled-strip-22.local, port: 4048}
+    - {node_id: 6, host: wled-strip-31.local, port: 4048}
+    - {node_id: 7, host: wled-strip-43.local, port: 4048}
+    - {node_id: 8, host: wled-strip-11.local, port: 4048}
+    - {node_id: 9, host: wled-strip-21.local, port: 4048}
+  digital_segments: []
+  digital_outputs:
+    - {node_id: 1, output_id: 1, gpio: 16, strip_id: strip_32, direction: forward}
+    - {node_id: 2, output_id: 1, gpio: 16, strip_id: strip_41, direction: forward}
+    - {node_id: 3, output_id: 1, gpio: 16, strip_id: strip_44, direction: forward}
+    - {node_id: 4, output_id: 1, gpio: 16, strip_id: strip_12, direction: forward}
+    - {node_id: 5, output_id: 1, gpio: 16, strip_id: strip_22, direction: forward}
+    - {node_id: 6, output_id: 1, gpio: 16, strip_id: strip_31, direction: forward}
+    - {node_id: 7, output_id: 1, gpio: 16, strip_id: strip_43, direction: forward}
+    - {node_id: 8, output_id: 1, gpio: 16, strip_id: strip_11, direction: forward}
+    - {node_id: 9, output_id: 1, gpio: 16, strip_id: strip_21, direction: forward}
+  virtual_paths: []
+  video_zone_map:
+    left: [strip_32, strip_31]
+    right: [strip_41, strip_43, strip_44]
+    top: [strip_11, strip_12]
+    bottom: [strip_21, strip_22]
+    center: []

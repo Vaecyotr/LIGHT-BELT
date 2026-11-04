@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.authoring_modulation_acceptance import run_acceptance
+from scripts.acceptance.authoring_modulation_acceptance import run_acceptance
 
 
 SHOW = Path("config/acceptance/authoring-modulation-v1/show.yaml")

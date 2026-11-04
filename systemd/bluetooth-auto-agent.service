@@ -1,0 +1,13 @@
+[Unit]
+Description=Bluetooth Automatic NoInputNoOutput Pairing Agent
+Requires=bluetooth.service
+After=bluetooth.service dbus.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/pi/LIGHT-BELT/scripts/deploy/rk3588/bluetooth-auto-agent.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

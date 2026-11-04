@@ -25,6 +25,8 @@ SCENE_MAX_COUNT = 32
 SCENE_FILE_PATH = "data/scenes.json"    # 运行时数据，不进 git
 
 # ── 节目单 ──
+# 保留的兼容声明；当前 engine_adapter 调用 loader 默认发现入口，未传此值。
+# 实际节目先从 assets/ 发现，再使用 loader 的可选清单覆盖层。
 SHOWS_MANIFEST_PATH = "data/shows_manifest.json"  # 运行时数据，不进 git
 
 # ── 引擎 ──
@@ -46,10 +48,11 @@ TLS_KEYFILE = "/etc/light-belt/key.pem"
 MPV_SOCKET_PATH = os.environ.get("MPV_SOCKET_PATH", "/run/light-belt/mpv.sock")
 # mpv 视频输出的 DISPLAY；仅当进程环境未设置 DISPLAY 时生效
 MPV_DISPLAY = os.environ.get("MPV_DISPLAY", ":0")
-# X11 认证文件路径；仅当进程环境未设置 XAUTHORITY 时生效
+# X11 兼容默认值；当前 pi 生产服务显式提供 MPV_XAUTHORITY，见 systemd unit。
+# 仅当进程环境未设置 XAUTHORITY 时使用适配器选定的认证路径。
 MPV_XAUTHORITY = os.environ.get("MPV_XAUTHORITY", "/home/topeet/.Xauthority")
-# mpv 窗口几何（配合 --no-border 铺满屏幕，而不用 --fullscreen；
-# --fullscreen 曾在现场导致 LED 灯光同步异常，改用显式几何尺寸绕开 WM 全屏路径）
+# 保留的历史兼容设置。当前 mpv 启动使用 --fullscreen，不注入 --geometry；
+# 修改此值不会改变当前播放器窗口，历史几何策略见 Git 记录。
 MPV_GEOMETRY = os.environ.get("MPV_GEOMETRY", "1920x1080+0+0")
 
 # 是否启用 xrandr 视频输出检测（mock 模式默认关闭以免测试环境报错）

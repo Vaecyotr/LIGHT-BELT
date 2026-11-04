@@ -17,7 +17,8 @@ from light_engine.show import TargetCatalog, load_show
 
 REPO = Path(__file__).resolve().parents[1]
 SHOW_PATH = REPO / "config" / "acceptance" / "single-strip-visual-showcase-v2" / "show.yaml"
-PROFILE = REPO / "config" / "profiles" / "rk3588-host-service.yaml"
+CURRENT_PROFILE = REPO / "config" / "profiles" / "rk3588-host-service.yaml"
+REPLAY_PROFILE = REPO / "config" / "profile-archive" / "rk3588-wled-200-groups-before-20260917.yaml"
 TARGET = "strip_43"
 FPS = 30
 
@@ -25,8 +26,20 @@ FPS = 30
 @pytest.fixture(scope="module")
 def show():
     Config.reset()
-    config = Config.get_instance(PROFILE)
+    config = Config.get_instance(CURRENT_PROFILE)
     return load_show(SHOW_PATH, TargetCatalog.from_layout(Layout.from_config(config)))
+
+
+def test_historical_replay_fixture_is_separate_from_current_production_profile() -> None:
+    Config.reset()
+    replay = Layout.from_config(Config.get_instance(REPLAY_PROFILE))
+    assert sum(strip.pixel_count for strip in replay.strips) == 200
+    assert next(strip.pixel_count for strip in replay.strips if strip.id == TARGET) == 20
+
+    Config.reset()
+    current = Layout.from_config(Config.get_instance(CURRENT_PROFILE))
+    assert sum(strip.pixel_count for strip in current.strips) == 107
+    assert next(strip.pixel_count for strip in current.strips if strip.id == TARGET) == 10
 
 
 def _cue(show, cue_id: str):

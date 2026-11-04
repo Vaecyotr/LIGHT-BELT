@@ -8,11 +8,16 @@ commands are archived under `docs/history/campaigns/`.
 Run commands from the repository root. Use only the bundled interpreter:
 
 ```powershell
-.\.python\Scripts\python.exe -m pip install -e .
+& .\scripts\dev\bootstrap_python.ps1
 .\.python\Scripts\python.exe -m pytest -q
 ```
 
 ## Validate the cabin configuration
+
+The bootstrap validates shared `.python` Junctions without installing or
+removing dependencies. Independent environments synchronize the locked `host`
+and `dev` extras. Shared-environment repairs require coordination with its
+owner; do not use `-Recreate` through a worktree Junction.
 
 ```powershell
 .\.python\Scripts\python.exe -m light_engine `
@@ -52,8 +57,11 @@ verified. See [WLED Audio Sync V2 input contract](docs/reference/wled-audio-sync
 ```
 
 Memory and fake modes are **NOT HARDWARE VERIFIED** and never count as physical
-acceptance. For installation work, follow the
-[operator guide](docs/current/cabin-lighting-v3-operator-guide.md) and
-[ESP32 commissioning guide](docs/current/esp32-windows-commissioning.md). The
-current 20-effect registry and authored parameters are listed in the
-[effect reference](docs/reference/effect-reference.md).
+acceptance. For current installation, follow the
+[RK3588 bootstrap guide](docs/current/rk3588-bootstrap.md). The
+[custom-firmware maintenance guide](docs/current/cabin-lighting-v3-operator-guide.md)
+and [ESP32 commissioning guide](docs/current/esp32-windows-commissioning.md)
+cover the separate maintenance path. The
+internal effect registry and authored parameters are listed in the
+[effect reference](docs/reference/effect-reference.md); the APP effect facade
+remains compatibility-frozen.

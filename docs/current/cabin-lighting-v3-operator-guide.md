@@ -15,7 +15,7 @@
 Current production is nine independent ESP32 controllers running upstream WLED
 and receiving DDP. The tracked source template is
 `config/profiles/rk3588-host-service.yaml`; its nine strips
-contain 200 pixels in total. **9/200 is only the current profile snapshot**, not
+contain 107 pixels in total. **9/107 is only the current profile snapshot**, not
 an immutable topology or a protocol, firmware, or product capacity limit.
 
 `config/profiles/udp-v3-nine-strip-maintenance.yaml` is a separate custom

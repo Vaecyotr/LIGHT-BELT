@@ -22,7 +22,7 @@ from light_engine.outputs.ddp_output import (
     DdpOutput,
     encode_ddp_packets,
 )
-from scripts import resolve_nodes
+from scripts.runtime import resolve_nodes
 from host_services.layout_vocab import derive_capabilities_targets, derive_target_ids
 
 

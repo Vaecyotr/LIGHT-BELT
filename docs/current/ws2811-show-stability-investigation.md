@@ -1669,7 +1669,7 @@ Temporary investigation assets currently include:
 - `config/profile-archive/ws2811-ab-node2-strip41-scheduled-robust.yaml`
 - `config/shows/archive/ws2811-ab-experiments/ws2811-ab-strip41-blue-10s.yaml`
 - `config/shows/archive/ws2811-ab-experiments/ws2811-ab-strip41-rgb-static-steps.yaml`
-- `scripts/monitor_esp32_stats.py`
+- `scripts/hardware/monitor_esp32_stats.py`
 - their ignored environment-specific `.pio/build/...` outputs
 
 Do not clean these before the production Scheduled P1 and any required
