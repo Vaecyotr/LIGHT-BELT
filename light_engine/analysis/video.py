@@ -54,6 +54,7 @@ class VideoAnalyzer:
         # Smoothing
         smooth = config.get("system.smoothing.color_smoothing", 0.15)
         self._color_smooth = ColorSmoother(alpha=float(smooth))
+        self._dominant_smooth = ColorSmoother(alpha=float(smooth))
         self._brightness_smooth = ColorSmoother(alpha=float(smooth))
 
         # Previous frame for scene change detection
@@ -113,7 +114,7 @@ class VideoAnalyzer:
 
         # Apply smoothing
         sr, sg, sb = self._color_smooth.update(*avg_rgb)
-        dr, dg, db = self._color_smooth.update(*dom_rgb)
+        dr, dg, db = self._dominant_smooth.update(*dom_rgb)
 
         return VideoFeatures(
             timestamp=timestamp,
@@ -177,9 +178,15 @@ class VideoAnalyzer:
         f = frame.astype(np.float32) / 255.0
         # Quantize to 8 levels per channel
         n_bins = 8
-        r_bins = np.floor(f[:, :, 2][mask] * n_bins).astype(np.int32)
-        g_bins = np.floor(f[:, :, 1][mask] * n_bins).astype(np.int32)
-        b_bins = np.floor(f[:, :, 0][mask] * n_bins).astype(np.int32)
+        r_bins = np.minimum(
+            np.floor(f[:, :, 2][mask] * n_bins), n_bins - 1
+        ).astype(np.int32)
+        g_bins = np.minimum(
+            np.floor(f[:, :, 1][mask] * n_bins), n_bins - 1
+        ).astype(np.int32)
+        b_bins = np.minimum(
+            np.floor(f[:, :, 0][mask] * n_bins), n_bins - 1
+        ).astype(np.int32)
 
         # Combine into flat index
         indices = r_bins * n_bins * n_bins + g_bins * n_bins + b_bins
@@ -248,5 +255,6 @@ class VideoAnalyzer:
     def reset(self) -> None:
         """Reset internal state."""
         self._color_smooth.reset(0.0, 0.0, 0.0)
+        self._dominant_smooth.reset(0.0, 0.0, 0.0)
         self._brightness_smooth.reset(0.0, 0.0, 0.0)
         self._prev_frame = None

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from light_engine.cli import build_topology_inspection, cmd_inspect_topology
 from light_engine.config import Config
+from light_engine.cli import cmd_run
+import pytest
 
 
 PROFILE = "config/profile-archive/cabin-lighting-v3-production.yaml"
@@ -50,3 +52,39 @@ def test_inspect_topology_cli_prints_validated_json(capsys) -> None:
     report = json.loads(capsys.readouterr().out)
     assert report["source"] == {"kind": "show_v2", "path": SHOW}
     assert report["hardware_verification"] == "NOT HARDWARE VERIFIED"
+
+
+@pytest.mark.parametrize('fail_initialization', [False, True])
+def test_run_emits_ready_only_after_successful_output_initialization(monkeypatch, capsys, fail_initialization):
+    import light_engine.cli as cli
+
+    class EngineFixture:
+        _outputs = {}
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def use_synthetic(self):
+            pass
+
+        def set_effect(self, effect):
+            pass
+
+        def init_outputs(self):
+            assert 'LIGHT_BELT_ENGINE_READY' not in capsys.readouterr().out
+            if fail_initialization:
+                raise RuntimeError('output unavailable')
+
+        def run(self, **kwargs):
+            assert 'LIGHT_BELT_ENGINE_READY' in capsys.readouterr().out
+
+        def get_fps_stats(self):
+            return {'frame_count': 0, 'effective_fps': 0, 'processing_capacity': 0}
+
+    monkeypatch.setattr(cli, 'Engine', EngineFixture)
+    Config.reset()
+    result = cmd_run(argparse.Namespace(config=None, clock='internal', video=None, audio=None,
+                                       show=None, effect='static', duration=0, max_frames=0, ready_stdout=True))
+    assert result == (1 if fail_initialization else 0)
+    if fail_initialization:
+        assert 'LIGHT_BELT_ENGINE_READY' not in capsys.readouterr().out

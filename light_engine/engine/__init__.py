@@ -166,7 +166,16 @@ class Engine:
 
     def load_video(self, path: str) -> None:
         """Load a video file for analysis."""
-        self._video_reader = VideoReader(path).open()
+        reader = VideoReader(path)
+        try:
+            reader.open()
+            if reader.total_frames <= 0:
+                raise RuntimeError(f"Video contains no decodable frames: {path}")
+        except Exception as exc:
+            reader.close()
+            self._diagnostics["last_error"] = f"Video input failed: {exc}"
+            raise
+        self._video_reader = reader
         self._video_analyzer = VideoAnalyzer(self._config)
 
     def load_audio(self, path: str) -> None:
@@ -336,7 +345,14 @@ class Engine:
                     break
 
                 # Video analysis
-                if not paused and self._timestamp - last_video_time >= video_period:
+                if self._video_reader is not None and video_finished:
+                    # A completed video no longer supplies color features while
+                    # other attached media continues playing.
+                    self._latest_video = None
+                elif (
+                    (not paused or self._latest_video is None)
+                    and self._timestamp - last_video_time >= video_period
+                ):
                     self._latest_video = self._get_video_features()
                     last_video_time = self._timestamp
 
@@ -433,10 +449,15 @@ class Engine:
 
     def _get_video_features(self) -> Optional[VideoFeatures]:
         """Get latest video features from reader or synthetic source."""
-        if self._video_reader and self._video_analyzer:
+        if self._video_reader is not None:
+            if self._video_analyzer is None:
+                raise RuntimeError("Video reader is active without a video analyzer")
             frame = self._video_reader.read_frame(self._timestamp)
-            if frame is not None:
-                return self._video_analyzer.analyze(frame, self._timestamp)
+            if frame is None:
+                raise RuntimeError(
+                    f"Video frame decoding failed at {self._timestamp:.3f}s"
+                )
+            return self._video_analyzer.analyze(frame, self._timestamp)
         if self._data_source:
             return self._data_source.get_video_features(self._timestamp)
         return None

@@ -94,6 +94,60 @@ class TestVideoAnalyzer:
         assert g < 0.2
         assert b < 0.2
 
+    @pytest.mark.parametrize(
+        ("channel", "expected_rgb"),
+        [
+            (1, (0.0625, 0.9375, 0.0625)),
+            (0, (0.0625, 0.0625, 0.9375)),
+            (None, (0.9375, 0.9375, 0.9375)),
+        ],
+    )
+    def test_dominant_color_keeps_255_in_last_quantization_bin(
+        self, analyzer, channel, expected_rgb
+    ):
+        frame = np.zeros((90, 160, 3), dtype=np.uint8)
+        if channel is None:
+            frame[:] = 255
+        else:
+            frame[:, :, channel] = 255
+
+        mask = analyzer._black_border_mask(frame)
+        dominant = analyzer._dominant_color(frame, mask)
+        features = analyzer.analyze(frame, 1.0)
+
+        assert dominant == pytest.approx(expected_rgb, abs=1e-6)
+        assert max(features.dominant_rgb) > 0.7
+        assert all(0.0 <= component <= 1.0 for component in features.dominant_rgb)
+
+    def test_average_and_dominant_colors_have_independent_smoothing(
+        self, analyzer, monkeypatch
+    ):
+        config = analyzer._config
+        original_get = config.get
+        monkeypatch.setattr(
+            config,
+            "get",
+            lambda key, default=None: (
+                0.5
+                if key == "system.smoothing.color_smoothing"
+                else original_get(key, default)
+            ),
+        )
+        analyzer = VideoAnalyzer(config)
+        frame = np.zeros((90, 160, 3), dtype=np.uint8)
+        frame[:, :, 2] = 255
+
+        features = analyzer.analyze(frame, 1.0)
+
+        assert features.average_rgb == pytest.approx((0.5, 0.0, 0.0))
+        assert features.dominant_rgb == pytest.approx((0.46875, 0.03125, 0.03125))
+
+        analyzer.reset()
+        reset_features = analyzer.analyze(frame, 2.0)
+
+        assert reset_features.average_rgb == pytest.approx(features.average_rgb)
+        assert reset_features.dominant_rgb == pytest.approx(features.dominant_rgb)
+
     def test_black_frame(self, analyzer):
         frame = np.zeros((180, 320, 3), dtype=np.uint8)
         features = analyzer.analyze(frame, 1.0)

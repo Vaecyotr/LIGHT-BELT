@@ -101,7 +101,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.video:
         try:
             engine.load_video(args.video)
-        except FileNotFoundError as e:
+        except (OSError, RuntimeError) as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
     if args.audio:
@@ -128,6 +128,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Error: output initialization failed: {exc}", file=sys.stderr)
         _print_health_summary(engine._outputs)
         return 1
+
+    if getattr(args, "ready_stdout", False):
+        print("LIGHT_BELT_ENGINE_READY", flush=True)
 
     print(f"Light Engine v{__version__} - Run Mode")
     print(f"  Video: {args.video or 'generated'}")
@@ -175,8 +178,10 @@ def cmd_simulator(args: argparse.Namespace) -> int:
     if args.video:
         try:
             engine.load_video(args.video)
-        except FileNotFoundError as e:
-            print(f"Warning: {e} - using synthetic data")
+        except (OSError, RuntimeError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sim_out.close()
+            return 1
     if args.audio:
         try:
             engine.load_audio(args.audio)
@@ -233,7 +238,7 @@ def cmd_export(args: argparse.Namespace) -> int:
     if args.video:
         try:
             engine.load_video(args.video)
-        except FileNotFoundError as e:
+        except (OSError, RuntimeError) as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
     if args.audio:
@@ -562,6 +567,7 @@ def main() -> None:
     p_run.add_argument("--max-frames", "-n", type=int, default=None, help="Max output frames")
     p_run.add_argument("--clock", choices=["internal", "offline", "fake", "mpv"], default="internal")
     p_run.add_argument("--mpv-socket", default=None, help="mpv JSON IPC socket path")
+    p_run.add_argument("--ready-stdout", action="store_true", help=argparse.SUPPRESS)
 
     # simulator
     p_sim = subparsers.add_parser("simulator", help="Run terminal simulator")
