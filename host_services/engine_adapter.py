@@ -427,6 +427,9 @@ def _detect_video_available() -> bool:
     """Check HDMI connection via xrandr. Returns True if any HDMI output is connected."""
     if not VIDEO_DETECT_ENABLED:
         return True
+    from .config import uses_wayland, wayland_display_available
+    if uses_wayland():
+        return wayland_display_available()
     try:
         result = subprocess.run(
             ["xrandr", "--query"],
@@ -750,7 +753,7 @@ def _stop_owned_mpv() -> None:
 
 def _ensure_mpv() -> MpvClient:
     global _mpv, _mpv_proc, _audio_pending
-    from .config import MPV_SOCKET_PATH, MPV_DISPLAY, MPV_XAUTHORITY, MPV_GEOMETRY
+    from .config import MPV_SOCKET_PATH, MPV_DISPLAY, MPV_XAUTHORITY, uses_wayland, wayland_display_available
     sock = MPV_SOCKET_PATH
 
     if os.path.exists(sock):
@@ -772,6 +775,9 @@ def _ensure_mpv() -> MpvClient:
         # Probe succeeded — mpv is alive; skip restart.
 
     if not os.path.exists(sock):
+        wayland = uses_wayland()
+        if wayland and not wayland_display_available():
+            raise MpvUnavailableError("Waiting for the pi GNOME Wayland session environment")
         _stop_owned_mpv()
         _mpv_proc = None
         _mpv = None
@@ -785,8 +791,10 @@ def _ensure_mpv() -> MpvClient:
             )
             raise MpvUnavailableError(f"Cannot create mpv socket directory: {exc}") from exc
         env = os.environ.copy()
-        env.setdefault("DISPLAY", MPV_DISPLAY)
-        env.setdefault("XAUTHORITY", MPV_XAUTHORITY)
+        if not wayland:
+            env.setdefault("DISPLAY", MPV_DISPLAY)
+            env.setdefault("XAUTHORITY", MPV_XAUTHORITY)
+        video_options = ["--vo=gpu", "--gpu-context=wayland"] if wayland else []
         from pathlib import Path as _Path
         _input_conf = str(
             _Path(__file__).resolve().parent.parent / "config" / "mpv-kiosk-input.conf"
@@ -801,8 +809,8 @@ def _ensure_mpv() -> MpvClient:
                  "--ontop",
                  "--cursor-autohide=always",
                  "--input-default-bindings=no",
-                 "--no-border", "--force-window=yes","--no-osc",
-                 f"--input-conf={_input_conf}"],
+                 "--no-border", "--force-window=immediate", "--no-osc",
+                 f"--input-conf={_input_conf}", *video_options],
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 env=env,
             )

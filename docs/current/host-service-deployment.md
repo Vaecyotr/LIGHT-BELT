@@ -17,12 +17,12 @@
 
 ## RK3588 部署与后续更新
 
-当前目标路径为 `/home/pi/LIGHT-BELT`，用户为 `pi`。按专用安装说明运行 bootstrap；它准备 `.venv`、生成运行配置并安装系统服务。Host 的启动入口为 `.venv/bin/python -m host_services`，生产模式由服务配置显式选择 `ENGINE_ADAPTER=real`。
+当前目标路径为 `/home/pi/LIGHT-BELT`，用户为 `pi`，桌面为 GNOME Wayland。bootstrap 准备 `.venv`、独立更新策略和运行配置，将 Host 安装为用户服务并启用 linger。GNOME 登录项导入真实图形会话环境，Host 通过 `.venv/bin/python -m host_services` 启动，生产模式由 unit 选择 `ENGINE_ADAPTER=real`。
 
-生产启动前，在设备的 `/etc/light-belt/host.env` 中配置独立的
-`LIGHT_BELT_JWT_SECRET` 和 `LIGHT_BELT_PAIRING_CODE`。密钥至少 32 字节，
-配对码须替换开发默认值。该文件由 systemd 读取，应限制为管理员可读，
-凭据不进入 Git。真实模式缺少有效配置会拒绝启动。
+设备凭据持久保存于 `~/.config/light-belt/host.env`，由 `pi` 拥有，权限为 `0600`。
+首次部署自动生成独立 `LIGHT_BELT_JWT_SECRET` 和 `LIGHT_BELT_PAIRING_CODE`。
+已有有效的旧 `/etc/light-belt/host.env` 会迁移，原文件保留。密钥至少 32 字节，
+配对码须替换开发默认值。重复部署保留有效凭据，真实模式缺少有效配置会拒绝启动。
 
 首次安装与后续更新共同使用部署目录中的依赖同步逻辑，按锁文件安装 Host 依赖，排除开发依赖。声明与锁文件不一致时失败，设备端不重新解析或改写锁文件。已有兼容 Python 环境复用；系统蓝牙工具的 Python 与系统库单独管理。
 

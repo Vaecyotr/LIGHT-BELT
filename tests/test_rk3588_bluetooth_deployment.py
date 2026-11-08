@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import configparser
+import subprocess
+import sys
 
 
 DEPLOY = Path("scripts/deploy/rk3588")
@@ -74,3 +77,24 @@ def test_deployment_docs_preserve_hardware_status_semantics():
     assert "历史 prototype/user-observed" in docs
     assert "NOT HARDWARE VERIFIED" in docs
     assert "0.20" in docs
+
+
+def test_bluez_update_preserves_comments_and_replaces_effective_values(tmp_path):
+    path = tmp_path / "main.conf"
+    path.write_text("# vendor comment\n[General]\n#DiscoverableTimeout = 180\n"
+                    "DiscoverableTimeout = 30\nPairableTimeout = 15\nVendorSetting = keep\n"
+                    "[Policy]\nAutoEnable = false\n", encoding="utf-8")
+    source = read(DEPLOY / "setup-bluetooth.sh")
+    program = source.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    result = subprocess.run([sys.executable, "-B", "-c", program, str(path)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    parser = configparser.ConfigParser(strict=False)
+    parser.read(path)
+    assert parser["General"]["DiscoverableTimeout"] == "0"
+    assert parser["General"]["PairableTimeout"] == "0"
+    assert parser["General"]["VendorSetting"] == "keep"
+    assert parser["Policy"].getboolean("AutoEnable") is True
+    before = path.read_bytes()
+    result = subprocess.run([sys.executable, "-B", "-c", program, str(path)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert path.read_bytes() == before

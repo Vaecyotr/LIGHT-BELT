@@ -180,6 +180,13 @@ git)
 uv)
  case "$1" in
  --version) if [[ "$MODE" == wrong-uv ]]; then echo 'uv 0.9.50'; else echo 'uv 0.9.5'; fi;;
+ python)
+   if [[ "$2" == list ]]; then
+     [[ "$MODE" != python-list-missing ]] || exit 0
+     echo 'cpython-3.11.14-linux-aarch64-gnu <download> (3.11.14)'
+   elif [[ "$2" == install ]]; then
+     [[ "$MODE" != python-download-fail ]] || exit 1
+   fi;;
  lock) [[ "$MODE" != stale-lock && !( "$(head)" == b* && "$MODE" == stale-new-lock ) ]];;
  sync)
    [[ "$(cat "$CASE/active")" == 0 ]] || { echo UNSAFE_RUNNING_SYNC; exit 99; }
@@ -209,7 +216,7 @@ esac
 '''
 
 
-def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh"):
+def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh", entry_args=()):
     if BASH is None:
         raise RuntimeError(
             "Update transaction tests require Git Bash on Windows or bash on POSIX; "
@@ -223,16 +230,24 @@ def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh"):
         shutil.copyfile(source, repo / "scripts/deploy/rk3588/lib" / source.name)
     shutil.copyfile(ROOT / "scripts/maintenance/update.sh", repo / "scripts/maintenance/update.sh")
     shutil.copyfile(ROOT / "scripts/deploy/rk3588/setup-python.sh", repo / "scripts/deploy/rk3588/setup-python.sh")
+    (repo / "host_services").mkdir()
+    (repo / "host_services/__init__.py").touch()
+    shutil.copyfile(ROOT / "host_services/runtime_health.py", repo / "host_services/runtime_health.py")
     (repo / "pyproject.toml").write_text('[project]\nname="fixture"\nversion="1"\n')
     (repo / "uv.lock").write_text("fixture lock\n")
     (repo / "systemd/disabled.timer").write_text("new timer\n")
     (repo / "systemd/user/session.service").write_text("new session unit\n")
-    (repo / ".venv/bin/python").write_text(
+    venv_python = repo / ".venv/bin/python"
+    venv_python.write_text(
         '#!/usr/bin/env bash\nexec ' + shlex.quote(sys.executable.replace('\\', '/')) + ' "$@"\n',
         encoding='utf-8', newline='\n',
     )
+    if mode == "wrong-host-python":
+        venv_python.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8", newline="\n")
+    if mode == "python-download-fail":
+        venv_python.unlink()
     (tmp_path / "head").write_text(OLD + "\n")
-    (tmp_path / "active").write_text("1\n")
+    (tmp_path / "active").write_text("0\n" if mode == "python-download-fail" else "1\n")
     (tmp_path / "units").mkdir()
     (tmp_path / "units/disabled.timer").write_text("previous timer\n")
     (tmp_path / "recovery").mkdir()
@@ -247,7 +262,9 @@ def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh"):
                LIGHT_BELT_USER_UNIT_DIR=posix(tmp_path / "user-units"),
                LIGHT_BELT_UPDATE_LOG=posix(tmp_path / "update.log"),
                LIGHT_BELT_HEALTH_RETRIES="1", LIGHT_BELT_HEALTH_INTERVAL="0")
-    command = f'export PATH="{posix(tools)}:$PATH"; chmod +x "{posix(tools)}"/* "{posix(repo)}/.venv/bin/python"; bash "{posix(repo)}/{entry}"'
+    if mode == "uv-absent":
+        env["LIGHT_BELT_UV"] = posix(tmp_path / "missing-uv")
+    command = f'export PATH="{posix(tools)}:$PATH"; chmod +x "{posix(tools)}"/*; if [[ -f "{posix(repo)}/.venv/bin/python" ]]; then chmod +x "{posix(repo)}/.venv/bin/python"; fi; bash "{posix(repo)}/{entry}" {shlex.join(entry_args)}'
     result = subprocess.run([BASH, "-c", command], env=env, capture_output=True, text=True, encoding="utf-8", timeout=25)
     events = (tmp_path / "events").read_text() if (tmp_path / "events").exists() else ""
     log = (tmp_path / "update.log").read_text() if (tmp_path / "update.log").exists() else ""
@@ -259,7 +276,7 @@ def test_preflight_does_not_mutate_service_or_environment(tmp_path, mode):
     result, events, _ = run_case(tmp_path, mode)
     assert result.returncode == (0 if mode in ("no-update", "offline") else 1), result.stderr
     assert "uv sync " not in events
-    assert "systemctl stop " not in events
+    assert "systemctl --user stop " not in events
     assert "git merge " not in events
     assert (tmp_path / "head").read_text().strip() == OLD
 
@@ -267,7 +284,7 @@ def test_preflight_does_not_mutate_service_or_environment(tmp_path, mode):
 def test_lock_only_update_syncs_stopped_host_and_preserves_disabled_units(tmp_path):
     result, events, log = run_case(tmp_path, "lock-only")
     assert result.returncode == 0, (result.stderr, log, events)
-    assert events.index("systemctl stop ") < events.index("uv sync ") < events.index("systemctl start ")
+    assert events.index("systemctl --user stop ") < events.index("uv sync ") < events.index("systemctl --user start ")
     assert "--locked" in events and "--extra host" in events and "--no-dev" in events
     assert "systemctl enable " not in events and "restart disabled.timer" not in events
     assert (tmp_path / "units/disabled.timer").read_text() == "new timer\n"
@@ -277,7 +294,7 @@ def test_lock_only_update_syncs_stopped_host_and_preserves_disabled_units(tmp_pa
 def test_incompatible_running_health_rejects_update_before_mutation(tmp_path):
     result, events, log = run_case(tmp_path, 'legacy-health')
     assert result.returncode == 1, (result.stderr, log)
-    assert 'systemctl stop ' not in events
+    assert 'systemctl --user stop ' not in events
     assert 'git merge ' not in events
     assert 'uv sync ' not in events
     assert (tmp_path / 'head').read_text().strip() == OLD
@@ -290,7 +307,7 @@ def test_failure_restores_code_and_resynchronizes_old_lock_before_start(tmp_path
     assert (tmp_path / "head").read_text().strip() == OLD
     rollback = events.index("git reset --hard ")
     assert "uv sync " in events[rollback:]
-    assert events.rindex("uv sync ") < events.rindex("systemctl start ")
+    assert events.rindex("uv sync ") < events.rindex("systemctl --user start ")
     assert (tmp_path / "active").read_text().strip() == "1"
     assert (tmp_path / "units/disabled.timer").read_text() == "previous timer\n"
     assert not (tmp_path / "user-units/session.service").exists()
@@ -315,10 +332,12 @@ def test_stop_failure_never_merges_or_syncs(tmp_path):
     assert (tmp_path / "head").read_text().strip() == OLD
 
 
-def test_unavailable_user_manager_defers_reload_without_enabling_units(tmp_path):
+def test_unavailable_user_manager_rejects_update_before_mutation(tmp_path):
     result, events, log = run_case(tmp_path, "user-manager-absent")
-    assert result.returncode == 0, (result.stderr, log)
-    assert "unit reload deferred" in log
+    assert result.returncode == 1, (result.stderr, log)
+    assert "Host user manager unavailable" in log
+    assert "systemctl --user stop " not in events
+    assert "uv sync " not in events
     assert "systemctl enable " not in events
 
 
@@ -336,4 +355,48 @@ def test_installer_rejects_updater_lock_before_service_or_environment_checks(tmp
     assert result.returncode == 1
     assert "uv sync " not in events and "uv python install " not in events
     assert "systemctl is-active " not in events
+
+
+@pytest.mark.parametrize("mode,expected", [("install-check", 0), ("python-list-missing", 1), ("wrong-uv", 0)])
+def test_installer_preflight_is_read_only_and_checks_fixed_python_download(tmp_path, mode, expected):
+    result, events, _ = run_case(
+        tmp_path, mode, entry="scripts/deploy/rk3588/setup-python.sh", entry_args=("--check",)
+    )
+    assert result.returncode == expected, (result.stdout, result.stderr, events)
+    if mode == "wrong-uv":
+        assert "uv python list " not in events
+    else:
+        assert "uv python list --all-versions --all-platforms --all-arches 3.11.14" in events
+    assert "uv python install " not in events
+    assert "uv sync " not in events
+    assert "systemctl " not in events
+    assert "flock " not in events
+
+
+def test_installer_preflight_without_uv_validates_pinned_contract_without_installing(tmp_path):
+    result, events, _ = run_case(
+        tmp_path, "uv-absent", entry="scripts/deploy/rk3588/setup-python.sh", entry_args=("--check",)
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr, events)
+    assert "curl " not in events and "uv python install " not in events
+
+
+def test_python_download_failure_keeps_environment_absent(tmp_path):
+    result, events, _ = run_case(
+        tmp_path, "python-download-fail", entry="scripts/deploy/rk3588/setup-python.sh"
+    )
+    assert result.returncode == 1, (result.stdout, result.stderr, events)
+    assert "uv python list --all-versions --all-platforms --all-arches 3.11.14" in events
+    assert "uv python install 3.11.14" in events
+    assert not (tmp_path / "repo/.venv/bin/python").exists()
+
+
+def test_installer_preflight_rejects_existing_non_311_venv_before_any_mutation(tmp_path):
+    result, events, _ = run_case(
+        tmp_path, "wrong-host-python", entry="scripts/deploy/rk3588/setup-python.sh", entry_args=("--check",)
+    )
+    assert result.returncode == 1, (result.stdout, result.stderr, events)
+    assert "uv python list " not in events
+    assert "uv python install " not in events and "uv sync " not in events
+    assert "systemctl " not in events and "flock " not in events
 

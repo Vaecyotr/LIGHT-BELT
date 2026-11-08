@@ -31,6 +31,18 @@ maintenance only. WLED does not receive project UDP v3. Stop output, set
 `ENGINE_PROFILE_PATH`, and restart the Host to change Profile; the APP has no
 hot-switch. All physical behavior is **NOT HARDWARE VERIFIED**.
 
+## Current deployment services
+
+The NanoPC-T6 Ubuntu 22.04 Wayland deployment starts Host through
+`systemd/user/light-belt-host.service` with user linger. GNOME autostart imports
+the actual Wayland session and restarts Host for its fullscreen startup window.
+The user runtime owns mpv IPC and per-device credentials persist under
+`~/.config/light-belt/host.env`. The system Host unit is a legacy deployment
+definition. Bootstrap always applies the independent update policy, leaves
+LIGHT-BELT automatic updates disabled, and configures Kiosk only with the
+explicit `--configure-kiosk` option. Device behavior remains
+**NOT HARDWARE VERIFIED**.
+
 ## Current Show authority
 
 The production Host discovers Shows under `assets/`, including the immutable

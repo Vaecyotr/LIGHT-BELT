@@ -9,25 +9,29 @@ require_repo
 ensure_sudo
 
 log "安装/校验 RK3588 基础系统依赖"
-sudo apt-get update
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    openssh-server \
-    avahi-daemon avahi-utils libnss-mdns \
-    iw \
-    curl git ca-certificates util-linux \
-    mpv \
-    x11-xserver-utils \
-    libglib2.0-bin \
-    bluez \
-    pulseaudio pulseaudio-utils pulseaudio-module-bluetooth \
-    python3-dbus python3-gi dbus-x11
+packages=(openssh-server avahi-daemon avahi-utils libnss-mdns iw curl git
+    ca-certificates util-linux mpv x11-xserver-utils libglib2.0-bin bluez
+    pulseaudio pulseaudio-utils pulseaudio-module-bluetooth python3-dbus python3-gi dbus-x11)
+missing=()
+for package in "${packages[@]}"; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" != 'install ok installed' ]]; then
+        missing+=("$package")
+    fi
+done
+if (( ${#missing[@]} )); then
+    sudo apt-get update
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install --no-upgrade -y "${missing[@]}"
+fi
 
 sudo systemctl enable --now ssh
 sudo systemctl enable --now avahi-daemon
-sudo systemctl enable --now bluetooth || true
+sudo systemctl enable --now bluetooth
 
 # 中国大陆部署的持久兜底配置。部分 RK3588 内核可能把 cfg80211 编进内核，
 # 因此这个文件并不能替代厂家/bootloader 的监管域配置；verify 会明确检查并告警。
+if [[ -f /etc/modprobe.d/regdom.conf && ! -e /etc/modprobe.d/regdom.conf.light-belt.bak ]]; then
+    sudo cp -a /etc/modprobe.d/regdom.conf /etc/modprobe.d/regdom.conf.light-belt.bak
+fi
 printf 'options cfg80211 ieee80211_regdom=%s\n' "$LB_REGDOM" | \
     sudo tee /etc/modprobe.d/regdom.conf >/dev/null
 

@@ -61,13 +61,28 @@ MPV_SOCKET_PATH = os.environ.get("MPV_SOCKET_PATH", "/run/light-belt/mpv.sock")
 MPV_DISPLAY = os.environ.get("MPV_DISPLAY", ":0")
 # X11 兼容默认值；当前 pi 生产服务显式提供 MPV_XAUTHORITY，见 systemd unit。
 # 仅当进程环境未设置 XAUTHORITY 时使用适配器选定的认证路径。
-MPV_XAUTHORITY = os.environ.get("MPV_XAUTHORITY", "/home/topeet/.Xauthority")
+MPV_XAUTHORITY = os.environ.get("MPV_XAUTHORITY", os.path.expanduser("~/.Xauthority"))
 # 保留的历史兼容设置。当前 mpv 启动使用 --fullscreen，不注入 --geometry；
 # 修改此值不会改变当前播放器窗口，历史几何策略见 Git 记录。
 MPV_GEOMETRY = os.environ.get("MPV_GEOMETRY", "1920x1080+0+0")
 
 # 是否启用 xrandr 视频输出检测（mock 模式默认关闭以免测试环境报错）
 VIDEO_DETECT_ENABLED: bool = ENGINE_ADAPTER == "real"
+
+
+def uses_wayland() -> bool:
+    return (os.environ.get("MPV_GPU_CONTEXT") == "wayland"
+            or os.environ.get("XDG_SESSION_TYPE") == "wayland"
+            or bool(os.environ.get("WAYLAND_DISPLAY")))
+
+
+def wayland_display_available() -> bool:
+    display = os.environ.get("WAYLAND_DISPLAY")
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if not display or not runtime:
+        return False
+    path = _pl.Path(display)
+    return (path if path.is_absolute() else _pl.Path(runtime) / path).is_socket()
 
 # ── 亮度乘数 ──
 BRIGHTNESS_SCALE_DEFAULT: float = 0.5

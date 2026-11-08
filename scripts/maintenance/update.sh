@@ -4,8 +4,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../deploy/rk3588/lib/common.sh"
 source "$SCRIPT_DIR/../deploy/rk3588/lib/python-env.sh"
+source "$SCRIPT_DIR/../deploy/rk3588/lib/session.sh"
 REPO="$LB_REPO"
-BRANCH="${LIGHT_BELT_UPDATE_BRANCH:-validation/energy-wakeup-strip31-20260831}"
+BRANCH="${LIGHT_BELT_UPDATE_BRANCH:-1108}"
 SERVICE=light-belt-host.service
 HEALTH_URL="${LIGHT_BELT_HEALTH_URL:-http://127.0.0.1:8443/api/v1/status}"
 LOG="${LIGHT_BELT_UPDATE_LOG:-$LB_HOME/lb-update.log}"
@@ -41,7 +42,9 @@ health_ok() {
     for ((i=1; i<=HEALTH_RETRIES; i++)); do
         body="$(curl -fsS -m 5 "$HEALTH_URL" 2>/dev/null)" || body=""
         if [[ -n "$body" ]] && "$REPO/.venv/bin/python" -c "$HEALTH_CHECK_PY" "$want" <<< "$body"; then
-            return 0
+            if ! wayland_session_active || "$REPO/.venv/bin/python" -c "$HEALTH_MPV_PY" "/run/user/$(id -u)/light-belt/mpv.sock" >> "$LOG" 2>&1; then
+                return 0
+            fi
         fi
         sleep "$HEALTH_INTERVAL"
     done
@@ -69,11 +72,7 @@ sync_units() {
         done
     done
     sudo systemctl daemon-reload || return 1
-    if systemctl --user show-environment >/dev/null 2>&1; then
-        systemctl --user daemon-reload || return 1
-    else
-        log "User manager unavailable; unit reload deferred to next login."
-    fi
+    user_systemctl daemon-reload || return 1
 }
 restore_units() {
     local key dest
@@ -86,14 +85,12 @@ restore_units() {
         fi
     done < "$STATE/units"
     sudo systemctl daemon-reload || return 1
-    if systemctl --user show-environment >/dev/null 2>&1; then
-        systemctl --user daemon-reload || return 1
-    fi
+    user_systemctl daemon-reload || return 1
     return 0
 }
 rollback() {
     log "Rolling back to $OLD_COMMIT"
-    if ! sudo systemctl stop "$SERVICE"; then
+    if ! user_systemctl stop "$SERVICE"; then
         log "ROLLBACK FAILED: cannot stop Host"; return 2
     fi
     if ! git reset --hard "$OLD_COMMIT" || ! restore_units || \
@@ -101,8 +98,8 @@ rollback() {
         log "ROLLBACK FAILED: code/units/locked environment restoration failed; Host stopped"
         return 2
     fi
-    if ! sudo systemctl start "$SERVICE" || ! health_ok "$OLD_COMMIT"; then
-        sudo systemctl stop "$SERVICE" || log "ROLLBACK FAILED: final stop also failed"
+    if ! user_systemctl start "$SERVICE" || ! health_ok "$OLD_COMMIT"; then
+        user_systemctl stop "$SERVICE" || log "ROLLBACK FAILED: final stop also failed"
         log "ROLLBACK FAILED: recovered Host did not become healthy"; return 2
     fi
     log "Rollback succeeded; original update failed"
@@ -113,6 +110,7 @@ main() {
     cd "$REPO" || fail "Cannot enter $REPO"
     for cmd in git curl sudo systemctl mktemp flock; do command -v "$cmd" >/dev/null || fail "Missing $cmd"; done
     acquire_host_environment_lock || fail "Another install/update is running, or environment lock unavailable"
+    user_systemctl show-environment >/dev/null 2>&1 || fail "Host user manager unavailable"
     local status
     status="$(git status --porcelain --untracked-files=normal)" || fail "Cannot inspect worktree"
     [[ -z "$status" ]] || fail "Dirty repository; refusing update"
@@ -122,6 +120,14 @@ main() {
     check_host_lock >> "$LOG" 2>&1 || fail "Current lock invalid; recovery not guaranteed"
     OLD_COMMIT="$(git rev-parse HEAD)" || fail "Cannot read HEAD"
     [[ "$OLD_COMMIT" =~ ^[0-9a-f]{40}$ ]] || fail "Invalid HEAD"
+    HEALTH_MPV_PY="$("$REPO/.venv/bin/python" - <<'PY_MPV'
+import inspect
+from host_services.runtime_health import check_mpv
+print(inspect.getsource(check_mpv))
+print("import sys")
+print("sys.exit(0 if check_mpv(sys.argv[1])['mpv_ready'] else 1)")
+PY_MPV
+)" || fail "Cannot capture the player readiness contract"
     health_ok "$OLD_COMMIT" || fail "Current Host lacks compatible running identity/readiness; install the health contract before automatic updates"
     if ! git fetch origin "$BRANCH" >> "$LOG" 2>&1; then
         log "Fetch unavailable; unchanged"; return 0
@@ -133,10 +139,10 @@ main() {
     sudo -n true || fail "Noninteractive sudo unavailable"
     STATE="$(mktemp -d)" || fail "Cannot allocate recovery state"
     trap 'if [[ "${KEEP_RECOVERY:-0}" != 1 ]]; then rm -rf -- "$STATE"; fi' EXIT
-    sudo systemctl stop "$SERVICE" || fail "Cannot stop Host"
+    user_systemctl stop "$SERVICE" || fail "Cannot stop Host"
     if git merge --ff-only "$NEW_COMMIT" >> "$LOG" 2>&1 && \
        check_host_lock >> "$LOG" 2>&1 && sync_host_environment >> "$LOG" 2>&1 && \
-       sync_units >> "$LOG" 2>&1 && sudo systemctl start "$SERVICE" >> "$LOG" 2>&1 && \
+       sync_units >> "$LOG" 2>&1 && user_systemctl start "$SERVICE" >> "$LOG" 2>&1 && \
        health_ok "$NEW_COMMIT"; then
         log "Update succeeded: $NEW_COMMIT"; return 0
     fi

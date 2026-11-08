@@ -24,6 +24,17 @@ results and remaining verification are recorded in
 [the maintenance record](acceptance/workspace-governance-20261102.md).
 This maintenance approval does not authorize Phase 41 product work.
 
+## Approved deployment remediation — 2026-11-08
+
+The NanoPC-T6 Ubuntu 22.04 aarch64 deployment maintenance covers a fixed,
+downloadable Python 3.11/uv pair, read-only preflight, independent APT/proposed
+and popup policy, Wayland session-aware Host user services, public Bluetooth
+pairing/audio services, safe service migration, repeatable installation and
+behavior regression tests. Kiosk configuration is explicit opt-in and
+LIGHT-BELT automatic updates remain disabled. The implementation and physical
+acceptance commands are maintained in `docs/current/rk3588-bootstrap.md`.
+This maintenance does not change the frozen lighting authoring contract.
+
 ## Current Phase 40 closeout: Lighting Language Pro-Max
 
 The Phase 35-40 campaign completed the approved strict-superset contract while

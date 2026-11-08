@@ -1,0 +1,15 @@
+[Unit]
+Description=LIGHT-BELT default audio sink (RT5616)
+Wants=pulseaudio.socket
+After=pulseaudio.socket
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash %h/LIGHT-BELT/scripts/deploy/rk3588/set-default-audio-sink.sh
+RemainAfterExit=yes
+TimeoutStartSec=130
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -2,6 +2,11 @@
 set -u
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/session.sh"
+source "$SCRIPT_DIR/lib/python-env.sh"
+kiosk=0
+if [[ "${1:-}" == --kiosk ]]; then kiosk=1; shift; fi
+[[ $# == 0 ]] || die "Usage: $0 [--kiosk]"
 
 PASS=0
 WARN=0
@@ -20,7 +25,7 @@ printf '%s\n' '===== LIGHT-BELT RK3588 VERIFY ====='
 [[ "$(id -un)" == "$LB_USER" ]] && pass "user=$LB_USER" || fail "current user is $(id -un), expected $LB_USER"
 [[ -d "$LB_REPO" ]] && pass "repo=$LB_REPO" || fail "repo missing: $LB_REPO"
 
-for cmd in ssh avahi-resolve iw curl mpv git bluetoothctl pactl; do
+for cmd in ssh avahi-resolve iw curl mpv git bluetoothctl pactl pacmd timeout; do
     check_cmd "$cmd"
 done
 
@@ -28,10 +33,19 @@ systemctl is-enabled ssh >/dev/null 2>&1 && pass "ssh enabled" || fail "ssh not 
 systemctl is-active ssh >/dev/null 2>&1 && pass "ssh active" || fail "ssh not active"
 systemctl is-active avahi-daemon >/dev/null 2>&1 && pass "avahi active" || fail "avahi not active"
 
-if bluetoothctl show >/dev/null 2>&1; then
-    pass "Bluetooth controller available"
+bluetooth_ready=0
+for ((attempt=0; attempt<10; attempt++)); do
+    controller="$(LC_ALL=C timeout 5 bluetoothctl show 2>/dev/null || true)"
+    if grep -q 'Powered: yes' <<<"$controller" && grep -q 'Pairable: yes' <<<"$controller" && grep -q 'Discoverable: yes' <<<"$controller"; then
+        bluetooth_ready=1
+        break
+    fi
+    sleep 1
+done
+if (( bluetooth_ready )); then
+    pass "Bluetooth controller powered, pairable and discoverable"
 else
-    warning "Bluetooth controller not available yet; Bluetooth hardware checks deferred"
+    fail "Bluetooth public pairing not ready; inspect bluetooth and bluetooth-public-mode journals"
 fi
 
 systemctl is-enabled bluetooth.service >/dev/null 2>&1 && pass "bluetooth enabled" || fail "bluetooth not enabled"
@@ -40,19 +54,19 @@ for unit in bluetooth-auto-agent.service bluetooth-public-mode.service; do
     systemctl is-enabled "$unit" >/dev/null 2>&1 && pass "$unit enabled" || fail "$unit not enabled"
     systemctl is-active "$unit" >/dev/null 2>&1 && pass "$unit active" || fail "$unit not active"
 done
-systemctl is-enabled light-belt-audio-default-sink.service >/dev/null 2>&1 && pass "RT5616 default-sink service enabled" || fail "RT5616 default-sink service not enabled"
-systemctl is-active light-belt-audio-default-sink.service >/dev/null 2>&1 && pass "RT5616 default-sink service active" || warning "RT5616 default-sink service not active yet"
+user_systemctl is-enabled light-belt-audio-default-sink.service >/dev/null 2>&1 && pass "RT5616 default-sink service enabled" || fail "RT5616 default-sink service not enabled"
+user_systemctl is-active light-belt-audio-default-sink.service >/dev/null 2>&1 && pass "RT5616 default-sink service active" || fail "RT5616 default-sink service not active"
 
 PRIORITY_UNIT="$LB_HOME/.config/systemd/user/light-belt-bluetooth-priority.service"
 PRIORITY_LINK="$LB_HOME/.config/systemd/user/default.target.wants/light-belt-bluetooth-priority.service"
-if systemctl --user is-enabled light-belt-bluetooth-priority.service >/dev/null 2>&1; then
+if user_systemctl is-enabled light-belt-bluetooth-priority.service >/dev/null 2>&1; then
     pass "Bluetooth priority user service enabled"
 elif [[ -f "$PRIORITY_UNIT" && -L "$PRIORITY_LINK" ]]; then
     warning "Bluetooth priority user unit is statically enabled; user manager unavailable, reboot/no-SSH lifecycle is NOT HARDWARE VERIFIED"
 else
     fail "Bluetooth priority user service not enabled"
 fi
-if systemctl --user is-active light-belt-bluetooth-priority.service >/dev/null 2>&1; then
+if user_systemctl is-active light-belt-bluetooth-priority.service >/dev/null 2>&1; then
     pass "Bluetooth priority user service active"
 else
     warning "Bluetooth priority user service not active; reboot/no-SSH lifecycle is NOT HARDWARE VERIFIED"
@@ -79,11 +93,11 @@ if pactl info >/dev/null 2>&1; then
     DEFAULT_SINK="$(pactl get-default-sink 2>/dev/null || true)"
     [[ "$DEFAULT_SINK" == "$SINK" ]] && pass "default sink=$SINK" || fail "default sink=${DEFAULT_SINK:-unknown}, expected $SINK"
 else
-    warning "pi PulseAudio session unavailable; runtime A2DP/default-sink checks deferred"
+    fail "pi PulseAudio session unavailable; inspect the pulseaudio user service"
 fi
 
-if [[ -x "$LB_HOME/.local/bin/uv" ]]; then
-    pass "uv installed"
+if check_uv; then
+    pass "uv $LB_UV_VERSION installed"
 else
     fail "uv missing"
 fi
@@ -98,35 +112,55 @@ fi
 RUNTIME="$LB_REPO/config/runtime/wled-ddp-mdns.yaml"
 [[ -f "$RUNTIME" ]] && pass "runtime profile exists" || fail "runtime profile missing"
 
-systemctl is-enabled light-belt-host.service >/dev/null 2>&1 && pass "Host service enabled" || fail "Host service not enabled"
-systemctl is-active light-belt-host.service >/dev/null 2>&1 && pass "Host service active" || fail "Host service not active"
-
-if ss -lnt 2>/dev/null | grep -q ':8443 '; then
-    pass "Host API listening on 8443"
+user_systemctl is-enabled light-belt-host.service >/dev/null 2>&1 && pass "Host user service enabled" || fail "Host user service not enabled"
+user_systemctl is-active light-belt-host.service >/dev/null 2>&1 && pass "Host user service active" || fail "Host user service not active"
+[[ "$(loginctl show-user "$LB_USER" -p Linger --value)" == yes ]] && pass "Host starts at boot through user linger" || fail "user linger is not enabled"
+if systemctl is-enabled --quiet lb-update.timer 2>/dev/null || systemctl is-active --quiet lb-update.timer; then
+    fail "LIGHT-BELT automatic update timer must remain disabled"
 else
-    fail "8443 not listening"
+    pass "LIGHT-BELT automatic update disabled"
 fi
 
-STATUS="$(curl -fsS --max-time 5 http://127.0.0.1:8443/api/v1/status 2>/dev/null || true)"
-if [[ "$STATUS" == *'"ok":true'* || "$STATUS" == *'"ok": true'* ]]; then
-    pass "GET /api/v1/status"
+ready=0
+for ((attempt=0; attempt<30; attempt++)); do
+    STATUS="$(curl -fsS --max-time 1 http://127.0.0.1:8443/api/v1/status 2>/dev/null || true)"
+    if "$LB_REPO/.venv/bin/python" -c 'import json,sys; p=json.load(sys.stdin); d=p["data"]; sys.exit(0 if p.get("ok") is True and d.get("service")=="light-belt-host" and d.get("adapter")=="real" and d.get("ready") is True else 1)' <<<"$STATUS" 2>/dev/null; then
+        ready=1
+        break
+    fi
+    sleep 1
+done
+if (( ready )); then
+    pass "GET /api/v1/status reports the real Host ready"
 else
-    fail "Host status API failed"
+    fail "Host did not become ready; inspect systemctl --user status light-belt-host and journalctl --user -u light-belt-host"
 fi
 
-if [[ -S /run/light-belt/mpv.sock ]]; then
+MPV_SOCKET="/run/user/$(id -u)/light-belt/mpv.sock"
+if ! wayland_session_active; then
+    warning "GNOME Wayland login pending; fullscreen black is NOT HARDWARE VERIFIED until the pi graphical session starts"
+elif [[ -S "$MPV_SOCKET" ]]; then
     pass "mpv IPC socket exists"
+    if "$LB_REPO/.venv/bin/python" -m host_services.runtime_health --mpv-socket "$MPV_SOCKET"; then
+        pass "mpv IPC confirms configured fullscreen Wayland video output"
+    else
+        fail "mpv IPC video readiness failed"
+    fi
 else
     fail "mpv IPC socket missing"
 fi
 
-MPV_ARGS="$(pgrep -a mpv 2>/dev/null | head -1)"
+MPV_ARGS="$(pgrep -a -u "$LB_USER" mpv 2>/dev/null | grep -F -- "--input-ipc-server=$MPV_SOCKET" | head -1)"
 if [[ -n "$MPV_ARGS" ]]; then
     [[ "$MPV_ARGS" == *'--fullscreen'* ]] && pass "mpv fullscreen kiosk" || fail "mpv missing --fullscreen"
+    [[ "$MPV_ARGS" == *'--force-window=immediate'* ]] && pass "mpv creates its startup window immediately" || fail "mpv startup window is not immediate"
+    [[ "$MPV_ARGS" == *'--gpu-context=wayland'* ]] && pass "mpv native Wayland context" || fail "mpv is not using native Wayland"
     [[ "$MPV_ARGS" != *'--vo=xv'* ]] && pass "mpv does not force legacy xv" || fail "mpv still forces --vo=xv"
     [[ "$MPV_ARGS" == *'--audio-client-name=LIGHT-BELT-LocalMedia'* ]] && pass "mpv PulseAudio identity present" || fail "mpv missing LIGHT-BELT-LocalMedia identity"
 else
-    fail "mpv process not running"
+    if wayland_session_active; then
+        fail "mpv process not running in the pi Wayland session"
+    fi
 fi
 
 if grep -q -- '--audio-client-name=LIGHT-BELT-LocalMedia' "$LB_REPO/host_services/engine_adapter.py"; then
@@ -152,19 +186,19 @@ else
     warning "Wi-Fi regulatory domain=${REGDOM:-unknown}, expected $LB_REGDOM；请由厂家镜像/bootloader 固化后重启验收"
 fi
 
-if [[ -f /etc/update-manager/release-upgrades ]] && grep -q '^Prompt=never$' /etc/update-manager/release-upgrades; then
-    pass "Ubuntu release-upgrade popup disabled"
+if bash "$SCRIPT_DIR/setup-update-policy.sh" --check; then
+    pass "Independent system update, proposed and popup policy verified"
 else
-    warning "release-upgrade Prompt=never 未确认"
+    fail "Independent update policy is not effective"
 fi
 
 UID_NOW="$(id -u)"
-if [[ -S "/run/user/$UID_NOW/bus" ]]; then
+if (( kiosk )) && [[ -S "/run/user/$UID_NOW/bus" ]]; then
     export XDG_RUNTIME_DIR="/run/user/$UID_NOW"
     export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
     BANNERS="$(gsettings get org.gnome.desktop.notifications show-banners 2>/dev/null || true)"
     [[ "$BANNERS" == "false" ]] && pass "GNOME notification banners disabled" || warning "GNOME banner setting=${BANNERS:-unknown}"
-else
+elif (( kiosk )); then
     warning "GNOME DBus session unavailable；kiosk settings will be replayed by autostart at login"
 fi
 

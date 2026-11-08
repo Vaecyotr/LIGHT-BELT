@@ -12,10 +12,17 @@ if [[ ! -S "$XDG_RUNTIME_DIR/bus" ]]; then
     exit 0
 fi
 
+failures=0
 set_gsetting() {
     local schema="$1" key="$2" value="$3"
     if gsettings writable "$schema" "$key" 2>/dev/null | grep -qx true; then
-        gsettings set "$schema" "$key" "$value" || true
+        if ! gsettings set "$schema" "$key" "$value"; then
+            echo "[kiosk-session] Failed to set $schema $key" >&2
+            failures=$((failures + 1))
+        fi
+    else
+        echo "[kiosk-session] Setting is unavailable or locked: $schema $key" >&2
+        failures=$((failures + 1))
     fi
 }
 
@@ -30,9 +37,5 @@ set_gsetting org.gnome.desktop.background picture-uri-dark "''"
 set_gsetting org.gnome.desktop.background color-shading-type "'solid'"
 set_gsetting org.gnome.desktop.background primary-color "'#000000'"
 
-# 清理已经出现的 GUI 更新提示；不存在时不报错。
-pkill -f '/update-manager' >/dev/null 2>&1 || true
-pkill -x update-manager >/dev/null 2>&1 || true
-pkill -x update-notifier >/dev/null 2>&1 || true
-
+(( failures == 0 )) || exit 1
 echo "[kiosk-session] GNOME kiosk settings applied"

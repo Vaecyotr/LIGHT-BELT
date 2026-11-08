@@ -1,0 +1,19 @@
+[Unit]
+Description=LIGHT-BELT Host Service
+Wants=pulseaudio.socket
+After=pulseaudio.socket
+
+[Service]
+Type=simple
+WorkingDirectory=%h/LIGHT-BELT
+Environment=ENGINE_ADAPTER=real
+Environment=ENGINE_PROFILE_PATH=config/runtime/wled-ddp-mdns.yaml
+EnvironmentFile=%h/.config/light-belt/host.env
+RuntimeDirectory=light-belt
+ExecStart=/usr/bin/env XDG_RUNTIME_DIR=%t MPV_GPU_CONTEXT=wayland MPV_SOCKET_PATH=%t/light-belt/mpv.sock %h/LIGHT-BELT/.venv/bin/python -m host_services
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=90
+
+[Install]
+WantedBy=default.target

@@ -56,3 +56,11 @@ def test_extras_are_the_only_development_dependency_authority():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert "dev" in project["project"]["optional-dependencies"]
     assert not project.get("dependency-groups")
+
+
+def test_rk3588_python_pin_is_supported_by_uv_095_for_aarch64_glibc():
+    common = (ROOT / "scripts/deploy/rk3588/lib/common.sh").read_text(encoding="utf-8")
+    python_env = (ROOT / "scripts/deploy/rk3588/lib/python-env.sh").read_text(encoding="utf-8")
+    assert 'LIGHT_BELT_PYTHON_VERSION:-3.11.14' in common
+    assert 'LB_UV_VERSION=0.9.5' in python_env
+    assert 'python list --all-versions --all-platforms --all-arches' in python_env

@@ -58,8 +58,13 @@ app.add_middleware(
 
 async def _disable_dpms():
     """禁用 X11 屏保 / DPMS，防止 HDMI 无信号导致黑屏后无法唤醒。"""
+    from .config import uses_wayland
+    if uses_wayland():
+        return
     import subprocess as _sp
-    env = {"DISPLAY": MPV_DISPLAY, "XAUTHORITY": MPV_XAUTHORITY, "PATH": os.environ.get("PATH", "/usr/bin")}
+    env = os.environ.copy()
+    env.setdefault("DISPLAY", MPV_DISPLAY)
+    env.setdefault("XAUTHORITY", MPV_XAUTHORITY)
     for cmd in [
         ["xset", "s", "off"],       # 禁用屏保
         ["xset", "-dpms"],          # 禁用 DPMS（防 HDMI 信号关闭）

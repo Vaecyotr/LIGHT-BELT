@@ -23,12 +23,15 @@ systemctl --user reset-failed >/dev/null 2>&1 || true
 pkill -u "$LB_USER" -f "$LB_HOME/.local/bin/bluetooth-audio-loopback.sh" >/dev/null 2>&1 || true
 
 if [[ -f "$MAIN_CONF" ]]; then
-    sudo cp -an "$MAIN_CONF" "$MAIN_CONF.light-belt.bak" || true
+    [[ ! -L "$MAIN_CONF" ]] || die "拒绝覆盖 Bluetooth 配置联接: $MAIN_CONF"
+    sudo cp -an "$MAIN_CONF" "$MAIN_CONF.light-belt.bak"
 fi
 
 sudo /usr/bin/python3 - "$MAIN_CONF" <<'PY'
 from pathlib import Path
 import sys
+import os
+import tempfile
 
 path = Path(sys.argv[1])
 lines = path.read_text(encoding="utf-8").splitlines(keepends=True) if path.exists() else []
@@ -51,15 +54,31 @@ for section, values in wanted.items():
                 end = i
                 break
         replacement = f"{key} = {value}\n"
+        found = False
         for i in range(start + 1, end):
-            candidate = lines[i].lstrip().lstrip("#").strip()
+            candidate = lines[i].strip()
+            if candidate.startswith("#"):
+                continue
             if "=" in candidate and candidate.split("=", 1)[0].strip() == key:
                 lines[i] = replacement
-                break
-        else:
+                found = True
+        if not found:
             lines.insert(end, replacement)
 
-path.write_text("".join(lines), encoding="utf-8")
+metadata = path.stat() if path.exists() else None
+fd, temporary = tempfile.mkstemp(prefix=".light-belt-bluez-", dir=path.parent)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as stream:
+        stream.write("".join(lines))
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.chmod(temporary, metadata.st_mode & 0o7777 if metadata else 0o644)
+    if metadata is not None and os.name == "posix":
+        os.chown(temporary, metadata.st_uid, metadata.st_gid)
+    os.replace(temporary, path)
+finally:
+    if os.path.exists(temporary):
+        os.unlink(temporary)
 PY
 
 sudo systemctl enable bluetooth.service

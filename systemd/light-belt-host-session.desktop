@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=LIGHT-BELT Host Wayland Session
+Exec=/bin/bash /home/pi/LIGHT-BELT/scripts/deploy/rk3588/start-host-session.sh
+Terminal=false
+OnlyShowIn=GNOME;
+X-GNOME-Autostart-enabled=true
