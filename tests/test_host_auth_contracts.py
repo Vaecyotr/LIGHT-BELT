@@ -82,6 +82,45 @@ def test_refresh_preserves_granted_scopes_and_rotates_once(client):
     assert client.post('/api/v1/auth/refresh', json={'refresh_token': refresh}).status_code == 401
 
 
+def test_new_refresh_token_reclaims_expired_tokens_and_preserves_live_scope(monkeypatch):
+    now = [1000]
+    monkeypatch.setattr(auth_manager, '_now', lambda: now[0])
+    monkeypatch.setattr(auth_manager, '_refresh_tokens', {})
+    expired = auth_manager.create_refresh_token('expired', ['state:read'])
+    now[0] += 1
+    live = auth_manager.create_refresh_token('live', ['state:read', 'playback:write'])
+    live_expiry = now[0] + config.REFRESH_TOKEN_EXPIRE_SECONDS
+    now[0] += config.REFRESH_TOKEN_EXPIRE_SECONDS - 1
+
+    auth_manager.create_refresh_token('new', ['state:read'])
+
+    assert len(auth_manager._refresh_tokens) == 2
+    assert expired not in auth_manager._refresh_tokens
+    assert auth_manager.consume_refresh_token(live) == {
+        'client_id': 'live', 'scope': ['state:read', 'playback:write'],
+        'expires_at': live_expiry,
+    }
+
+
+def test_new_ws_ticket_reclaims_expired_ticket_and_keeps_single_use(monkeypatch):
+    now = [1000]
+    monkeypatch.setattr(auth_manager, '_now', lambda: now[0])
+    monkeypatch.setattr(auth_manager, '_ws_tickets', {})
+    expired = auth_manager.create_ws_ticket(['error.event'])['ws_ticket']
+    now[0] += 1
+    live = auth_manager.create_ws_ticket(['heartbeat'])['ws_ticket']
+    now[0] += config.WS_TICKET_EXPIRE_SECONDS - 1
+
+    auth_manager.create_ws_ticket(['playback.progress'])
+
+    assert len(auth_manager._ws_tickets) == 2
+    assert expired not in auth_manager._ws_tickets
+    consumed = auth_manager.consume_ws_ticket(live)
+    assert consumed is not None
+    assert consumed['subscribe'] == ['heartbeat']
+    assert auth_manager.consume_ws_ticket(live) is None
+
+
 def test_status_and_static_assets_remain_public(client):
     assert client.get('/api/v1/status').status_code == 200
     assert client.get('/').status_code == 200

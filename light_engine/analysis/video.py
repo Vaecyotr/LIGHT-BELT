@@ -209,18 +209,16 @@ class VideoAnalyzer:
     def _zone_colors(
         self, frame: np.ndarray, mask: np.ndarray
     ) -> dict[str, Tuple[float, float, float]]:
-        """Compute average color per zone grid cell."""
+        """Sample edge cells and column ``cols // 2`` for the center zone."""
         h, w = frame.shape[:2]
         cols, rows = self._zone_grid
         cell_h = max(1, h // rows)
         cell_w = max(1, w // cols)
 
         zones = {}
-        zone_names = ["left", "center", "right", "top", "bottom"]
-
         # Horizontal zones (left/center/right)
         if cols >= 3:
-            for ci, name in enumerate(["left", "center", "right"]):
+            for ci, name in [(0, "left"), (cols // 2, "center"), (cols - 1, "right")]:
                 x1 = ci * cell_w
                 x2 = (ci + 1) * cell_w if ci < cols - 1 else w
                 cell = frame[:, x1:x2]

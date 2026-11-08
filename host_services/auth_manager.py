@@ -26,6 +26,12 @@ def _now() -> int:
     return int(time.time())
 
 
+def _prune_expired_entries(entries: dict[str, dict], now: int) -> None:
+    for key, info in list(entries.items()):
+        if now >= info["expires_at"]:
+            del entries[key]
+
+
 # ────────── Access Token ──────────
 
 def create_access_token(client_id: str, scope: list[str]) -> tuple[str, int]:
@@ -68,11 +74,13 @@ def is_token_expired(token: str) -> bool:
 # ────────── Refresh Token ──────────
 
 def create_refresh_token(client_id: str, scope: list[str]) -> str:
+    now = _now()
+    _prune_expired_entries(_refresh_tokens, now)
     token = f"rt_{uuid.uuid4().hex[:16]}"
     _refresh_tokens[token] = {
         "client_id": client_id,
         "scope": scope,
-        "expires_at": _now() + REFRESH_TOKEN_EXPIRE_SECONDS,
+        "expires_at": now + REFRESH_TOKEN_EXPIRE_SECONDS,
     }
     return token
 
@@ -105,12 +113,14 @@ def issue_token_pair(client_id: str, scope: list[str] | None = None) -> dict:
 # ────────── WS Ticket ──────────
 
 def create_ws_ticket(subscribe: list[str], host: str = "0.0.0.0:8443", *, secure: bool = False) -> dict:
+    now = _now()
+    _prune_expired_entries(_ws_tickets, now)
     ticket = f"wst_{uuid.uuid4().hex[:16]}"
     session_id = f"sess_{uuid.uuid4().hex[:8]}"
     _ws_tickets[ticket] = {
         "session_id": session_id,
         "subscribe": subscribe,
-        "expires_at": _now() + WS_TICKET_EXPIRE_SECONDS,
+        "expires_at": now + WS_TICKET_EXPIRE_SECONDS,
     }
     scheme = "wss" if secure else "ws"
     return {

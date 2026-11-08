@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import socket
+import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -27,10 +28,12 @@ class MpvIPCAdapter:
         self._timeout = timeout
         self._socket: Optional[socket.socket] = None
         self._request_id = 0
+        self._read_buffer = bytearray()
 
     def connect(self) -> None:
         if self._socket is not None:
             return
+        self._read_buffer.clear()
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(self._timeout)
         try:
@@ -58,33 +61,49 @@ class MpvIPCAdapter:
         return response.get("data")
 
     def _request(self, command: list[Any]) -> dict[str, Any]:
-        self.connect()
-        assert self._socket is not None
-        self._request_id += 1
-        payload = {"command": command, "request_id": self._request_id}
+        deadline = time.monotonic() + self._timeout
         try:
+            self.connect()
+            assert self._socket is not None
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise socket.timeout("mpv IPC request deadline expired")
+            self._socket.settimeout(remaining)
+            self._request_id += 1
+            payload = {"command": command, "request_id": self._request_id}
             self._socket.sendall(json.dumps(payload).encode("utf-8") + b"\n")
             while True:
-                line = self._readline()
+                line = self._readline(deadline)
                 response = json.loads(line.decode("utf-8"))
+                if not isinstance(response, dict):
+                    raise MpvIPCError("mpv IPC response must be a JSON object")
                 if response.get("request_id") == self._request_id:
                     return response
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, UnicodeError, json.JSONDecodeError, MpvIPCError) as exc:
             self.close()
+            if isinstance(exc, MpvIPCError):
+                raise
             raise MpvIPCError("mpv IPC request failed") from exc
 
-    def _readline(self) -> bytes:
+    def _readline(self, deadline: float) -> bytes:
         assert self._socket is not None
-        chunks: list[bytes] = []
         while True:
-            chunk = self._socket.recv(1)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise socket.timeout("mpv IPC request deadline expired")
+            newline = self._read_buffer.find(b"\n")
+            if newline >= 0:
+                line = bytes(self._read_buffer[:newline])
+                del self._read_buffer[: newline + 1]
+                return line
+            self._socket.settimeout(remaining)
+            chunk = self._socket.recv(4096)
             if not chunk:
                 raise MpvIPCError("mpv IPC socket closed")
-            if chunk == b"\n":
-                return b"".join(chunks)
-            chunks.append(chunk)
+            self._read_buffer.extend(chunk)
 
     def close(self) -> None:
         if self._socket is not None:
             self._socket.close()
             self._socket = None
+        self._read_buffer.clear()

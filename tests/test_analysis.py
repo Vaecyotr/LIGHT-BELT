@@ -79,6 +79,23 @@ class TestAudioAnalyzer:
         assert 0 <= features.rms <= 1.0
 
 
+@pytest.mark.parametrize("cols", [3, 4, 5])
+def test_video_named_horizontal_zones_use_first_middle_and_last_cells(cols):
+    config = Config()
+    config._data["system"]["video"]["zone_grid"] = [cols, 3]
+    config._data["system"]["video"]["analysis_size"] = [20 * cols, 60]
+    frame = np.full((60, 20 * cols, 3), 128, dtype=np.uint8)
+    frame[:, :20] = (0, 0, 255)
+    frame[:, (cols // 2) * 20:(cols // 2 + 1) * 20] = (255, 0, 0)
+    frame[:, -20:] = (0, 255, 0)
+
+    features = VideoAnalyzer(config).analyze(frame, 0.0)
+
+    assert features.zone_colors["left"] == pytest.approx((1.0, 0.0, 0.0))
+    assert features.zone_colors["center"] == pytest.approx((0.0, 0.0, 1.0))
+    assert features.zone_colors["right"] == pytest.approx((0.0, 1.0, 0.0))
+
+
 class TestVideoAnalyzer:
     @pytest.fixture
     def analyzer(self):

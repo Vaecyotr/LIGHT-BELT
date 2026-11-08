@@ -43,6 +43,16 @@ class TestConfig:
         assert config.get("system.output_fps") == 30.0
         assert config.get("system.smoothing.max_brightness") == 0.85
 
+    @pytest.mark.parametrize("grid", [[0, 3], [3, 0], [3], [3, 3, 3], [True, 3], [3.5, 3], "3,3"])
+    def test_video_zone_grid_rejects_invalid_dimensions(self, grid):
+        from light_engine.config import validate_config
+
+        data = Config().to_dict()
+        data["system"]["video"]["zone_grid"] = grid
+
+        with pytest.raises(ConfigError, match="zone_grid"):
+            validate_config(data)
+
     def test_nonexistent_key(self):
         Config.reset()
         config = Config()

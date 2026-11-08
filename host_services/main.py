@@ -1,14 +1,7 @@
-"""
-LIGHT-BELT Host Service 入口。
-相当于 Spring Boot 的 main() + @SpringBootApplication。
+r"""LIGHT-BELT Host Service application and module entry point.
 
-启动方式：
-  cd host_service
-  python main.py
-
-本地 Postman 测试地址：
-  REST:      http://localhost:8443/api/v1/status
-  WebSocket: ws://localhost:8443/ws?ticket=<ticket>
+From the repository root, start the development service with:
+``.\.python\Scripts\python.exe -m host_services``.
 """
 
 import logging

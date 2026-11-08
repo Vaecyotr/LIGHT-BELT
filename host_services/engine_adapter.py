@@ -1435,7 +1435,7 @@ def get_runtime_state_snapshot() -> dict:
 
 
 def get_playback_progress_snapshot() -> dict:
-    return _playback_data()
+    return {**_playback_data(), "position_ms": _live_position_ms()}
 
 
 # ══════════════════════════════════════════════

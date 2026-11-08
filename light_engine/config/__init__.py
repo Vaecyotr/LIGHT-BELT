@@ -216,6 +216,12 @@ def validate_config(data: dict[str, Any]) -> None:
         ["internal", "offline", "fake", "mpv"],
     )
     _require_number(system.get("output_fps"), "system", "output_fps", 1.0)
+    video = _require_mapping(system.get("video", {}), "system.video", "video")
+    zone_grid = _require_list(video.get("zone_grid", [3, 3]), "system.video", "zone_grid")
+    if len(zone_grid) != 2:
+        raise ConfigError("system.video", "zone_grid", zone_grid, "[columns, rows]")
+    for dimension in zone_grid:
+        _require_int(dimension, "system.video", "zone_grid", 1)
     audio = _require_mapping(system.get("audio"), "system.audio", "audio")
     audio_source = _require_mapping(
         audio.get("source"), "system.audio.source", "source"

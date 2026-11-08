@@ -330,49 +330,55 @@ def cmd_run_mpv(args: argparse.Namespace) -> int:
             print(f"Error: failed to start mpv: {e}", file=sys.stderr)
             return 1
 
+    clock = None
     try:
-        clock = MpvIPCClock(socket_path)
-        clock.connect()
-    except Exception as e:
-        if mpv_process is not None:
-            mpv_process.terminate()
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
-    engine = Engine(config, clock=clock)
-    show_duration = None
-    if args.show:
         try:
-            show_duration = _configure_engine_show(engine, args.show)
-        except (OSError, ShowValidationError, ValueError, KeyError) as e:
+            clock = MpvIPCClock(socket_path)
+            clock.connect()
+        except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
-    else:
-        engine.set_effect(args.effect or "video_audio_fusion")
-    engine.init_outputs()
 
-    print(f"Light Engine v{__version__} - mpv Clock Mode")
-    print(f"  IPC: {socket_path}")
-    if args.show:
-        print(f"  Show: {args.show}")
-    else:
-        print(f"  Effect: {args.effect or 'video_audio_fusion'}")
-    print("  Clock: mpv")
+        engine = Engine(config, clock=clock)
+        show_duration = None
+        if args.show:
+            try:
+                show_duration = _configure_engine_show(engine, args.show)
+            except (OSError, ShowValidationError, ValueError, KeyError) as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
+        else:
+            engine.set_effect(args.effect or "video_audio_fusion")
+        engine.init_outputs()
 
-    try:
+        print(f"Light Engine v{__version__} - mpv Clock Mode")
+        print(f"  IPC: {socket_path}")
+        if args.show:
+            print(f"  Show: {args.show}")
+        else:
+            print(f"  Effect: {args.effect or 'video_audio_fusion'}")
+        print("  Clock: mpv")
+
         engine.run(duration=args.duration if args.duration is not None else show_duration, max_frames=args.max_frames)
-    finally:
-        clock.close()
-        if mpv_process is not None:
-            mpv_process.terminate()
-            mpv_process.wait(timeout=3.0)
 
-    stats = engine.get_fps_stats()
-    print(f"\nCompleted: {stats['frame_count']} frames")
-    print(f"  Effective FPS: {stats['effective_fps']:.1f}")
-    print(f"  Processing capacity: {stats['processing_capacity']:.1f} FPS")
-    _print_health_summary(engine._outputs)
-    return 0
+        stats = engine.get_fps_stats()
+        print(f"\nCompleted: {stats['frame_count']} frames")
+        print(f"  Effective FPS: {stats['effective_fps']:.1f}")
+        print(f"  Processing capacity: {stats['processing_capacity']:.1f} FPS")
+        _print_health_summary(engine._outputs)
+        return 0
+    finally:
+        try:
+            if clock is not None:
+                clock.close()
+        finally:
+            if mpv_process is not None:
+                mpv_process.terminate()
+                try:
+                    mpv_process.wait(timeout=3.0)
+                except subprocess.TimeoutExpired:
+                    mpv_process.kill()
+                    mpv_process.wait(timeout=3.0)
 
 
 def cmd_validate_show(args: argparse.Namespace) -> int:

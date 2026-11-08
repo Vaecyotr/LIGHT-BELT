@@ -3,7 +3,7 @@ LIGHT-BELT kiosk — third-party notices
 The compiled kiosk includes Vue runtime code. The following copyright,
 permission and warranty notice applies to that third-party code only.
 It grants no license to LIGHT-BELT proprietary application code.
-Source: https://github.com/vuejs/core/tree/v3.5.40
+Source: https://github.com/vuejs/core/tree/v3.5.45
 
 The MIT License (MIT)
 
