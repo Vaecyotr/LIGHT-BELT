@@ -53,8 +53,8 @@ install_owned_file "$LB_REPO/systemd/light-belt-host-session.desktop" \
     "$LB_HOME/.config/autostart/light-belt-host-session.desktop"
 user_systemctl daemon-reload
 user_systemctl enable light-belt-host.service light-belt-audio-default-sink.service light-belt-bluetooth-priority.service
+user_systemctl restart light-belt-audio-default-sink.service
 user_systemctl restart light-belt-bluetooth-priority.service
-user_systemctl start light-belt-audio-default-sink.service
 
 if [[ "${XDG_SESSION_TYPE:-}" == wayland && -n "${WAYLAND_DISPLAY:-}" ]]; then
     bash "$SCRIPT_DIR/start-host-session.sh"

@@ -121,6 +121,61 @@ def test_failed_migration_restores_only_the_previous_boot_service(tmp_path):
     assert events.rindex("tool systemctl --user disable light-belt-host.service") < events.rindex("tool systemctl start light-belt-host.service")
 
 
+@pytest.mark.parametrize(("flag", "audio_result", "expected", "message"), [
+    ("", "0", 0, "[WARN] GNOME Wayland login pending"),
+    ("--require-wayland", "0", 1, "[FAIL] No active pi GNOME Wayland session"),
+    ("", "1", 1, "[FAIL] RT5616 output or Bluetooth route not ready"),
+])
+def test_verifier_checks_audio_and_can_require_graphical_login(tmp_path, flag, audio_result, expected, message):
+    if BASH is None:
+        pytest.fail("Deployment tests require runnable Git Bash")
+    deploy = tmp_path / "scripts/deploy/rk3588"
+    deploy.mkdir(parents=True)
+    source = Path("scripts/deploy/rk3588")
+    shutil.copytree(source / "lib", deploy / "lib")
+    shutil.copy2(source / "verify-install.sh", deploy / "verify-install.sh")
+    scripts = {
+        "scripts/deploy/rk3588/set-default-audio-sink.sh": '[[ "$*" == --check ]] && exit "$AUDIO_RESULT"; exit 2',
+        "scripts/deploy/rk3588/setup-update-policy.sh": '[[ "$*" == --check ]]',
+        ".venv/bin/python": 'case "$2" in *sys.version_info*) echo 3.11.14;; esac',
+        ".local/bin/uv": 'echo uv 0.9.5',
+        "bin/id": 'if [[ "$1" == -un ]]; then echo pi; else echo 1000; fi',
+        "bin/stat": 'echo 600:1000',
+        "bin/loginctl": 'echo yes',
+        "bin/systemctl": '''if [[ "$1" == --user ]]; then exit 0; fi
+case "${*: -1}" in light-belt-host.service|lb-update.timer) exit 1;; esac''',
+        "bin/bluetoothctl": "printf '%s\\n' 'Powered: yes' 'Pairable: yes' 'Discoverable: yes'",
+        "bin/pactl": "[[ $1 != list ]] || printf '%s\\n' module-bluetooth-policy module-bluetooth-discover",
+        "bin/pgrep": "exit 1",
+        **{f"bin/{cmd}": "exit 0" for cmd in ("ssh", "avahi-resolve", "iw", "curl", "mpv", "git", "pacmd")},
+    }
+    files = {
+        "host_services/engine_adapter.py": "--audio-client-name=LIGHT-BELT-LocalMedia",
+        "config/runtime/wled-ddp-mdns.yaml": "",
+        ".config/light-belt/host.env": "",
+        "systemd/light-belt-host-session.desktop": "Host login entry",
+        ".config/autostart/light-belt-host-session.desktop": "Host login entry",
+    }
+    for name, content in files.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    for name, script in scripts.items():
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("#!/usr/bin/env bash\n" + script + "\n", encoding="utf-8", newline="\n")
+        path.chmod(0o755)
+    env = {**os.environ, "LIGHT_BELT_HOME": posix(tmp_path), "LIGHT_BELT_REPO": posix(tmp_path),
+           "LIGHT_BELT_USER": "pi", "AUDIO_RESULT": audio_result}
+    command = f'export PATH="{posix(tmp_path / "bin")}:$PATH"; bash "{posix(deploy / "verify-install.sh")}" {flag}'
+    result = subprocess.run([BASH, "-c", command], env=env, capture_output=True,
+                            text=True, encoding="utf-8", errors="replace", timeout=20)
+    assert result.returncode == expected, result.stdout + result.stderr
+    assert message in result.stdout
+    assert "Independent system update, proposed and popup policy verified" in result.stdout
+    assert "RESULT:" in result.stdout
+
+
 @pytest.mark.parametrize("missing", ["", "mpv"])
 def test_packages_install_only_missing_dependencies_without_system_upgrade(tmp_path, missing):
     if BASH is None:
@@ -222,6 +277,9 @@ case "$1" in is-active) exit 1;; cat) [[ "$LEGACY" == 1 ]];; *) exit 0;; esac'''
     assert "enable --now lb-update.timer" not in events
     assert "--user enable --now pulseaudio.socket" in events
     assert "--user enable light-belt-host.service" in events
+    # The oneshot stays active after success. Repeat installs must run it again.
+    assert events.count("--user restart light-belt-audio-default-sink.service\n") == 2
+    assert events.index("--user restart light-belt-audio-default-sink.service") < events.index("--user restart light-belt-host.service")
     assert "--user restart light-belt-host.service" in events
     assert (tmp_path / ".config/autostart/light-belt-host-session.desktop").is_file()
     assert not (tmp_path / ".config/autostart/light-belt-kiosk-settings.desktop").exists()

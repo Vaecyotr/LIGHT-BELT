@@ -5,8 +5,14 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/session.sh"
 source "$SCRIPT_DIR/lib/python-env.sh"
 kiosk=0
-if [[ "${1:-}" == --kiosk ]]; then kiosk=1; shift; fi
-[[ $# == 0 ]] || die "Usage: $0 [--kiosk]"
+require_wayland=0
+for argument in "$@"; do
+    case "$argument" in
+        --kiosk) kiosk=1 ;;
+        --require-wayland) require_wayland=1 ;;
+        *) die "Usage: $0 [--kiosk] [--require-wayland]" ;;
+    esac
+done
 
 PASS=0
 WARN=0
@@ -69,7 +75,7 @@ fi
 if user_systemctl is-active light-belt-bluetooth-priority.service >/dev/null 2>&1; then
     pass "Bluetooth priority user service active"
 else
-    warning "Bluetooth priority user service not active; reboot/no-SSH lifecycle is NOT HARDWARE VERIFIED"
+    fail "Bluetooth priority user service not active"
 fi
 
 if [[ -e "$LB_HOME/.local/bin/bluetooth-audio-loopback.sh" || \
@@ -80,7 +86,6 @@ else
     pass "obsolete Bluetooth loopback helper/service absent"
 fi
 
-SINK="alsa_output.platform-rt5616-sound.stereo-fallback"
 if pactl info >/dev/null 2>&1; then
     pass "PulseAudio reachable for $LB_USER"
     MODULES="$(pactl list short modules 2>/dev/null || true)"
@@ -90,8 +95,11 @@ if pactl info >/dev/null 2>&1; then
     ALL_LOOPBACKS="$(printf '%s\n' "$MODULES" | awk '$2=="module-loopback" {n++} END {print n+0}')"
     (( BAD_LOOPBACKS == 0 )) && pass "no latency_msec=80 loopback" || fail "$BAD_LOOPBACKS obsolete latency_msec=80 loopback(s)"
     (( ALL_LOOPBACKS <= 1 )) && pass "module-loopback count valid ($ALL_LOOPBACKS; idle zero is allowed)" || fail "multiple module-loopback instances ($ALL_LOOPBACKS)"
-    DEFAULT_SINK="$(pactl get-default-sink 2>/dev/null || true)"
-    [[ "$DEFAULT_SINK" == "$SINK" ]] && pass "default sink=$SINK" || fail "default sink=${DEFAULT_SINK:-unknown}, expected $SINK"
+    if bash "$SCRIPT_DIR/set-default-audio-sink.sh" --check; then
+        pass "RT5616 default output and active Bluetooth routes verified"
+    else
+        fail "RT5616 output or Bluetooth route not ready; inspect the default-sink user service journal"
+    fi
 else
     fail "pi PulseAudio session unavailable; inspect the pulseaudio user service"
 fi
@@ -114,6 +122,20 @@ RUNTIME="$LB_REPO/config/runtime/wled-ddp-mdns.yaml"
 
 user_systemctl is-enabled light-belt-host.service >/dev/null 2>&1 && pass "Host user service enabled" || fail "Host user service not enabled"
 user_systemctl is-active light-belt-host.service >/dev/null 2>&1 && pass "Host user service active" || fail "Host user service not active"
+if systemctl is-active --quiet light-belt-host.service || systemctl is-enabled --quiet light-belt-host.service; then
+    fail "Legacy system Host is still active or enabled"
+fi
+HOST_ENV="$LB_HOME/.config/light-belt/host.env"
+if [[ -f "$HOST_ENV" && ! -L "$HOST_ENV" && "$(stat -c '%a:%u' "$HOST_ENV")" == "600:$(id -u)" ]]; then
+    pass "Persistent Host credentials owned by $LB_USER with mode 0600"
+else
+    fail "Host credential file missing or incorrectly protected: $HOST_ENV"
+fi
+if cmp -s "$LB_REPO/systemd/light-belt-host-session.desktop" "$LB_HOME/.config/autostart/light-belt-host-session.desktop"; then
+    pass "GNOME Host login entry installed"
+else
+    fail "GNOME Host login entry missing or different"
+fi
 [[ "$(loginctl show-user "$LB_USER" -p Linger --value)" == yes ]] && pass "Host starts at boot through user linger" || fail "user linger is not enabled"
 if systemctl is-enabled --quiet lb-update.timer 2>/dev/null || systemctl is-active --quiet lb-update.timer; then
     fail "LIGHT-BELT automatic update timer must remain disabled"
@@ -138,7 +160,11 @@ fi
 
 MPV_SOCKET="/run/user/$(id -u)/light-belt/mpv.sock"
 if ! wayland_session_active; then
-    warning "GNOME Wayland login pending; fullscreen black is NOT HARDWARE VERIFIED until the pi graphical session starts"
+    if (( require_wayland )); then
+        fail "No active pi GNOME Wayland session for graphical acceptance"
+    else
+        warning "GNOME Wayland login pending; fullscreen black is NOT HARDWARE VERIFIED until the pi graphical session starts"
+    fi
 elif [[ -S "$MPV_SOCKET" ]]; then
     pass "mpv IPC socket exists"
     if "$LB_REPO/.venv/bin/python" -m host_services.runtime_health --mpv-socket "$MPV_SOCKET"; then
@@ -150,7 +176,7 @@ else
     fail "mpv IPC socket missing"
 fi
 
-MPV_ARGS="$(pgrep -a -u "$LB_USER" mpv 2>/dev/null | grep -F -- "--input-ipc-server=$MPV_SOCKET" | head -1)"
+MPV_ARGS="$(pgrep -a -u "$LB_USER" mpv 2>/dev/null | grep -m1 -F -- "--input-ipc-server=$MPV_SOCKET" || true)"
 if [[ -n "$MPV_ARGS" ]]; then
     [[ "$MPV_ARGS" == *'--fullscreen'* ]] && pass "mpv fullscreen kiosk" || fail "mpv missing --fullscreen"
     [[ "$MPV_ARGS" == *'--force-window=immediate'* ]] && pass "mpv creates its startup window immediately" || fail "mpv startup window is not immediate"

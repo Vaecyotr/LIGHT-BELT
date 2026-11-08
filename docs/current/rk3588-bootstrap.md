@@ -156,10 +156,28 @@ bootstrap 在修改 Python 环境前停止运行中的 Host，失败时尝试恢
 
 ## NanoPC-T6 实机验收
 
-在 `pi` 的 GNOME Wayland 会话内运行以下检查，记录实际输出。当前全部设备验收均为 **NOT HARDWARE VERIFIED / NOT RUN**。
+以下步骤需在目标设备上执行。当前 RT5616 profile、真实 A2DP 音频、可见黑幕与冷启动均为 **NOT HARDWARE VERIFIED**。
+
+**首次部署。** 在 `pi` 的 GNOME Wayland 会话内运行默认部署。RT5616 服务从 PulseAudio 查询本机声卡、profile 和 sink。已有可用输出时沿用当前 profile。仅有输入时选择同一卡的可用输出 profile，优先保留输入能力。服务等待输出出现后设置默认 sink，只显式迁移已有的 A2DP 策略流。A2DP loopback 由 PulseAudio 蓝牙策略创建。
+
+若服务报错，先用这些只读命令区分 ALSA 未枚举、PulseAudio 未发布输出 profile，以及输出 profile 已启用但 sink 未出现。只有输入能力的声卡无法靠设置默认 sink 变成可播放设备，需根据 ALSA 清单核对 BSP、声卡驱动和 UCM 配置。
+
+```bash
+cat /proc/asound/cards
+command -v aplay >/dev/null && aplay -l
+pactl --format=json list cards
+pactl --format=json list sinks
+pactl get-default-sink
+journalctl --user -u light-belt-audio-default-sink.service -b --no-pager -n 100
+```
+
+首次部署后运行完整检查。 `--require-wayland` 用于验收，图形会话缺失会返回失败。默认安装检查允许等待图形登录。
 
 ```bash
 cd /home/pi/LIGHT-BELT
+bash scripts/deploy/rk3588/verify-install.sh --require-wayland
+cat /proc/sys/kernel/random/boot_id
+sha256sum ~/.config/light-belt/host.env
 uname -m
 printf '%s\n' "$XDG_SESSION_TYPE" "$WAYLAND_DISPLAY"
 ./.venv/bin/python -V
@@ -177,7 +195,33 @@ bluetoothctl show
 pactl info
 pactl get-default-sink
 pactl list short modules
+bash scripts/deploy/rk3588/set-default-audio-sink.sh --check
 journalctl --user -u light-belt-host -u light-belt-audio-default-sink -u light-belt-bluetooth-priority -b --no-pager -n 100
 ```
 
-目视确认登录后是全屏黑幕。手机配对并播放后确认公共配对、A2DP 路由和本地媒体静音所有权，断开后确认 0.20 秒恢复体验。重复运行默认部署，确认配对码、既有数据和不相关桌面设置保留，且只存在一套 Host。最后执行 `sudo reboot`，在没有 SSH 会话帮助的条件下复验以上服务和黑幕。
+目视确认登录后是全屏黑幕。手机配对并持续播放时，运行以下命令，确认 A2DP source、策略 loopback 与 RT5616 目标 sink，并听测实际声音。再启动本地媒体，确认蓝牙播放期间本地媒体被抑制，断开后恢复。
+
+```bash
+pactl list short sources
+pactl list short source-outputs
+pactl list short sink-inputs
+pactl list short sinks
+bash scripts/deploy/rk3588/set-default-audio-sink.sh --check
+```
+
+**重复部署。** 记录凭据文件摘要、更新策略和当前桌面设置，重复执行默认部署后核对记录。音频 oneshot 每次部署会重新执行，已正确的 profile 不会被重复切换。
+
+可在重复部署前后各运行 `gsettings get org.gnome.desktop.session idle-delay`、
+`gsettings get org.gnome.desktop.screensaver lock-enabled` 和
+`gsettings get org.gnome.desktop.notifications show-banners`，核对值保持一致。
+若设备使用 `/etc/gdm3/custom.conf`，可同时比对 `sudo sha256sum /etc/gdm3/custom.conf`。
+
+```bash
+cd /home/pi/LIGHT-BELT
+credentials_before=$(sha256sum ~/.config/light-belt/host.env)
+bash scripts/bootstrap-rk3588.sh &&
+test "$credentials_before" = "$(sha256sum ~/.config/light-belt/host.env)" &&
+bash scripts/deploy/rk3588/verify-install.sh --require-wayland
+```
+
+**重启验收。** 记录 `cat /proc/sys/kernel/random/boot_id` 的输出，再执行 `sudo reboot`。按设备现有 GDM 登录策略进入 `pi` 图形会话，在没有 SSH 会话帮助的情况下先目视确认黑幕，然后从本机终端运行 `verify-install.sh --require-wayland`，确认 boot ID 已变化、三个用户服务在当前启动中成功运行，并重新做手机播放检查。默认部署保留原有 Kiosk/GDM 设置。
