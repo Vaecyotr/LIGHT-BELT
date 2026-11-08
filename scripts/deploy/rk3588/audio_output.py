@@ -78,9 +78,12 @@ def _select_sink(sinks, card, explicit, default):
     raise AudioError("multiple RT5616 sinks; set LIGHT_BELT_AUDIO_SINK to select one")
 
 
-def _route_a2dp(call, sink, check):
+def _route_a2dp(call, sink, check, playback=False):
     sources = {source["name"]: source for source in _items(call, "sources")
                if source["name"].startswith("bluez_source.") and source["name"].endswith(".a2dp_source")}
+    running = [name for name, source in sources.items() if source["state"] == "RUNNING"]
+    if playback and not running:
+        raise AudioError("no RUNNING A2DP source; start playback on the paired device")
     if not sources:
         return
     routes = {}
@@ -104,12 +107,12 @@ def _route_a2dp(call, sink, check):
             if check:
                 raise AudioError(f"A2DP policy stream for {source} is on sink #{stream['sink']}; expected {sink['name']}")
             call("move-sink-input", str(stream["index"]), sink["name"])
-    for name, source in sources.items():
-        if source["state"] == "RUNNING" and name not in connected:
+    for name in running:
+        if name not in connected:
             raise AudioError(f"RUNNING A2DP source {name} has no PulseAudio policy playback route")
 
 
-def run(check=False, wait=110):
+def run(check=False, wait=110, *, playback=False):
     deadline = time.monotonic() + wait
 
     def call(*args):
@@ -149,11 +152,22 @@ def run(check=False, wait=110):
                         break
                 raise AudioError(last_error)
             previous_profile = None  # A usable output exists. Keep it if routing fails.
+            active_port = sink.get("active_port")
+            if any(port["name"] == active_port and port["availability"] == "not available"
+                   for port in sink.get("ports", [])):
+                message = f"{sink['name']} port {active_port!r} is not available"
+                if playback:
+                    raise AudioError(message)
+                # PulseAudio remembers this preference while using another sink until jack detection changes.
+                if not check and default != sink["name"]:
+                    call("set-default-sink", sink["name"])
+                print(f"[audio-sink] {message}; playback pending (NOT HARDWARE VERIFIED)")
+                return 0
             if default != sink["name"]:
                 if check:
                     raise AudioError(f"default sink is {default!r}; expected {sink['name']!r}")
                 call("set-default-sink", sink["name"])
-            _route_a2dp(call, sink, check)
+            _route_a2dp(call, sink, check, playback)
             if not check:
                 if call("get-default-sink").strip() != sink["name"]:
                     raise AudioError(f"default sink did not settle on {sink['name']!r}")
@@ -178,10 +192,11 @@ def run(check=False, wait=110):
 
 
 def main():
-    if sys.argv[1:] not in ([], ["--check"]):
-        print("usage: set-default-audio-sink.sh [--check]", file=sys.stderr)
+    args = sys.argv[1:]
+    if args not in ([], ["--check"], ["--check-playback"]):
+        print("usage: set-default-audio-sink.sh [--check | --check-playback]", file=sys.stderr)
         return 2
-    return run(check=bool(sys.argv[1:]), wait=12 if sys.argv[1:] else 110)
+    return run(check=bool(args), wait=12 if args else 110, playback=args == ["--check-playback"])
 
 
 if __name__ == "__main__":

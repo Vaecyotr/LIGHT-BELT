@@ -96,7 +96,7 @@ if pactl info >/dev/null 2>&1; then
     (( BAD_LOOPBACKS == 0 )) && pass "no latency_msec=80 loopback" || fail "$BAD_LOOPBACKS obsolete latency_msec=80 loopback(s)"
     (( ALL_LOOPBACKS <= 1 )) && pass "module-loopback count valid ($ALL_LOOPBACKS; idle zero is allowed)" || fail "multiple module-loopback instances ($ALL_LOOPBACKS)"
     if bash "$SCRIPT_DIR/set-default-audio-sink.sh" --check; then
-        pass "RT5616 default output and active Bluetooth routes verified"
+        pass "RT5616 software output ready; physical playback requires hardware acceptance"
     else
         fail "RT5616 output or Bluetooth route not ready; inspect the default-sink user service journal"
     fi

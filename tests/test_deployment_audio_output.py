@@ -28,8 +28,9 @@ def server(monkeypatch):
                 "output:hdmi-stereo": {"available": True, "sinks": 1, "sources": 0, "priority": 99},
             }}
     sink = {"name": SINK, "owner_module": 8, "index": 7, "state": "SUSPENDED"}
-    state = {"card": card, "default": "auto_null", "sources": [], "modules": "",
-             "sink-inputs": [], "writes": [], "publish_sink": True, "reject": set()}
+    state = {"card": card, "sink": sink, "default": "auto_null", "sources": [], "modules": "",
+             "sink-inputs": [], "writes": [], "publish_card": True, "publish_sink": True,
+             "reject": set(), "driver_error": False}
     clock = [0]
     monkeypatch.setattr(audio.time, "monotonic", lambda: clock[0])
     monkeypatch.setattr(audio.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds))
@@ -37,7 +38,9 @@ def server(monkeypatch):
     def call(*args, timeout):
         if args[:2] == ("--format=json", "list"):
             assert args[2] != "modules", "Jammy JSON omits the module index"
-            items = {"cards": [card], "sinks": [sink] if
+            if state["driver_error"]:
+                raise audio.AudioError("Connection refused")
+            items = {"cards": [card] if state["publish_card"] else [], "sinks": [sink] if
                      card["active_profile"] in (OUTPUT, DUPLEX) and state["publish_sink"] else []}
             return json.dumps(items[args[2]] if args[2] in items else state[args[2]])
         if args == ("list", "short", "modules"):
@@ -50,7 +53,10 @@ def server(monkeypatch):
                 raise audio.AudioError("rejected profile")
             card["active_profile"] = args[2]
         elif args[0] == "set-default-sink":
-            state["default"] = args[1]
+            state["preferred"] = args[1]
+            if not any(port["name"] == sink.get("active_port") and port["availability"] == "not available"
+                       for port in sink.get("ports", [])):
+                state["default"] = args[1]
         elif args[0] == "move-sink-input":
             next(item for item in state["sink-inputs"] if str(item["index"]) == args[1])["sink"] = 7
         else:
@@ -135,3 +141,59 @@ def test_explicit_existing_sink_does_not_change_card_profile(server, monkeypatch
     monkeypatch.setenv("LIGHT_BELT_AUDIO_SINK", SINK)
     assert audio.run(wait=3) == 0
     assert server["writes"] == [("set-default-sink", SINK)]
+
+
+def test_unplugged_port_keeps_preferred_sink_and_defers_playback_until_plugged(server, capsys, monkeypatch):
+    server["card"]["active_profile"] = DUPLEX
+    port = {"name": "analog-output-headphones", "availability": "not available"}
+    server["sink"].update(active_port=port["name"], ports=[port])
+    server["sources"] = [{"name": SOURCE, "state": "RUNNING"}]
+    assert audio.run(wait=3) == 0
+    assert server["preferred"] == SINK and server["default"] == "auto_null"
+    assert server["writes"] == [("set-default-sink", SINK)]
+    server["writes"].clear()
+    assert audio.run(check=True, wait=3) == 0
+    assert "NOT HARDWARE VERIFIED" in capsys.readouterr().out
+    monkeypatch.setattr(audio.sys, "argv", ["audio_output.py", "--check-playback"])
+    assert audio.main() == 1
+    assert "not available" in capsys.readouterr().err
+    assert server["writes"] == []
+
+    # PulseAudio reevaluates the configured default when the jack becomes available.
+    port["availability"] = "available"
+    server["default"] = server["preferred"]
+    server["modules"] = (f'11\tmodule-loopback\tsource="{SOURCE}" source_dont_move="true" '
+                         'sink_input_properties="media.role=music"\t\n')
+    server["sink-inputs"] = [{"index": 20, "owner_module": "11", "sink": 7}]
+    assert audio.main() == 0
+    assert server["writes"] == []
+
+
+def test_available_active_port_still_requires_correct_default_and_playback(server, capsys):
+    server["card"]["active_profile"] = DUPLEX
+    server["sink"].update(active_port="speaker", ports=[
+        {"name": "headphones", "availability": "not available"},
+        {"name": "speaker", "availability": "available"},
+    ])
+    assert audio.run(check=True, wait=3) == 1
+    assert "default sink" in capsys.readouterr().err
+    server["default"] = SINK
+    assert audio.run(check=True, wait=3) == 0
+    assert audio.run(check=True, playback=True, wait=3) == 1
+    assert "no RUNNING A2DP source" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("failure", "message"), [
+    ("publish_card", "expected one RT5616 ALSA card, found 0"),
+    ("publish_sink", "no RT5616 sink published"),
+    ("driver_error", "Connection refused"),
+])
+def test_missing_card_sink_or_driver_still_fails(server, capsys, failure, message):
+    server["card"]["active_profile"] = DUPLEX
+    server["sink"].update(active_port="headphones", ports=[
+        {"name": "headphones", "availability": "not available"},
+    ])
+    server[failure] = failure == "driver_error"
+    assert audio.run(wait=3) == 1
+    assert message in capsys.readouterr().err
+    assert server["writes"] == []

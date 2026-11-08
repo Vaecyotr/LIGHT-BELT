@@ -171,7 +171,7 @@ pactl get-default-sink
 journalctl --user -u light-belt-audio-default-sink.service -b --no-pager -n 100
 ```
 
-首次部署后运行完整检查。 `--require-wayland` 用于验收，图形会话缺失会返回失败。默认安装检查允许等待图形登录。
+首次部署后运行软件检查。`--require-wayland` 要求图形会话就绪，默认安装检查允许等待图形登录。RT5616 已发布输出 sink 且活动端口明确报告 `not available` 时，部署登记 RT5616 为首选输出并将播放标记为 **NOT HARDWARE VERIFIED**。插线后由 PulseAudio 重新评估默认输出。声卡缺失、驱动通信异常或无法创建 sink 仍使部署失败。
 
 ```bash
 cd /home/pi/LIGHT-BELT
@@ -199,14 +199,14 @@ bash scripts/deploy/rk3588/set-default-audio-sink.sh --check
 journalctl --user -u light-belt-host -u light-belt-audio-default-sink -u light-belt-bluetooth-priority -b --no-pager -n 100
 ```
 
-目视确认登录后是全屏黑幕。手机配对并持续播放时，运行以下命令，确认 A2DP source、策略 loopback 与 RT5616 目标 sink，并听测实际声音。再启动本地媒体，确认蓝牙播放期间本地媒体被抑制，断开后恢复。
+目视确认登录后是全屏黑幕。接好音频线，让已配对的手机持续播放，再运行下面的命令。`--check-playback` 拒绝明确不可用的活动端口，并要求 RT5616 为实际默认输出、正在播放的 A2DP 流已路由到它。还需要听测实际声音。再启动本地媒体，确认蓝牙播放期间本地媒体被抑制，断开后恢复。
 
 ```bash
 pactl list short sources
 pactl list short source-outputs
 pactl list short sink-inputs
 pactl list short sinks
-bash scripts/deploy/rk3588/set-default-audio-sink.sh --check
+bash scripts/deploy/rk3588/set-default-audio-sink.sh --check-playback
 ```
 
 **重复部署。** 记录凭据文件摘要、更新策略和当前桌面设置，重复执行默认部署后核对记录。音频 oneshot 每次部署会重新执行，已正确的 profile 不会被重复切换。
