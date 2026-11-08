@@ -23,12 +23,23 @@ def test_status_exposes_frozen_running_identity(monkeypatch):
 
 
 def test_real_adapter_initialization_failure_blocks_readiness(monkeypatch):
-    from host_services import engine_adapter
+    from host_services import config, engine_adapter, real_engine_adapter
+    attempts = []
+
+    def fail_adapter(**_kwargs):
+        attempts.append(True)
+        raise RuntimeError('adapter initialization failed')
+
     monkeypatch.setattr(engine_adapter, 'ENGINE_ADAPTER', 'real')
     monkeypatch.setattr(engine_adapter, '_real_adapter', None)
+    monkeypatch.setattr(engine_adapter, 'ENGINE_PROFILE_PATH', str(config.WLED_TEMPLATE_PROFILE))
+    monkeypatch.setattr(engine_adapter, '_refresh_wled_profile', lambda **_kwargs: set())
+    monkeypatch.setattr(real_engine_adapter, 'RealEngineAdapter', fail_adapter)
     with TestClient(app) as client:
         data = client.get('/api/v1/status').json()['data']
         assert data['ready'] is False
+        assert attempts == [True]
+        assert app.state.device_probe_task is None
 
 
 def test_status_identity_is_captured_from_a_clean_checkout(tmp_path):

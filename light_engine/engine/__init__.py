@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -250,17 +250,17 @@ class Engine:
         self,
         duration: Optional[float] = None,
         max_frames: Optional[int] = None,
+        on_ready: Optional[Callable[[], None]] = None,
     ) -> None:
         """Run the main lighting loop.
 
         Args:
             duration: Maximum run duration in seconds.
             max_frames: Maximum number of output frames.
+            on_ready: Called after session resources open, before rendering.
         """
         if self._effect is None and self._show_runtime is None:
             self.set_effect(self._config.get("effects.active", "demo"))
-
-        self._begin_run_session()
 
         self._running = True
         self._diagnostics["running"] = True
@@ -281,9 +281,11 @@ class Engine:
 
         last_video_time = -video_period
         last_audio_time = -audio_period
-        self._run_start_wall = time.perf_counter()
-
         try:
+            self._begin_run_session()
+            if on_ready is not None:
+                on_ready()
+            self._run_start_wall = time.perf_counter()
             while self._running:
                 frame_start = time.perf_counter()
                 dt = self._clock.tick()

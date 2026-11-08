@@ -25,6 +25,8 @@ async def scene_save(body: SceneSaveRequest, request: Request):
         return invalid_argument(request, "Scene validation failed", details)
     if err == "SCENE_LIMIT_EXCEEDED":
         return error(request, err, "Scene limit reached (max 32)", 409)
+    if err:
+        return error(request, err, "Unable to save scene", 500)
     return ok(request, data)
 
 
@@ -46,4 +48,6 @@ async def scene_delete(body: SceneDeleteRequest, request: Request):
     data, err = engine_adapter.scene_delete(body.scene_id)
     if err == "NOT_FOUND":
         return not_found(request, f"Scene not found: {body.scene_id}")
+    if err:
+        return error(request, err, "Unable to delete scene", 500)
     return ok(request, data)

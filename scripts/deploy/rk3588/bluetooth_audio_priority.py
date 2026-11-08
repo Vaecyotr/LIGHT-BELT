@@ -9,6 +9,7 @@ while any A2DP source is RUNNING.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import re
 import signal
 import subprocess
@@ -96,6 +97,8 @@ class PactlClient:
 
     @staticmethod
     def _run(*args: str) -> str:
+        env = os.environ.copy()
+        env["LC_ALL"] = "C"
         try:
             completed = subprocess.run(
                 ["pactl", *args],
@@ -103,6 +106,7 @@ class PactlClient:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                env=env,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise PactlError(str(exc)) from exc
@@ -124,19 +128,45 @@ class PactlClient:
         self._run("set-sink-input-mute", str(index), "1" if muted else "0")
 
     def set_sink_input_owned(self, index: int, owned: bool) -> None:
-        if owned:
-            self._run("update-sink-input-proplist", str(index), f"{OWNERSHIP_PROPERTY}=1")
-        else:
-            self._run("remove-sink-input-proplist", str(index), OWNERSHIP_PROPERTY)
+        env = os.environ.copy()
+        env["LC_ALL"] = "C"
+        args = [
+            "pacmd",
+            "update-sink-input-proplist",
+            str(index),
+            f"{OWNERSHIP_PROPERTY}={'1' if owned else '0'}",
+        ]
+        try:
+            completed = subprocess.run(
+                args,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                env=env,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise PactlError(str(exc)) from exc
+        output = "\n".join((completed.stdout, completed.stderr)).strip()
+        if completed.returncode:
+            raise PactlError(output or f"{' '.join(args)} failed")
+        if output:
+            raise PactlError(output)
 
     def subscribe(self) -> Iterator[str]:
-        process = subprocess.Popen(
-            ["pactl", "subscribe"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-        )
+        env = os.environ.copy()
+        env["LC_ALL"] = "C"
+        try:
+            process = subprocess.Popen(
+                ["pactl", "subscribe"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                env=env,
+            )
+        except OSError as exc:
+            raise PactlError(str(exc)) from exc
         self._subscription = process
         try:
             if process.stdout is None:
@@ -177,7 +207,6 @@ class BluetoothAudioPriority:
         self.restore_delay = restore_delay
         self.log = log
         self.active = False
-        self.owned_mutes: set[int] = set()
 
     def _local_media(self) -> list[SinkInput]:
         return [
@@ -188,19 +217,15 @@ class BluetoothAudioPriority:
 
     def suppress_local_media(self) -> None:
         current = {item.index: item for item in self._local_media()}
-        self.owned_mutes.intersection_update(current)
         for item in current.values():
-            if item.owned:
-                self.owned_mutes.add(item.index)
             if item.muted:
                 continue
             self.client.set_sink_input_owned(item.index, True)
             self.client.set_sink_input_mute(item.index, True)
-            self.owned_mutes.add(item.index)
 
     def restore_owned_mutes(self) -> None:
         current = {item.index: item for item in self._local_media()}
-        owned_indexes = self.owned_mutes | {
+        owned_indexes = {
             item.index for item in current.values() if item.owned
         }
         for index in owned_indexes:
@@ -211,18 +236,14 @@ class BluetoothAudioPriority:
                 self.client.set_sink_input_mute(index, False)
             if item.owned:
                 self.client.set_sink_input_owned(index, False)
-        self.owned_mutes.clear()
 
     def initial_sync(self) -> None:
-        self.owned_mutes = {
-            item.index for item in self._local_media() if item.owned
-        }
         self.active = self.client.bluetooth_active()
         if self.active:
             self.suppress_local_media()
             self.log("Bluetooth already active; local media suppressed")
         else:
-            if self.owned_mutes:
+            if any(item.owned for item in self._local_media()):
                 self.restore_owned_mutes()
             self.log("Bluetooth inactive; existing local-media mute state preserved")
 

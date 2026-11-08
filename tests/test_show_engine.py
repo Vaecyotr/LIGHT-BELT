@@ -113,7 +113,7 @@ def test_validate_show_creates_no_engine_or_outputs(monkeypatch):
     assert result == 0
 
 
-def test_run_show_accepts_adaptive_runtime(monkeypatch):
+def test_run_show_accepts_adaptive_runtime(monkeypatch, tmp_path):
     sent = []
 
     def capture_send_all(_outputs, frame):
@@ -121,6 +121,8 @@ def test_run_show_accepts_adaptive_runtime(monkeypatch):
 
     monkeypatch.setattr(engine_module, "send_all", capture_send_all)
     Config.reset()
+    config = Config.get_instance()
+    monkeypatch.setitem(config._data["outputs"]["json"], "path", str(tmp_path / "light_data.jsonl"))
     args = Namespace(
         config=None,
         clock="offline",
@@ -137,10 +139,12 @@ def test_run_show_accepts_adaptive_runtime(monkeypatch):
 
     assert result == 0
     assert sent
+    assert (tmp_path / "light_data.jsonl").exists()
 
 
 def test_run_show_returns_failure_when_output_run_raises(monkeypatch, capsys):
     def fail_run(_self, **_kwargs):
+        _kwargs["on_ready"]()
         raise OSError("production send failed")
 
     monkeypatch.setattr(cli.Engine, "run", fail_run)

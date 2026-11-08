@@ -4,6 +4,7 @@ From the repository root, start the development service with:
 ``.\.python\Scripts\python.exe -m host_services``.
 """
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .config import HOST, PORT, ENABLE_TLS, TLS_CERTFILE, TLS_KEYFILE, MPV_DISPLAY, MPV_XAUTHORITY
+from .config import STATE_PUBLISH_INTERVAL_SECONDS
 from .config import validate_security_configuration
 
 validate_security_configuration()
@@ -36,6 +38,7 @@ async def _lifespan(application: FastAPI):
 app = FastAPI(title="LIGHT-BELT Host Service", version="1.0", lifespan=_lifespan)
 app.state.runtime_identity = capture_identity(Path(__file__).resolve().parent.parent)
 app.state.ready = False
+app.state.device_probe_task = None
 
 
 @app.exception_handler(HTTPException)
@@ -124,14 +127,31 @@ app.include_router(brightness.router)
 app.include_router(ws.router)
 
 
-async def _start_runtime():
-    import asyncio
+async def _run_in_thread(function):
+    task = asyncio.create_task(asyncio.to_thread(function))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await asyncio.gather(task, return_exceptions=True)
+        raise
+
+
+async def _poll_devices():
     from . import engine_adapter
-    if engine_adapter.ENGINE_ADAPTER == "real":
-        from light_engine.config import Config
-        Config(Path(engine_adapter.ENGINE_PROFILE_PATH))
+    while True:
+        try:
+            await _run_in_thread(engine_adapter._probe_devices)
+        except Exception:
+            _log.exception("Unable to collect device status")
+        await asyncio.sleep(STATE_PUBLISH_INTERVAL_SECONDS)
+
+
+async def _start_runtime():
+    from . import engine_adapter
+    await _run_in_thread(engine_adapter.startup)
+    if engine_adapter.ENGINE_ADAPTER == "real" and engine_adapter._real_adapter is not None:
+        app.state.device_probe_task = asyncio.create_task(_poll_devices())
     ws.bind_event_loop(asyncio.get_running_loop())
-    engine_adapter._start_natural_end_watchdog()
     app.state.ready = engine_adapter.ENGINE_ADAPTER != "real" or engine_adapter._real_adapter is not None
 
 
@@ -139,7 +159,12 @@ async def _stop_runtime():
     from . import engine_adapter
     app.state.ready = False
     await ws.close_event_loop()
-    engine_adapter.shutdown()
+    task = app.state.device_probe_task
+    app.state.device_probe_task = None
+    if task is not None:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    await _run_in_thread(engine_adapter.shutdown)
 
 
 from fastapi.staticfiles import StaticFiles

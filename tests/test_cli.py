@@ -76,7 +76,9 @@ def test_run_emits_ready_only_after_successful_output_initialization(monkeypatch
             if fail_initialization:
                 raise RuntimeError('output unavailable')
 
-        def run(self, **kwargs):
+        def run(self, on_ready=None, **kwargs):
+            self.init_outputs()
+            on_ready()
             assert 'LIGHT_BELT_ENGINE_READY' in capsys.readouterr().out
 
         def get_fps_stats(self):

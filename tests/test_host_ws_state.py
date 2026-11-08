@@ -59,7 +59,8 @@ def state_source(monkeypatch):
     })
     monkeypatch.setattr(engine_adapter, "_devices", [{
         "device_id": "strip_11", "device_type": "wled", "status": "offline",
-        "last_output_ms": 0, "connection_confirmed": False, "error_code": None,
+        "last_output_ms": 0, "last_seen_ms": 0,
+        "connection_confirmed": False, "error_code": None,
         "host": "192.0.2.1",
     }])
 
@@ -174,9 +175,11 @@ def test_device_probe_timestamp_alone_does_not_emit_state_event(state_source, mo
         try:
             async with connected(["device.status"]) as outgoing:
                 initial = await receive_event(outgoing, "device.status")
+                probe()
                 await asyncio.sleep(0.05)
                 assert outgoing.empty()
                 engine_adapter._devices[0]["last_output_ms"] = 100
+                probe()
                 changed = await receive_event(outgoing, "device.status")
                 assert changed["data"]["devices"][0]["last_output_ms"] == 100
                 assert changed["data"]["devices"][0]["last_seen_ms"] > initial["data"]["devices"][0]["last_seen_ms"]
@@ -278,6 +281,53 @@ def test_shutdown_waits_for_inflight_snapshot_read(state_source, monkeypatch):
                     await releasing
         finally:
             release.set()
+            await ws.close_event_loop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("kind", ["runtime.state", "error.event"])
+def test_slow_client_does_not_block_other_subscribers(state_source, monkeypatch, kind):
+    monkeypatch.setattr(ws, "WS_SEND_TIMEOUT_SECONDS", 0.03, raising=False)
+
+    async def run():
+        blocked = asyncio.Event()
+        slow_task = asyncio.create_task(asyncio.Event().wait())
+
+        class SlowSocket:
+            async def send_text(self, _message):
+                blocked.set()
+                await asyncio.Event().wait()
+
+        slow = {"ws": SlowSocket(), "subscribe": [kind], "send_lock": asyncio.Lock(),
+                "task": slow_task, "session_id": "slow"}
+        ws.bind_event_loop(asyncio.get_running_loop())
+        try:
+            async with connected([kind]) as outgoing:
+                if kind == "runtime.state":
+                    await receive_event(outgoing, kind)
+                ws._connections.insert(0, slow)
+                if kind == "runtime.state":
+                    engine_adapter._state["brightness"] = 0.37
+                    await receive_event(outgoing, kind, lambda data: data["brightness"] == 0.37)
+                else:
+                    sending = asyncio.create_task(ws.broadcast(kind, {"code": "AUDIT"}))
+                    try:
+                        await receive_event(outgoing, kind)
+                        await asyncio.wait_for(sending, 1)
+                    finally:
+                        sending.cancel()
+                        await asyncio.gather(sending, return_exceptions=True)
+                assert blocked.is_set()
+                for _ in range(100):
+                    if slow not in ws._connections:
+                        break
+                    await asyncio.sleep(0.01)
+                assert slow not in ws._connections
+                assert slow_task.cancelled()
+        finally:
+            slow_task.cancel()
+            await asyncio.gather(slow_task, return_exceptions=True)
             await ws.close_event_loop()
 
     asyncio.run(run())

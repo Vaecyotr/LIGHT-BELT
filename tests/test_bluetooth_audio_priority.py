@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 
 MODULE_PATH = Path("scripts/deploy/rk3588/bluetooth_audio_priority.py")
@@ -177,6 +179,85 @@ def test_case_10_restart_recovers_tagged_mute_without_unmuting_external_state():
     assert client.mute_calls == [(9, False)]
     assert client.ownership_calls == [(9, False)]
     assert next(item for item in client.inputs if item.index == 10).muted is True
+
+
+def test_reused_sink_input_index_does_not_transfer_mute_ownership():
+    client = FakePactl(active=True, inputs=[local(9)])
+    service = priority.BluetoothAudioPriority(client, log=lambda _message: None)
+    service.initial_sync()
+    client.inputs = [local(9, muted=True)]
+    service.shutdown()
+    assert client.mute_calls == [(9, True)]
+    assert client.ownership_calls == [(9, True)]
+
+
+def test_adapter_uses_supported_pacmd_property_command_and_unsets_with_false(monkeypatch):
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(priority.subprocess, "run", run)
+    client = priority.PactlClient()
+    client.set_sink_input_owned(23, True)
+    client.set_sink_input_owned(23, False)
+
+    assert [call[0] for call in calls] == [
+        ["pacmd", "update-sink-input-proplist", "23", f"{priority.OWNERSHIP_PROPERTY}=1"],
+        ["pacmd", "update-sink-input-proplist", "23", f"{priority.OWNERSHIP_PROPERTY}=0"],
+    ]
+    assert all(call[1]["env"]["LC_ALL"] == "C" for call in calls)
+    assert all(call[1]["env"]["PATH"] == os.environ["PATH"] for call in calls)
+
+
+def test_adapter_surfaces_pacmd_cli_failure_text_even_with_zero_exit(monkeypatch):
+    monkeypatch.setattr(
+        priority.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            returncode=0, stdout="No sink input found with this index.\n", stderr=""
+        ),
+    )
+    try:
+        priority.PactlClient().set_sink_input_owned(23, True)
+    except priority.PactlError as exc:
+        assert "No sink input found" in str(exc)
+    else:
+        raise AssertionError("pacmd CLI failure was treated as success")
+
+
+def test_run_and_subscribe_force_c_locale_while_preserving_environment(monkeypatch):
+    run_calls = []
+    popen_calls = []
+
+    def run(argv, **kwargs):
+        run_calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    class FakeProcess:
+        stdout = iter(["Event 'change' on server #0\n"])
+        stderr = None
+
+        def wait(self):
+            return 0
+
+        def poll(self):
+            return 0
+
+    def popen(argv, **kwargs):
+        popen_calls.append((argv, kwargs))
+        return FakeProcess()
+
+    monkeypatch.setattr(priority.subprocess, "run", run)
+    monkeypatch.setattr(priority.subprocess, "Popen", popen)
+    client = priority.PactlClient()
+    assert client._run("info") == "ok"
+    assert list(client.subscribe()) == ["Event 'change' on server #0\n"]
+    assert run_calls[0][1]["env"]["LC_ALL"] == "C"
+    assert run_calls[0][1]["env"]["PATH"] == os.environ["PATH"]
+    assert popen_calls[0][1]["env"]["LC_ALL"] == "C"
+    assert popen_calls[0][1]["env"]["PATH"] == os.environ["PATH"]
 
 
 def test_irrelevant_subscription_events_do_not_trigger_policy():

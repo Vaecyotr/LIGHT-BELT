@@ -122,16 +122,6 @@ def cmd_run(args: argparse.Namespace) -> int:
             return 1
     else:
         engine.set_effect(args.effect or "video_audio_fusion")
-    try:
-        engine.init_outputs()
-    except Exception as exc:
-        print(f"Error: output initialization failed: {exc}", file=sys.stderr)
-        _print_health_summary(engine._outputs)
-        return 1
-
-    if getattr(args, "ready_stdout", False):
-        print("LIGHT_BELT_ENGINE_READY", flush=True)
-
     print(f"Light Engine v{__version__} - Run Mode")
     print(f"  Video: {args.video or 'generated'}")
     print(f"  Audio: {args.audio or 'generated'}")
@@ -140,13 +130,23 @@ def cmd_run(args: argparse.Namespace) -> int:
     else:
         print(f"  Effect: {args.effect or 'video_audio_fusion'}")
 
+    initialized = False
+
+    def report_ready():
+        nonlocal initialized
+        initialized = True
+        if getattr(args, "ready_stdout", False):
+            print("LIGHT_BELT_ENGINE_READY", flush=True)
+
     try:
         engine.run(
             duration=args.duration if args.duration is not None else show_duration,
             max_frames=args.max_frames,
+            on_ready=report_ready,
         )
     except Exception as exc:
-        print(f"Error: output run failed: {exc}", file=sys.stderr)
+        stage = "run" if initialized else "initialization"
+        print(f"Error: output {stage} failed: {exc}", file=sys.stderr)
         _print_health_summary(engine._outputs)
         return 1
 

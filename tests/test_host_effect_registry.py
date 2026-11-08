@@ -108,7 +108,7 @@ def test_host_uses_registry_validator_for_manual_and_scene_requests(
         "_valid_target_ids",
         frozenset({"all", "strip_11", "starry_sky"}),
     )
-    monkeypatch.setattr(engine_adapter, "_save_scenes", lambda: None)
+    monkeypatch.setattr(engine_adapter, "_save_scenes", lambda _scenes: None)
     monkeypatch.setattr(engine_adapter, "_scenes", {})
 
     data, error = engine_adapter.effects_set(

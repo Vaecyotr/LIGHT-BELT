@@ -106,6 +106,7 @@ def test_disabled_devices_are_never_probed_or_sent_http_output(monkeypatch) -> N
     monkeypatch.setattr(wled_brightness, "apply_off", lambda devices, *args: calls.append(("off", devices)))
 
     engine_adapter._probe_devices()
+    disabled, enabled = engine_adapter._devices
     engine_adapter._mark_devices_output()
     engine_adapter._push_brightness_scale()
     engine_adapter._push_wled_off()
@@ -252,7 +253,7 @@ def test_deferred_refresh_never_restarts_active_adapter(monkeypatch) -> None:
     )
     monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
     monkeypatch.setattr(engine_adapter, "_real_adapter", adapter)
-    monkeypatch.setattr(engine_adapter.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(engine_adapter, "_watchdog_stop", SimpleNamespace(wait=lambda _seconds: False))
     monkeypatch.setattr(engine_adapter, "_run_resolve_nodes", lambda: None)
     previous = [{"device_id": "node_1", "host": "wled-strip-11.local"}]
     resolved = [{"device_id": "node_1", "host": "192.0.2.11"}]

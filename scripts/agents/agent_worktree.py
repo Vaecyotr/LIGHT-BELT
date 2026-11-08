@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import shutil
 import stat
 import subprocess
 import sys
@@ -243,10 +242,20 @@ def cleanup_worktree(
             remove_args.append("--force")
         result = run_git(remove_args, cwd=repo_root)
 
-        # Git may already have forgotten the worktree. In that case remove
-        # the now-ordinary residual directory.
-        if result.returncode != 0 and worktree_path.exists():
-            shutil.rmtree(worktree_path)
+        if result.returncode != 0:
+            raise WorktreeError(
+                "Failed to remove agent worktree."
+                "\nstdout:\n"
+                f"{result.stdout}"
+                "\nstderr:\n"
+                f"{result.stderr}"
+            )
+
+        if worktree_path.exists():
+            raise WorktreeError(
+                "Git reported successful worktree removal, but the worktree "
+                f"path still exists: {worktree_path}"
+            )
 
     prune = run_git(["worktree", "prune"], cwd=repo_root)
     if prune.returncode != 0:

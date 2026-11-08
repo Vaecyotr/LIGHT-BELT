@@ -4,13 +4,12 @@ WebSocket 端点：ticket 验证、session.connected、心跳推送。
 """
 
 import asyncio
-from copy import deepcopy
 import json
 import logging
 import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from .auth_manager import consume_ws_ticket
-from .config import HEARTBEAT_INTERVAL_SECONDS, STATE_PUBLISH_INTERVAL_SECONDS
+from .config import HEARTBEAT_INTERVAL_SECONDS, STATE_PUBLISH_INTERVAL_SECONDS, WS_SEND_TIMEOUT_SECONDS
 from . import engine_adapter
 
 router = APIRouter()
@@ -90,8 +89,31 @@ def _ws_msg(msg_type: str, data: dict) -> str:
 
 
 async def _send_text(conn: dict, message: str) -> None:
-    async with conn["send_lock"]:
-        await conn["ws"].send_text(message)
+    async with asyncio.timeout(WS_SEND_TIMEOUT_SECONDS):
+        async with conn["send_lock"]:
+            await conn["ws"].send_text(message)
+
+
+async def _send_to_subscriber(conn: dict, message: str) -> bool:
+    try:
+        await _send_text(conn, message)
+    except Exception as exc:
+        if not isinstance(exc, WebSocketDisconnect):
+            _log.exception("WebSocket send failed for session %s", conn["session_id"])
+        if conn in _connections:
+            _connections.remove(conn)
+        conn["task"].cancel()
+        return False
+    return True
+
+
+async def _send_state(conn: dict, snapshots: dict, identities: dict) -> None:
+    previous = conn.setdefault("last_state", {})
+    for kind, data in snapshots.items():
+        if kind in conn["subscribe"] and previous.get(kind) != identities[kind]:
+            if not await _send_to_subscriber(conn, _ws_msg(kind, data)):
+                return
+            previous[kind] = identities[kind]
 
 
 def _read_state_snapshots(subscribed: set[str]) -> dict[str, dict]:
@@ -101,7 +123,7 @@ def _read_state_snapshots(subscribed: set[str]) -> dict[str, dict]:
     if "playback.progress" in subscribed:
         snapshots["playback.progress"] = engine_adapter.get_playback_progress_snapshot()
     if "device.status" in subscribed:
-        snapshots["device.status"] = {"devices": deepcopy(engine_adapter.get_state()["devices"])}
+        snapshots["device.status"] = {"devices": engine_adapter.get_state()["devices"]}
     return snapshots
 
 
@@ -125,21 +147,9 @@ async def _publish_state() -> None:
                         {key: value for key, value in device.items() if key != "last_seen_ms"}
                         for device in snapshots["device.status"]["devices"]
                     ]}
-                for conn in list(_connections):
-                    previous = conn.setdefault("last_state", {})
-                    for kind, data in snapshots.items():
-                        if kind not in conn["subscribe"] or previous.get(kind) == identities[kind]:
-                            continue
-                        try:
-                            await _send_text(conn, _ws_msg(kind, data))
-                        except Exception as exc:
-                            if not isinstance(exc, WebSocketDisconnect):
-                                _log.exception("WebSocket state send failed for session %s", conn["session_id"])
-                            if conn in _connections:
-                                _connections.remove(conn)
-                            conn["task"].cancel()
-                            break
-                        previous[kind] = identities[kind]
+                await asyncio.gather(*(
+                    _send_state(conn, snapshots, identities) for conn in list(_connections)
+                ))
         await asyncio.sleep(STATE_PUBLISH_INTERVAL_SECONDS)
 
 
@@ -207,16 +217,7 @@ async def ws_endpoint(ws: WebSocket, ticket: str = ""):
 async def broadcast(msg_type: str, data: dict):
     """供 router 在状态变更后调用，向所有订阅该类型的连接推送"""
     msg = _ws_msg(msg_type, data)
-    dead = []
-    for conn in list(_connections):
-        if msg_type in conn["subscribe"]:
-            try:
-                await _send_text(conn, msg)
-            except Exception as exc:
-                if not isinstance(exc, WebSocketDisconnect):
-                    _log.exception("WebSocket broadcast failed for session %s", conn["session_id"])
-                dead.append(conn)
-    for c in dead:
-        if c in _connections:
-            _connections.remove(c)
-        c["task"].cancel()
+    await asyncio.gather(*(
+        _send_to_subscriber(conn, msg) for conn in list(_connections)
+        if msg_type in conn["subscribe"]
+    ))

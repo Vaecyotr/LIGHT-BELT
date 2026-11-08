@@ -109,7 +109,6 @@ _valid_target_ids: frozenset[str]
 _capability_targets: list[dict]
 _devices: list[dict]
 _profile_refresh_lock = threading.RLock()
-_run_resolve_nodes()
 _valid_target_ids, _capability_targets, _devices = _load_layout_vocab()
 
 
@@ -124,12 +123,20 @@ def _refresh_wled_profile(*, reason: str) -> set[str]:
     if ENGINE_ADAPTER != "real":
         return set()
     with _profile_refresh_lock:
+        old_devices = {d["device_id"]: d for d in _devices}
         old_hosts = {d["device_id"]: d.get("host") for d in _devices}
         _run_resolve_nodes()
         from light_engine.config import Config as _Cfg
         _Cfg.reset()
         new_ids, new_caps, new_devs = _load_layout_vocab()
         new_hosts = {d["device_id"]: d.get("host") for d in new_devs}
+        for device in new_devs:
+            previous = old_devices.get(device["device_id"], {})
+            if (previous.get("host") == device.get("host")
+                    and previous.get("enabled", True) == device.get("enabled", True)):
+                for key in ("status", "connection_confirmed", "last_seen_ms", "last_output_ms", "error_code"):
+                    if key in previous:
+                        device[key] = previous[key]
         changed = {
             device_id
             for device_id in old_hosts.keys() | new_hosts.keys()
@@ -341,15 +348,19 @@ def _push_wled_off() -> None:
 
 
 import urllib.request
+from contextlib import closing
 
 def _probe_devices() -> None:
-    """Ping each WLED node's HTTP API; update status in-place."""
+    """Collect one batch, then publish it for unchanged device endpoints."""
+    global _devices
     t = _now_ms()
-    for d in _devices:
+    with _profile_refresh_lock:
+        devices = [(device, dict(device)) for device in _devices]
+    updates = []
+    for original, d in devices:
         if not d.get("enabled", True):
-            d["status"] = "offline"
-            d["connection_confirmed"] = False
-            d["error_code"] = "MDNS_UNRESOLVED"
+            updates.append((original, d, {"status": "offline", "connection_confirmed": False,
+                                          "error_code": "MDNS_UNRESOLVED"}))
             continue
         if d.get("device_type") != WLED_DEVICE_TYPE:
             continue
@@ -357,14 +368,22 @@ def _probe_devices() -> None:
         if not host:
             continue
         try:
-            urllib.request.urlopen(f"http://{host}/json/info", timeout=1)
-            d["status"] = "online"
-            d["connection_confirmed"] = True
-            d["last_seen_ms"] = t
-            d["error_code"] = None
+            with closing(urllib.request.urlopen(f"http://{host}/json/info", timeout=1)):
+                pass
+            result = {"status": "online", "connection_confirmed": True,
+                      "last_seen_ms": t, "error_code": None}
         except Exception:
-            d["status"] = "offline"
-            d["connection_confirmed"] = False
+            result = {"status": "offline", "connection_confirmed": False}
+        updates.append((original, d, result))
+    with _profile_refresh_lock:
+        devices = list(_devices)
+        for original, snapshot, result in updates:
+            for index, current in enumerate(devices):
+                if (current is original and current.get("host") == snapshot.get("host")
+                        and current.get("enabled", True) == snapshot.get("enabled", True)):
+                    devices[index] = {**current, **result}
+                    break
+        _devices = devices
 
 def _mark_devices_output() -> None:
     t = _now_ms()
@@ -388,6 +407,7 @@ def _init_real_adapter():
     global _real_adapter
     if ENGINE_ADAPTER != "real":
         return
+    _real_adapter = None
     try:
         from .real_engine_adapter import RealEngineAdapter
         from .config import MPV_SOCKET_PATH
@@ -401,8 +421,6 @@ def _init_real_adapter():
     except Exception as exc:
         _log.error("engine_adapter: failed to init real adapter: %s", exc)
 
-
-_init_real_adapter()
 
 
 def _detect_video_available() -> bool:
@@ -424,8 +442,6 @@ def _detect_video_available() -> bool:
         _log.warning("video detection failed: %s; assuming available", exc)
     return True
 
-
-_state["video_available"] = _detect_video_available()
 
 
 def _accumulate_hw_entry(
@@ -485,10 +501,10 @@ def get_status() -> dict:
 # ══════════════════════════════════════════════
 
 def get_state() -> dict:
-    _probe_devices()
+    devices = _devices
     safe_devices = [
         {k: v for k, v in d.items() if k != "host"}
-        for d in _devices
+        for d in devices
     ]
     return {**_state, "devices": safe_devices}
 
@@ -1256,17 +1272,20 @@ def _load_scenes() -> dict[str, dict]:
     return {}
 
 
-def _save_scenes() -> None:
+def _save_scenes(scenes: dict[str, dict]) -> None:
+    d = os.path.dirname(SCENE_FILE_PATH)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    tmp = SCENE_FILE_PATH + ".tmp"
     try:
-        d = os.path.dirname(SCENE_FILE_PATH)
-        if d:
-            os.makedirs(d, exist_ok=True)
-        tmp = SCENE_FILE_PATH + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(_scenes, f, ensure_ascii=False, indent=2)
+            json.dump(scenes, f, ensure_ascii=False, indent=2)
         os.replace(tmp, SCENE_FILE_PATH)
-    except Exception as exc:
-        _log.warning("failed to persist scenes to %s: %s", SCENE_FILE_PATH, exc)
+    finally:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
 
 
 def _validate_scene_entries(
@@ -1305,6 +1324,7 @@ def get_scenes() -> list[dict]:
 def scene_save(scene_id: str | None, name: str,
                audio: dict | None,
                entries: list[dict] | None) -> tuple[dict | None, str | None]:
+    global _scenes
     if audio is None and entries is None:
         return None, "INVALID_ARGUMENT"
     validation_error, error = _validate_scene_entries(entries)
@@ -1315,12 +1335,18 @@ def scene_save(scene_id: str | None, name: str,
     if scene_id not in _scenes and len(_scenes) >= SCENE_MAX_COUNT:
         return None, "SCENE_LIMIT_EXCEEDED"
     now = _now_ms()
-    _scenes[scene_id] = {
+    scenes = dict(_scenes)
+    scenes[scene_id] = {
         "name": name, "audio": audio, "entries": entries,
         "created_ms": _scenes.get(scene_id, {}).get("created_ms", now),
         "updated_ms": now,
     }
-    _save_scenes()
+    try:
+        _save_scenes(scenes)
+    except (OSError, TypeError, ValueError):
+        _log.exception("Unable to persist scene %s", scene_id)
+        return None, "INTERNAL_ERROR"
+    _scenes = scenes
     return {"scene_id": scene_id, "saved": True}, None
 
 
@@ -1382,12 +1408,19 @@ def scene_apply(scene_id: str,
 
 
 def scene_delete(scene_id: str) -> tuple[dict | None, str | None]:
+    global _scenes
     if scene_id not in _scenes:
         return None, "NOT_FOUND"
-    del _scenes[scene_id]
+    scenes = dict(_scenes)
+    del scenes[scene_id]
+    try:
+        _save_scenes(scenes)
+    except (OSError, TypeError, ValueError):
+        _log.exception("Unable to persist deletion of scene %s", scene_id)
+        return None, "INTERNAL_ERROR"
+    _scenes = scenes
     if _state["scene_id"] == scene_id:
         _state["scene_id"] = None
-    _save_scenes()
     return {"scene_id": scene_id, "deleted": True}, None
 
 
@@ -1611,6 +1644,9 @@ def shutdown() -> None:
     """Stop background observation and owned processes during Host shutdown."""
     global _mpv, _mpv_proc, _session_generation
     _watchdog_stop.set()
+    if (_deferred_re_resolve_thread is not None
+            and _deferred_re_resolve_thread is not threading.current_thread()):
+        _deferred_re_resolve_thread.join()
     observer = _mpv_observer
     _close_mpv_observer()
     if observer is not None and observer.get("thread") is not threading.current_thread():
@@ -1636,9 +1672,6 @@ def shutdown() -> None:
             raise RuntimeError("shutdown cleanup failed: " + "; ".join(errors))
 
 
-_start_natural_end_watchdog()
-
-
 def _ensure_mpv_at_startup() -> None:
     """在 real 模式下，服务启动时立即拉起 mpv 全屏黑窗口（遮住桌面）。"""
     if _real_adapter is None:
@@ -1648,9 +1681,6 @@ def _ensure_mpv_at_startup() -> None:
         _log.info("engine_adapter: mpv started at startup (fullscreen idle)")
     except MpvUnavailableError as exc:
         _log.warning("engine_adapter: mpv not available at startup: %s (will retry on first play)", exc)
-
-
-_ensure_mpv_at_startup()
 
 
 # ══════════════════════════════════════════════
@@ -1663,66 +1693,23 @@ def _deferred_re_resolve() -> None:
     覆盖冷启动时节点还没连 WiFi / avahi 还没 ready 的时序缝隙。
     单次 30s 对慢冷启动不够，改为退避重试；任一次全部解析成功即停止。
     """
-    global _valid_target_ids, _capability_targets, _devices
-
     if ENGINE_ADAPTER != "real":
         return
-
-    from light_engine.config import Config as _Cfg
 
     for attempt, delay in enumerate(
         (15, 15, 30, 30, 60, 60, 120),
         start=1,
     ):
-        time.sleep(delay)
+        if _watchdog_stop.wait(delay):
+            return
 
         try:
-            old_hosts = {
-                d["device_id"]: d.get("host")
-                for d in _devices
-            }
-
-            _run_resolve_nodes()
-
-            # 清掉 singleton 缓存，强制重新读取 runtime profile。
-            _Cfg.reset()
-
-            new_ids, new_caps, new_devs = _load_layout_vocab()
-
-            new_hosts = {
-                d["device_id"]: d.get("host")
-                for d in new_devs
-            }
-
-            changed = {
-                device_id
-                for device_id in (set(old_hosts) | set(new_hosts))
-                if old_hosts.get(device_id) != new_hosts.get(device_id)
-            }
-
-            # 只有节点地址确实发生变化时才替换运行时设备列表。
-            # 否则会无意义地重置 status / last_seen_ms /
-            # connection_confirmed 等运行时状态。
-            if changed:
-                _valid_target_ids = new_ids
-                _capability_targets = new_caps
-                _devices = new_devs
-
-                _log.info(
-                    "deferred re-resolve #%d: updated %s",
-                    attempt,
-                    ", ".join(
-                        f"{device_id}: "
-                        f"{old_hosts.get(device_id)} -> {new_hosts.get(device_id)}"
-                        for device_id in sorted(changed)
-                    ),
-                )
-
-            unresolved = [
-                device_id
-                for device_id, host in new_hosts.items()
-                if not host or str(host).endswith(".local")
-            ]
+            _refresh_wled_profile(reason=f"deferred resolve #{attempt}")
+            with _profile_refresh_lock:
+                unresolved = [
+                    d["device_id"] for d in _devices
+                    if not d.get("host") or str(d["host"]).endswith(".local")
+                ]
 
             if not unresolved:
                 _log.info(
@@ -1778,4 +1765,18 @@ def _start_deferred_re_resolve() -> None:
     )
 
 
-_start_deferred_re_resolve()
+def startup() -> None:
+    """Acquire production runtime resources for one application lifetime."""
+    if ENGINE_ADAPTER != "real":
+        return
+    _watchdog_stop.clear()
+    _refresh_wled_profile(reason="Host startup resolve")
+    from light_engine.config import Config
+    Config(ENGINE_PROFILE_PATH)
+    _init_real_adapter()
+    if _real_adapter is None:
+        return
+    _state["video_available"] = _detect_video_available()
+    _ensure_mpv_at_startup()
+    _start_natural_end_watchdog()
+    _start_deferred_re_resolve()
