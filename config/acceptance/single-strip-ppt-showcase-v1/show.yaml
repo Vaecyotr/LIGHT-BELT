@@ -1,0 +1,365 @@
+schema_version: 2
+show:
+  id: single-strip-ppt-showcase-v1
+  duration: 116.0
+  defaults:
+    fade_in: 0
+    fade_out: 0
+    blend: replace
+    min_effect_hold: 0
+    switch_cooldown: 0
+  cues:
+    - id: BLACK_start
+      start: 0.0
+      end: 2.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect: {mode: fixed, id: static, speed: 1, intensity: 1, params: {}}
+      color: {mode: solid, color: [0, 0, 0]}
+      transition: {fade_in: 0, fade_out: 0, blend: replace}
+
+    - id: COMET_cool_single_wrap
+      start: 2.0
+      end: 8.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: comet
+        speed: 1
+        intensity: 1
+        params:
+          speed: 2.5
+          count: 1
+          trajectory: wrap
+          tail_length: 0.25
+          decay: 0.8
+          phase_spacing: 1
+      color: {mode: solid, color: [0.85, 0.9, 1.0]}
+
+    - id: COMET_blue_double_bounce
+      start: 8.0
+      end: 15.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: comet
+        speed: 1
+        intensity: 1
+        params:
+          speed: 3.0
+          count: 2
+          trajectory: bounce
+          tail_length: 0.20
+          decay: 0.8
+          phase_spacing: 0.5
+      color: {mode: solid, color: [0.03, 0.2, 1.0]}
+
+    - id: COMET_purple_double_wrap
+      start: 15.0
+      end: 22.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: comet
+        speed: 1
+        intensity: 1
+        params:
+          speed: 4.5
+          count: 2
+          trajectory: wrap
+          tail_length: 0.15
+          decay: 0.8
+          phase_spacing: 0.5
+      color: {mode: solid, color: [0.55, 0.05, 0.9]}
+
+    - id: BLACK_after_comet
+      start: 22.0
+      end: 22.5
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect: {mode: fixed, id: static, speed: 1, intensity: 1, params: {}}
+      color: {mode: solid, color: [0, 0, 0]}
+      transition: {fade_in: 0, fade_out: 0, blend: replace}
+
+    - id: WAVE_sine
+      start: 22.5
+      end: 29.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: color_wave
+        speed: 1
+        intensity: 1
+        params:
+          speed: 0.35
+          width: 0.9
+          hue_span_degrees: 140
+          waveform: sine
+
+    - id: WAVE_triangle
+      start: 29.0
+      end: 35.5
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: color_wave
+        speed: 1
+        intensity: 1
+        params:
+          speed: 0.75
+          width: 0.8
+          hue_span_degrees: 240
+          waveform: triangle
+
+    - id: WAVE_saw
+      start: 35.5
+      end: 42.5
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: color_wave
+        speed: 1
+        intensity: 1
+        params:
+          speed: -0.8
+          width: 0.75
+          hue_span_degrees: 360
+          waveform: saw
+
+    - id: BLACK_after_wave
+      start: 42.5
+      end: 43.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect: {mode: fixed, id: static, speed: 1, intensity: 1, params: {}}
+      color: {mode: solid, color: [0, 0, 0]}
+      transition: {fade_in: 0, fade_out: 0, blend: replace}
+
+    - id: TWINKLE_low
+      start: 43.0
+      end: 49.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: twinkle
+        speed: 1
+        intensity: 1
+        params:
+          density: 0.12
+          fade_time: 0.9
+          event_width_px: 1
+          blur_radius_px: 0
+          color_source: palette
+      color:
+        mode: palette
+        colors: [[0.95, 0.82, 0.55], [0.03, 0.2, 1.0], [0.55, 0.05, 0.9]]
+
+    - id: TWINKLE_mid
+      start: 49.0
+      end: 56.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: twinkle
+        speed: 1
+        intensity: 1
+        params:
+          density: 0.35
+          fade_time: 0.7
+          event_width_px: 1
+          blur_radius_px: 0
+          color_source: palette
+      color:
+        mode: palette
+        colors: [[0.95, 0.82, 0.55], [0.03, 0.2, 1.0], [0.55, 0.05, 0.9]]
+
+    - id: TWINKLE_high
+      start: 56.0
+      end: 63.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: twinkle
+        speed: 1
+        intensity: 1
+        params:
+          density: 0.6
+          fade_time: 0.5
+          event_width_px: 1
+          blur_radius_px: 0
+          color_source: palette
+      color:
+        mode: palette
+        colors: [[0.95, 0.82, 0.55], [0.03, 0.2, 1.0], [0.55, 0.05, 0.9]]
+
+    - id: BLACK_after_twinkle
+      start: 63.0
+      end: 63.5
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect: {mode: fixed, id: static, speed: 1, intensity: 1, params: {}}
+      color: {mode: solid, color: [0, 0, 0]}
+      transition: {fade_in: 0, fade_out: 0, blend: replace}
+
+    - id: FIRE_low
+      start: 63.5
+      end: 70.5
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: heat_fire
+        speed: 1
+        intensity: 1
+        params:
+          spark_rate: 4
+          spark_strength: 0.7
+          cooling_per_second: 1.2
+          diffusion: 0.3
+          spark_zone_px: 2
+      color: {mode: solid, color: [1.0, 0.18, 0.02]}
+
+    - id: FIRE_mid
+      start: 70.5
+      end: 77.5
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: heat_fire
+        speed: 1
+        intensity: 1
+        params:
+          spark_rate: 8
+          spark_strength: 0.9
+          cooling_per_second: 0.8
+          diffusion: 0.35
+          spark_zone_px: 2
+      color: {mode: solid, color: [1.0, 0.18, 0.02]}
+
+    - id: FIRE_high
+      start: 77.5
+      end: 83.5
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: heat_fire
+        speed: 1
+        intensity: 1
+        params:
+          spark_rate: 12
+          spark_strength: 0.95
+          cooling_per_second: 0.65
+          diffusion: 0.45
+          spark_zone_px: 2
+      color: {mode: solid, color: [1.0, 0.18, 0.02]}
+
+    - id: BLACK_after_fire
+      start: 83.5
+      end: 84.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect: {mode: fixed, id: static, speed: 1, intensity: 1, params: {}}
+      color: {mode: solid, color: [0, 0, 0]}
+      transition: {fade_in: 0, fade_out: 0, blend: replace}
+
+    - id: FINALE_noise
+      start: 84.0
+      end: 114.0
+      priority: 10
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: coherent_noise_field
+        speed: 1
+        intensity: 0.25
+        params:
+          feature_size_px: 3.2
+          drift_rate: 0.3
+          contrast: 1.15
+          floor_gain: 0.08
+          ceiling_gain: 0.65
+      color: {mode: solid, color: [1, 1, 1]}
+      color_source:
+        type: spatial_palette
+        palette: [[0.02, 0.08, 0.55], [0.0, 0.7, 0.85], [0.45, 0.05, 0.8]]
+      transition: {fade_in: 0, fade_out: 4, blend: replace}
+
+    - id: FINALE_twinkle
+      start: 90.0
+      end: 114.0
+      priority: 20
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: twinkle
+        speed: 1
+        intensity: 0.20
+        params:
+          density: 0.25
+          fade_time: 0.8
+          event_width_px: 1
+          blur_radius_px: 0
+          color_source: solid
+      color: {mode: solid, color: [1.0, 0.92, 0.65]}
+      transition: {fade_in: 0, fade_out: 4, blend: add}
+
+    - id: FINALE_comet
+      start: 98.0
+      end: 114.0
+      priority: 30
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect:
+        mode: fixed
+        id: comet
+        speed: 1
+        intensity: 0.40
+        params:
+          speed: 3.5
+          count: 2
+          trajectory: bounce
+          phase_spacing: 0.5
+          tail_length: 0.15
+          decay: 0.8
+      color: {mode: solid, color: [1.0, 0.92, 0.65]}
+      transition: {fade_in: 0, fade_out: 4, blend: add}
+
+    - id: BLACK_end
+      start: 114.0
+      end: 116.0
+      priority: 0
+      target: {type: digital_strip, id: strip_31}
+      origin: start
+      effect: {mode: fixed, id: static, speed: 1, intensity: 1, params: {}}
+      color: {mode: solid, color: [0, 0, 0]}
+      transition: {fade_in: 0, fade_out: 0, blend: replace}
