@@ -236,9 +236,9 @@ repair. It supports a residual single-path or regenerated-signal problem but
 does not yet distinguish Node 2 output/interface/contact/ground/DI from a strip
 receiver defect.
 
-`config/shows/archive/ws2811-ab-experiments/ws2811-ab-two-node-all-effects-171s.yaml` is the next exploratory
-sweep. It covers all 17 registered effects on both strips, uses one-second
-black separators, and puts deterministic pure-color effects before generated
+The 171-second two-node all-effects Show at `178cd5b` was an exploratory
+sweep. It covered all 17 registered effects on both strips, uses one-second
+black separators, and put deterministic pure-color effects before generated
 media and full-color effects. It is not an acceptance gate or evidence for
 unrestricted APP color control.
 

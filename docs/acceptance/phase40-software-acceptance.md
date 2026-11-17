@@ -20,10 +20,9 @@ Status: **software accepted on 2026-08-23; NOT HARDWARE VERIFIED**.
   `audio_modulation`, branch default `start_on_release`, virtual paths, and the
   Energy Wakeup Show remain compatibility baselines.
 - The authoritative navigation map is
-  `docs/current/show-authoring-source-index.md`. The downstream teammate-manual
-  work instruction is
-  `docs/current/ANTIGRAVITY_SHOW_AUTHORING_MANUAL_TASK.md`; it is intentionally
-  not the manual itself.
+  `docs/current/show-authoring-source-index.md`. The teammate-facing guide is
+  `docs/current/SHOW_AUTHORING_TEAMMATE_MANUAL.md`; it explains the frozen
+  software contract without replacing its upstream authorities.
 
 ## APP V1 historical compatibility baseline and boundary
 

@@ -6,13 +6,14 @@ import pytest
 
 from light_engine.mapping.physical import DigitalNodeFrame, PhysicalFrame
 from light_engine.outputs.udp_output import UdpOutputV2
-from light_engine.outputs.udp_v2 import HEADER_LENGTH, UdpV2Packet
+from light_engine.outputs.udp_v2 import HEADER_LENGTH, UdpV2Packet, crc32
 
 
 GOLDEN = Path("firmware/shared/udp_v2_golden.json")
 
 
 def test_golden_vector_roundtrip():
+    assert crc32(b"123456789") == 0xCBF43926
     vector = json.loads(GOLDEN.read_text(encoding="utf-8"))["vectors"][0]
     packet = UdpV2Packet(
         message_type=vector["message_type"],
@@ -36,6 +37,13 @@ def test_length_mismatch_rejected():
     encoded = bytearray(UdpV2Packet(digital_node_id=1, sequence=1, pixels=[(1, 2, 3)]).encode())
     encoded[HEADER_LENGTH - 1] = 4
     assert UdpV2Packet.decode(bytes(encoded)) is None
+
+
+def test_udp_v2_invalid_magic_rejected_even_with_valid_crc():
+    raw = bytearray(UdpV2Packet(digital_node_id=1, sequence=1, pixels=[]).encode())
+    raw[0] = 0
+    raw[-4:] = struct.pack(">I", crc32(raw[:-4]))
+    assert UdpV2Packet.decode(bytes(raw)) is None
 
 
 def test_reserved_flags_rejected():

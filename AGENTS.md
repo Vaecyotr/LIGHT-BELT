@@ -21,7 +21,7 @@ original source discovered by the production Host under `assets/`.
 `config/shows/energy-wakeup.yaml` is used only for tests, explicit CLI
 validation, and the current Show compatibility baseline; it does not select
 or replace the Host's production Show. Treat the
-32 retired YAML files under categorized `config/shows/archive/` as legacy
+selected historical YAML files under `config/shows/archive/` as legacy
 replay/regression material, never as evidence for new visual or parameter
 requirements. The `config/shows/` root contains only that compatibility fixture.
 

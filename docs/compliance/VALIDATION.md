@@ -73,7 +73,7 @@ All pre-existing dirty/staged files were preserved. `git diff --cached --shortst
  9 files changed, 202 insertions(+), 26 deletions(-)
 ```
 
-`git diff --stat HEAD` (all pre-existing tracked work plus the single audit comment change): **84 files changed, 1038 insertions(+), 354 deletions(-)**. New audit artifacts are enumerated separately in `evidence/artifact-manifest.json`; their hashes document this audit snapshot, not permanent source freezes or fixed-hash tests.
+`git diff --stat HEAD` (all pre-existing tracked work plus the single audit comment change): **84 files changed, 1038 insertions(+), 354 deletions(-)**. The original generated Windows snapshot and its hash manifest remain in Git at `178cd5b`. The generator now writes to `artifacts/runs/distribution-materials/` by default. Target release evidence is collected using [TARGET_EVIDENCE.md](TARGET_EVIDENCE.md).
 
 The obsolete generated `.python` notice directory was created during this task. Before removing it, the owner checked its exact resolved absolute path under `docs/compliance/generated/LICENSES/`, rejected reparse points, and verified its expected 69-file count. No user media, cache, environment or prior file was removed.
 

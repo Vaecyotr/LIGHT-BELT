@@ -41,7 +41,7 @@ Host 从 `assets/<show_id>/` 自动发现节目，视频、音频或 YAML 均可
 
 `assets/energy-wakeup/energy-wakeup.yaml` 是保留的生产节目原件；`config/shows/energy-wakeup.yaml` 是独立测试与显式 CLI 校验资料，两者不要求相同。
 
-可选的 `data/shows_manifest.json` 在发现后覆盖名称、媒体路径等字段，也可以补入兼容条目。缺少它不会清空 `assets` 已发现的节目；目录没有可发现内容时，列表才可能为空。示例见 `host_services/shows_manifest.example.json`。
+可选的 `data/shows_manifest.json` 在发现后覆盖名称、媒体路径等字段，也可以补入兼容条目。缺少它不会清空 `assets` 已发现的节目；目录没有可发现内容时，列表才可能为空。示例见 [shows-manifest.example.json](../../config/examples/shows-manifest.example.json)。
 
 | 字段 | 用途 |
 |---|---|

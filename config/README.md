@@ -18,13 +18,9 @@ The immutable original production Show is
 `assets/`, where associated media is also found. An optional manifest can
 overlay discovery metadata; it is not the sole source of truth. The
 `config/shows/energy-wakeup.yaml` file is used for tests, explicit CLI
-validation, and the current Show compatibility baseline. The 32 legacy Shows are retained byte-identically under
-`shows/archive/` in stable categories. They are legacy replay/regression
-material, not design references. New Shows must follow `shows/README.md`.
+validation, and the current Show compatibility baseline. Selected fixtures under `shows/archive/` support maintenance and regression. New Shows must follow `shows/README.md`.
 
-`profile-archive/wled-five-board-phase-17.yaml` is the historical five-board WLED
-Profile retained for compatibility. The current nine-board Host
-template is `profiles/rk3588-host-service.yaml`; `scripts/runtime/resolve_nodes.py`
+The current nine-board Host template is `profiles/rk3588-host-service.yaml`; `scripts/runtime/resolve_nodes.py`
 copies it to ignored `config/runtime/wled-ddp-mdns.yaml` after Avahi mDNS
 resolution. Do not edit or deploy the tracked template as a resolved profile.
 Its nine nodes and 107 pixel groups are a current Profile snapshot, not runtime

@@ -34,7 +34,6 @@ When documents or code disagree, resolve conflicts in this exact order:
   - *Acceptance Evidence Chain*: [docs/acceptance/README.md](acceptance/README.md)
   - *Machine-Readable Counterparts*: [artifacts/README.md](../artifacts/README.md)
   - *Test Fixtures*: [config/acceptance/README.md](../config/acceptance/README.md)
-  - *Test governance audit*: [testing-audit.md](acceptance/testing-audit.md)
 
 - **[Historical Archives (`docs/history/`)](history/README.md)**:
   Preserved historical plans, early prototype notes, and completed campaign artifacts retained strictly for provenance.

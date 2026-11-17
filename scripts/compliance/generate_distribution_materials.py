@@ -447,10 +447,10 @@ def generate(root: Path | str, output: Path | str, audit_date: str | None = None
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd(), help="repository root (default: current directory)")
-    parser.add_argument("--output", type=Path, help="output directory (default: <root>/docs/compliance/generated)")
+    parser.add_argument("--output", type=Path, help="output directory (default: <root>/artifacts/runs/distribution-materials)")
     parser.add_argument("--audit-date", help="date to label this evidence capture (YYYY-MM-DD)")
     args = parser.parse_args(argv)
-    output = args.output or args.root / "docs" / "compliance" / "generated"
+    output = args.output or args.root / "artifacts" / "runs" / "distribution-materials"
     inventory = generate(args.root, output, args.audit_date)
     print(f"release_status={inventory['release_status']} output={Path(output).resolve()}")
     return 0

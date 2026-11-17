@@ -34,14 +34,13 @@ Rules:
 3. Treat `config/shows/energy-wakeup.yaml` and current runtime code as the
    compatibility boundary. Its immutable source is retained at
    `assets/energy-wakeup/energy-wakeup.yaml`; do not copy decisions from the
-   32 legacy Shows or their archives.
+   retained historical fixtures.
 4. Validate the file with the bundled interpreter and add only the focused
    tests needed by its new behavior.
 5. Set `status: approved` only after explicit review; this does not make a
    fixture a production Show. Set
    `hardware_verified: true` only with real hardware evidence.
-6. Archive retired Shows under `config/shows/archive/<category>/`. Keep the
-   archive categories stable and preserve retired YAML bytes exactly.
+6. Delete retired Shows by default. Retain a complete fixture only when a supported maintenance procedure or regression requires it.
 
 Other diagnostic and regression fixtures belong in dedicated test/acceptance
 or archive locations, not alongside the current compatibility baseline.

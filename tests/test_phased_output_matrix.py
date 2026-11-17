@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from light_engine import models
 from light_engine.mapping.physical import (
     AnalogNodeCommand,
     DigitalNodeFrame,
@@ -41,6 +42,7 @@ def _physical_frame() -> PhysicalFrame:
 
 
 def test_phase_6_outputs_consume_physical_frame_directly(tmp_path) -> None:
+    assert not hasattr(models, "RoutedFrame")
     frame = _physical_frame()
     json_path = tmp_path / "frames.jsonl"
     null_output = NullOutput()
@@ -71,6 +73,7 @@ def test_phase_6_outputs_consume_physical_frame_directly(tmp_path) -> None:
         )
 
         assert null_output.health().frames_sent == 1
+        assert simulator_output.health().logical_frames_submitted == 1
         assert simulator_output.pop_latest() is frame
         assert serial_output.health().logical_frames_sent == 1
         assert serial_output.health().packets_sent == 6

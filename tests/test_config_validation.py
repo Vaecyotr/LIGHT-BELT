@@ -327,22 +327,8 @@ def test_phase31_profiles_enable_one_output_gpio4_policy(profile: Path) -> None:
     assert config.get("outputs.udp_v3.presentation.beacon.startup_count") >= 3
 
 
-@pytest.mark.parametrize(
-    ("profile", "expected_outputs"),
-    [
-        (
-            Path("config/profile-archive/node2-effects-demo.yaml"),
-            [(1, 4), (2, 5), (3, 6)],
-        ),
-        (
-            Path("config/profile-archive/node2-strip42-gpio4-diagnostic.yaml"),
-            [(1, 4)],
-        ),
-    ],
-)
-def test_udp_v3_diagnostic_profiles_retain_explicit_output_flexibility(
-    profile: Path, expected_outputs: list[tuple[int, int]]
-) -> None:
+def test_udp_v3_diagnostic_profile_retains_explicit_multi_output_flexibility() -> None:
+    profile = Path("config/profile-archive/node2-effects-demo.yaml")
     Config.reset()
     config = Config(profile)
     assert config.get("layout.digital_output_policy") == "multi_output_diagnostic"
@@ -350,7 +336,7 @@ def test_udp_v3_diagnostic_profiles_retain_explicit_output_flexibility(
     assert [
         (output["output_id"], output["gpio"])
         for output in config.get("layout.digital_outputs")
-    ] == expected_outputs
+    ] == [(1, 4), (2, 5), (3, 6)]
 
 
 @pytest.mark.parametrize(

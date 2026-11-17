@@ -9,7 +9,7 @@ from scripts.dev.export_authoring_contract import authoring_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "docs/current/show-authoring-source-index.md"
-GUIDE = ROOT / "docs/current/ANTIGRAVITY_SHOW_AUTHORING_MANUAL_TASK.md"
+GUIDE = ROOT / "docs/current/SHOW_AUTHORING_TEAMMATE_MANUAL.md"
 
 
 def test_phase40_plan_declares_bounded_closed_frozen_state() -> None:
@@ -49,54 +49,12 @@ def test_authoring_index_links_every_required_authority_and_source() -> None:
     assert "not hardware or product-release verification" in text
 
 
-def test_antigravity_guide_contains_exact_authority_and_all_30_sections() -> None:
+def test_teammate_manual_explains_frozen_authoring_contract() -> None:
     text = GUIDE.read_text(encoding="utf-8")
-    authorities = (
-        "1. [CLAUDE.md]",
-        "2. [CLOSED_LOOP_SPEC.md]",
-        "3. [IMPLEMENTATION_PLAN.md]",
-        "4. [current Show authoring documentation]",
-        "5. live EffectRegistry / exported authoring contract",
-        "6. current implementation",
-        "7. focused tests and examples",
-    )
-    for authority in authorities:
-        assert authority in text
-
-    headings = (
-        "1. What the system is",
-        "2. Minimal mental model",
-        "3. What the APP controls vs what Show YAML controls",
-        "4. Anatomy of one Show",
-        "5. Anatomy of one cue",
-        "6. Targets / strip IDs / logical paths",
-        "7. Common controls",
-        "8. Four common spatial origins",
-        "9. Motion speed semantics",
-        "10. Complete effect catalog",
-        "11. For **every** effect",
-        "12. ScalarSource",
-        "13. Existing `audio_modulation`",
-        "14. `parameter_modulation`",
-        "15. `modulate` vs `drive`",
-        "16. Dominant-frequency explicit normalization",
-        "17. ColorSource",
-        "18. Spatial palettes",
-        "19. Audio-driven colors",
-        "20. Video-driven colors",
-        "21. `virtual_path`",
-        "22. Branch `after`",
-        "23. `start_on_release`",
-        "24. `pre_roll`",
-        "25. Color timeline",
-        "26. Combining multiple mechanisms",
-        "27. Several complete practical recipes",
-        "28. Invalid/unsafe combinations",
-        "29. Debugging and validation",
-        "30. Glossary",
-    )
-    positions = [text.index(heading) for heading in headings]
-    assert positions == sorted(positions)
+    assert "不是高于源码/合同的第二套权威" in text
+    assert "22 个 Native Effect" in text
+    for topic in ("parameter_modulation", "ColorSource", "virtual_path", "pre_roll"):
+        assert topic in text
 
 
 def test_guide_discovery_reaches_the_frozen_live_inventory() -> None:
@@ -125,30 +83,3 @@ def test_guide_discovery_reaches_the_frozen_live_inventory() -> None:
         assert source in (ROOT / "docs/reference/color-source.md").read_text(
             encoding="utf-8"
         )
-    for discovery_source in (
-        "scripts\\dev\\export_authoring_contract.py",
-        "light_engine\\effects\\scalar_source.py",
-        "docs\\reference\\parameter-modulation.md",
-        "docs\\reference\\color-source.md",
-        "tests/test_virtual_paths.py",
-        "tests/test_show_branch_lifecycle_schema_phase34.py",
-        "tests/test_app_host_api_v1_freeze.py",
-    ):
-        assert discovery_source in text
-
-
-def test_guide_verification_guards_product_boundaries() -> None:
-    text = GUIDE.read_text(encoding="utf-8")
-    for required in (
-        "every registered effect is documented exactly once",
-        "every authorable parameter spec is represented",
-        "enum choices agree with the live registry",
-        "accurate hardware/software terminology is used",
-        "ColorSource color sampling vs base renderer brightness envelope is clearly explained",
-        "no claim says the APP edits individual effects",
-        "no global low-frequency color meaning is claimed",
-        "Energy Wakeup is only an existing compatible Show",
-    ):
-        assert required in text
-
-

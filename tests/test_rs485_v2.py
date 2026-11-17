@@ -1,12 +1,15 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from light_engine.mapping.physical import AnalogNodeCommand, PhysicalFrame
 from light_engine.models import RGBCCTColor
 from light_engine.outputs.rs485_v2 import (
     FRAME_LENGTH,
     RS485v2Packet,
     RS485v2StreamParser,
+    crc16_ccitt_false,
 )
 from light_engine.outputs.serial_output import SerialOutputV2
 
@@ -15,6 +18,7 @@ GOLDEN = Path("firmware/shared/rs485_v2_golden.json")
 
 
 def test_golden_vector_roundtrip():
+    assert crc16_ccitt_false(b"123456789") == 0x29B1
     vector = json.loads(GOLDEN.read_text(encoding="utf-8"))["vectors"][0]
     packet = RS485v2Packet(
         command=vector["command"],
@@ -91,3 +95,19 @@ def test_serial_output_v2_encodes_one_physical_frame_with_shared_sequence():
     assert {packet.sequence for packet in packets if packet is not None} == {1}
     assert output.health().logical_frames_sent == 1
     assert output.health().packets_sent == 6
+
+
+def test_serial_output_defaults_to_memory_transport():
+    output = SerialOutputV2()
+    output.open()
+
+    assert output.capabilities()["mode"] == "memory"
+
+
+def test_packet_fields_reject_values_outside_protocol_ranges():
+    with pytest.raises(ValueError, match="node_id"):
+        RS485v2Packet(node_id=0, sequence=1)
+    with pytest.raises(ValueError, match="r"):
+        RS485v2Packet(node_id=1, sequence=1, r=256)
+    with pytest.raises(ValueError, match="fade_ms"):
+        RS485v2Packet(node_id=1, sequence=1, fade_ms=65536)

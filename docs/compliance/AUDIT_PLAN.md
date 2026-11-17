@@ -30,7 +30,7 @@
 ## Write ownership and acceptance
 
 - Owner: this plan, audit findings, primary-source license snapshots/index, distribution/source instructions and kiosk notices. No existing functional source file or existing user edits are changed.
-- Runtime inventory worker: only `scripts/compliance/generate_distribution_materials.py` and `tests/test_distribution_materials.py`; generated output under `docs/compliance/generated/` after owner review.
+- Runtime inventory worker: only `scripts/compliance/generate_distribution_materials.py` and `tests/test_distribution_materials.py`; generated output in the local audit run directory.
 - WLED investigator: bounded provenance evidence under `docs/compliance/` only when explicitly released for writing by owner.
 - Acceptance: artifacts clearly distinguish detected, declared, unverified and release-blocking facts. Unknown licenses/source/rights never become a pass. No whole-project relicensing or assertion of legal clearance follows from a test result.
 

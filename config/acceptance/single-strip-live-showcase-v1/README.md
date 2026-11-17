@@ -1,6 +1,8 @@
 # 单灯带现场演示
 
-Show ID 为 `single-strip-live-showcase-v1`，目标是 `strip_31` 的 10 个控制组；总长 60 秒、30 FPS、1800 帧。使用 internal clock，Show 不依赖音视频或媒体调制；全局亮度由 `OutputTransform` 处理。现场输出和拍摄效果为 **NOT HARDWARE VERIFIED**。
+Show ID 为 `single-strip-live-showcase-v1`，目标是 `strip_31` 的 10 个控制组。总长 60 秒，目标 30 FPS，共 1800 帧。节目以内部时钟运行，全局亮度由 `OutputTransform` 处理。
+
+**实机验收通过（用户确认）**。对应版本为 `178cd5b`，验收范围为 `strip_31` 的 60 秒单灯带节目。实测帧率和 DDP 计数未随该记录提供。声画灯联动与多节点同步仍为 **NOT HARDWARE VERIFIED**。
 
 | 秒 | 效果与实际参数 | 视觉预期 |
 |---|---|---|

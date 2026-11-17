@@ -6,7 +6,7 @@
 
 | ID | 未解决风险与具体证据 | 销售前需要人工完成的事项 / 关闭依据 |
 |---|---|---|
-| R1 | **演示媒体没有可验证的商业授权。** 本地 `assets/energy-wakeup/energy-wakeup.mp4` 存在，356,213,314 字节，被 Git 忽略；`assets/README.md` 只解释媒体部署，没有权利人、来源或授权。接受测试目录还存在 MP4/WAV；派生短片不自动取得原片权利。生成清单记录现存文件的 SHA-256。 | 确定每个实际交付视频/音乐/录音/图像/字体/Show 素材的来源与权利人；取得覆盖复制、随设备销售、剪辑/同步和预期使用场景的授权及地区/期限证明，或从销售包排除该素材。测试合成音的 manifest 不能替代演示视频授权。 |
+| R1 | **演示媒体没有可验证的商业授权。** 本地 `assets/energy-wakeup/energy-wakeup.mp4` 存在，356,213,314 字节，被 Git 忽略；`assets/README.md` 只解释媒体部署，没有权利人、来源或授权。接受测试目录还存在 MP4/WAV；派生短片不自动取得原片权利。2026-10-26 审计中对应文件的 SHA-256 为 `79ed7c04f7670bf80bed3d4ff827a0153d2e3d834516546a23a5a33e14aaed2c`。 | 确定每个实际交付视频/音乐/录音/图像/字体/Show 素材的来源与权利人；取得覆盖复制、随设备销售、剪辑/同步和预期使用场景的授权及地区/期限证明，或从销售包排除该素材。测试合成音的 manifest 不能替代演示视频授权。 |
 | R2 | **GLEDOPTO 实机固件、修改与来源不明。** `firmware/esp32_ws2811_node/README.md:3` 和 `CLAUDE.md` 声明生产使用 WLED/DDP，但仓库没有控制器型号、实机固件读取或可信交付记录；自研固件目录不是实机固件证据。比较的新版 WLED 为 EUPL-1.2-or-later，旧 v0.14.4 则有 MIT 文本，实际条件取决于确切版本及文件。 | 逐型号/批次获取实际固件版本、build ID/哈希、厂商发行包、修改说明、全部第三方版权/许可证及可再分发依据。核对并交付对应源码/构建配置及通知；有闭源厂商扩展时取得其分发依据。开源 WLED 依许可证销售本身不要求另向作者购买“商业授权”，但厂商证明不能取代实际许可证义务。 |
 | R3 | **最终 ARM 系统镜像与软件包清单缺失。** `scripts/deploy/rk3588/setup-system.sh:13` 通过 apt 安装 mpv、PulseAudio、BlueZ 等但不记录解析版本；基础镜像/内核/bootloader/浏览器/驱动及厂商二进制无逐项清单。部署脚本也不是最终镜像。 | 冻结一个发行镜像和逐文件交付清单，记录镜像 SHA-256、发行版、所有已安装包及版本、来源、许可证、原始版权文件、发行版/厂商补丁与对应源码。确认 vendor blobs 的分发条款，区分不随产品交付的维护工具和源码历史。 |
 | R4 | **本地 Python 元数据不能清除目标机器的原生依赖义务。** 本地 SoundFile 0.14.0 包含 libsndfile DLL 与 LGPL COPYING；OpenCV 5.0.0.93 的第三方文件列出 FFmpeg；SciPy 1.17.1 有 OpenBLAS/LAPACK 和带 GCC runtime exception 的 libgfortran 通知。`uv.lock` 也包含不同 Python/平台变体。 | 对最终 ARM wheels/系统库采集精确文件和 build flags，逐项比对版权文本、LGPL/GPL/例外条件。提供适用的库源码和动态替换/静态重新链接材料；不能仅复制 Windows 许可证目录就宣布 ARM 发行合规。GCC 例外满足时不要求因此公开自研代码。 |
@@ -18,7 +18,7 @@
 ## 证据材料
 
 - [第三方条件与版权声明索引](../../THIRD_PARTY_NOTICES.md)
-- [本地自动盘点清单](generated/inventory.json) 与 [输入、Git 状态和文件身份](generated/source_inputs.json)
+- [自动盘点工具](../../scripts/compliance/generate_distribution_materials.py)生成 `inventory.json`、`source_inputs.json`、通知和原始许可副本，默认写入 `artifacts/runs/distribution-materials/`
 - [WLED 历史和逐项对比](WLED_PROVENANCE.md) 与 [机器可读比较记录](evidence/wled-comparison.json)
 - [源码提供所缺材料与许可证条款](../../SOURCE_AVAILABILITY.md)
 - [原始许可证来源](evidence/primary-sources.json)

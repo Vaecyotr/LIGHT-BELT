@@ -37,8 +37,8 @@ The NanoPC-T6 Ubuntu 22.04 Wayland deployment starts Host through
 `systemd/user/light-belt-host.service` with user linger. GNOME autostart imports
 the actual Wayland session and restarts Host for its fullscreen startup window.
 The user runtime owns mpv IPC and per-device credentials persist under
-`~/.config/light-belt/host.env`. The system Host unit is a legacy deployment
-definition. Bootstrap always applies the independent update policy, leaves
+`~/.config/light-belt/host.env`. Deployment detects and disables the installed legacy system Host unit before
+activating the user service. Bootstrap always applies the independent update policy, leaves
 LIGHT-BELT automatic updates disabled, and configures Kiosk only with the
 explicit `--configure-kiosk` option. Device behavior remains
 **NOT HARDWARE VERIFIED**.
@@ -51,7 +51,7 @@ original `assets/energy-wakeup/energy-wakeup.yaml`; do not edit its content.
 validation, and the current Show compatibility baseline. It is not the Host's
 production Show entry, and need not be byte- or semantic-identical to the
 original. This declaration does not change Host discovery or playback.
-The 32 retired YAML files are categorized under
+Retained compatibility and commissioning fixtures are under
 `config/shows/archive/`; all are legacy replay/regression fixtures and must not
 be used to infer current effects, parameters, topology, timing, authoring
 style, or product requirements. The `config/shows/` root contains only the

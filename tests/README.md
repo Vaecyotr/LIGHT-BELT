@@ -25,17 +25,6 @@ does not retire UDP or RS-485; protocol safety coverage remains in full.
 
 ## Counts and timing
 
-Complete Windows bundled-Python runs on 2026-09-10:
-
-| Layer | Passed | Pytest elapsed | Exit code |
-| --- | ---: | ---: | ---: |
-| fast | 381 | 3.11 s | 0 |
-| production | 1192 | 33.75 s | 0 |
-| full | 1495 | 254.05 s | 0 |
-| history | 115 | 190.24 s | 0 |
-
-The final counts, measured timings, slowest tests/files, exact commands and
-limitations are recorded in [the audit](../docs/acceptance/testing-audit.md).
 Append `--durations=25 --inventory-json=tmp/test-audit/<run>.json` to a real run
 for individual durations and per-file inventory. Use `--collect-only` only when
 counting; it does not validate tests and reports `null` for unmeasured time.
@@ -44,9 +33,6 @@ Counts include parameterized cases. File seconds sum setup, call and teardown;
 shared-fixture setup is charged to the first consuming test. This is not an
 isolated file benchmark. The pytest total includes collection and other overhead
 and is reported separately. Raw reports/logs live under ignored `tmp/test-audit/`.
-
-The 2026-09-09 partial audit and waived full run are historical context only;
-the 2026-09-10 closeout uses complete actual runs and does not inherit that waiver.
 
 ## File changes, SHA and historical evidence
 
