@@ -103,7 +103,14 @@ cutover. Any physical result requires the corresponding device observation.
 
 ## Pending acceptance
 
-Use the [feature delivery checklist](../feature_gap_08-54.md) for the original
-requirements, pending decisions and field acceptance sequence. Stage-specific
-design records retain only evidence needed by supported behavior or
+Use the [feature delivery checklist](../feature_gap_08-54.md) for all 47 original
+requirements, delivery interfaces, T00–T20 tasks, D01–D10 decisions and field
+acceptance. Only requirements 9, 13, 14 and 53 require end-user operation;
+other entries use administrator configuration, Shows or system behavior.
+The accepted 60-second strip_31 internal-clock showcase does not close
+multi-node, media-sync or full-product acceptance. User-approved WT04 Kiosk
+synchronization permits anonymous REST control and retains the WS ticket
+handshake, superseding the older mandatory Bearer/Kiosk-pairing goal.
+
+Stage-specific design records retain evidence needed by supported behavior or
 maintenance. New product work starts from the approved scope recorded here.

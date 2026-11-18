@@ -94,3 +94,20 @@ def test_udp_output_v2_sends_one_complete_datagram_per_node():
     assert decoded.pixels == [(0, 128, 255), (255, 0, 64)]
     assert output.health().logical_frames_sent == 1
     assert output.health().packets_sent == 1
+
+
+def test_repeated_physical_frame_preserves_engine_sequence():
+    frame = PhysicalFrame(sequence=77, timestamp=0.0, digital_frames=[
+        DigitalNodeFrame(node_id=7, host="192.0.2.7", port=9001,
+                         pixels=[(0.0, 1.0, 0.0)])])
+    output = UdpOutputV2()
+    output.open()
+    try:
+        output.send_frame(frame)
+        output.send_frame(frame)
+        packets = [UdpV2Packet.decode(data) for data, _ in output.get_sent_datagrams()]
+        assert len(packets) == 2
+        assert all(packet is not None for packet in packets)
+        assert [packet.sequence for packet in packets] == [77, 77]
+    finally:
+        output.close()

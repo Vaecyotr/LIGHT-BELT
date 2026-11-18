@@ -278,3 +278,38 @@ def test_dual_media_duration_uses_video(tmp_path):
         shows = load_shows(assets_dir=assets)
 
     assert shows[0]["duration_ms"] == 120000
+
+
+def test_product_catalog_excludes_retired_demo_and_rejects_it_before_playback(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from host_services import engine_adapter
+    from host_services.main import app
+
+    assets = Path(__file__).resolve().parents[1] / "assets"
+    shows = load_shows(assets_dir=assets, manifest_path=tmp_path / "no-overlay.json")
+    by_id = {show["show_id"]: show for show in shows}
+    retired = "phase-17-full-show-wled-five-board"
+    assert "energy-wakeup" in by_id
+    assert retired not in by_id
+    assert Path(by_id["energy-wakeup"]["show_yaml"]).is_file()
+    monkeypatch.setattr(engine_adapter, "_shows", shows)
+    monkeypatch.setattr(engine_adapter, "_state", {
+        **engine_adapter._state, "show_id": "energy-wakeup", "playback_state": "playing",
+    })
+
+    def unexpected_player_start():
+        pytest.fail("A missing show must be rejected before the player is touched")
+
+    monkeypatch.setattr(engine_adapter, "_ensure_mpv", unexpected_player_start)
+    before = dict(engine_adapter._state)
+    client = TestClient(app)
+    response = client.get("/api/v1/shows")
+    assert response.status_code == 200
+    listed = response.json()["data"]["shows"]
+    assert {show["show_id"] for show in listed} == set(by_id)
+    assert all("media_path" not in show and "show_yaml" not in show for show in listed)
+    response = client.post("/api/v1/playback/play", json={"show_id": retired})
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+    assert engine_adapter._state == before

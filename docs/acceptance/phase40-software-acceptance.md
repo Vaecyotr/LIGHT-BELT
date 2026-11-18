@@ -78,7 +78,7 @@ lifecycle, virtual-path behavior, and the frozen APP boundary.
 Final representative software-only benchmark:
 
 ```text
-.\.python\Scripts\python.exe scripts\benchmark_color_source.py
+.\.python\Scripts\python.exe scripts\benchmarks\benchmark_color_source.py
 phase39_color_source frames=600 strips=9 groups=200 layers=6 combined_modulation_cues=1 elapsed_seconds=11.395325 fps=52.653
 NOT HARDWARE VERIFIED; current development machine only
 ```

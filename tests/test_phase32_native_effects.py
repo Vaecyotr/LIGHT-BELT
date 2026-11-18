@@ -313,3 +313,17 @@ def test_heat_fire_reconstructs_variable_length_state_without_invalid_pixels():
     resized = effect.process(fire_context(1.0, delta=.5, length=17))
     assert len(resized.strips[0].pixels) == 17
     assert resized.all_pixels_valid()
+
+
+def test_silence_blocks_ripple_births_while_existing_wave_decays():
+    effect = create_effect("onset_ripple")
+    params = {"wave_speed_pps": 1.0, "wave_width_px": 4.0,
+              "decay_seconds": 2.0, "color": [1.0, 1.0, 1.0]}
+    born = effect.process(context(params, time=0.0, delta=.25,
+                                  audio=audio(loudness=1.0, onset=1.0, peak=True)))
+    wave_count = len(effect._waves)
+    silent = effect.process(context(params, time=.25, delta=.25,
+                                    audio=audio(loudness=1.0, onset=1.0, peak=True, silence=True)))
+    assert wave_count == len(effect._waves) == 1
+    assert any(pixel != (0.0, 0.0, 0.0) for pixel in silent.strips[0].pixels)
+    assert silent.strips[0].pixels != born.strips[0].pixels

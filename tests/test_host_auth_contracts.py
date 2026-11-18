@@ -1,9 +1,10 @@
-"""Authentication through the released REST and ticket entry points."""
+"""Direct REST access, token compatibility, and WebSocket ticket contracts."""
 import time
 
 import jwt
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from host_services import auth_manager, config, engine_adapter
 from host_services.main import app
@@ -24,52 +25,44 @@ def token(**changes):
     return jwt.encode(claims, auth_manager.JWT_SECRET, algorithm='HS256')
 
 
-@pytest.mark.parametrize('authorization', [None, 'Bearer invalid', 'Basic invalid'])
-@pytest.mark.parametrize('path,body', [
-    ('/brightness/set', {'brightness_scale': 0.17}),
-    ('/session/ws-ticket', {'subscribe': ['heartbeat']}),
+def test_anonymous_rest_reads_writes_and_ws_ticket_are_available(client, monkeypatch):
+    assert client.get('/api/v1/shows').status_code == 200
+    assert client.get('/api/v1/state').status_code == 200
+
+    monkeypatch.setitem(engine_adapter._state, 'brightness_scale', 0.5)
+    write = client.post('/api/v1/brightness/set', json={'brightness_scale': 0.17})
+    assert write.status_code == 200
+    assert client.get('/api/v1/brightness').json()['data']['brightness_scale'] == 0.17
+
+    ticket = client.post('/api/v1/session/ws-ticket', json={'subscribe': ['heartbeat']})
+    assert ticket.status_code == 200
+    assert ticket.json()['data']['ws_ticket']
+
+
+@pytest.mark.parametrize('claims', [
+    {'exp': int(time.time()) - 60},
+    {'type': 'refresh'},
+    {'scope': 'lights:write'},
+    {'sub': ''},
+    {'exp': []},
+    {'exp': None},
+    {'exp': float('inf')},
 ])
-def test_anonymous_or_invalid_token_cannot_write_or_get_ticket(client, authorization, path, body):
-    before = engine_adapter._state['brightness_scale']
-    headers = {'X-Request-Id': 'auth-contract'}
-    if authorization:
-        headers['Authorization'] = authorization
-    response = client.post('/api/v1' + path, json=body, headers=headers)
-    assert response.status_code == 401
-    assert response.json() == {
-        'ok': False, 'request_id': 'auth-contract',
-        'error': {'code': 'UNAUTHORIZED', 'message': 'Missing or invalid token'},
-    }
-    assert engine_adapter._state['brightness_scale'] == before
+def test_rejects_expired_wrong_type_or_malformed_claims(claims):
+    value = token(**claims)
+    assert auth_manager.verify_access_token(value) is None
 
 
-@pytest.mark.parametrize('claims,code', [
-    ({'exp': int(time.time()) - 60}, 'TOKEN_EXPIRED'),
-    ({'type': 'refresh'}, 'UNAUTHORIZED'),
-    ({'scope': 'lights:write'}, 'UNAUTHORIZED'),
-    ({'sub': ''}, 'UNAUTHORIZED'),
-    ({'exp': []}, 'UNAUTHORIZED'),
-    ({'exp': None}, 'UNAUTHORIZED'),
-    ({'exp': float('inf')}, 'UNAUTHORIZED'),
-])
-def test_rejects_expired_wrong_type_or_malformed_claims(client, claims, code):
-    response = client.get('/api/v1/state', headers={'Authorization': 'Bearer ' + token(**claims)})
-    assert response.status_code == 401
-    assert response.json()['error']['code'] == code
-
-
-def test_missing_expiration_is_rejected(client):
+def test_missing_expiration_is_rejected():
     value = jwt.encode({'sub': 'client', 'scope': ['state:read'], 'type': 'access'}, auth_manager.JWT_SECRET, algorithm='HS256')
-    response = client.get('/api/v1/state', headers={'Authorization': 'Bearer ' + value})
-    assert response.status_code == 401
+    assert auth_manager.verify_access_token(value) is None
 
 
-def test_read_scope_cannot_write_but_can_read_and_get_ticket(client):
-    headers = {'Authorization': 'Bearer ' + token(scope=['state:read'])}
-    assert client.get('/api/v1/state', headers=headers).status_code == 200
-    denied = client.post('/api/v1/brightness/set', json={'brightness_scale': 0.17}, headers=headers)
-    assert denied.status_code == 403
-    assert denied.json()['error']['code'] == 'FORBIDDEN'
+@pytest.mark.parametrize('authorization', ['Bearer invalid', 'Basic invalid', 'Bearer ' + token(scope=['state:read'])])
+def test_rest_passthrough_ignores_authorization_headers(client, monkeypatch, authorization):
+    monkeypatch.setitem(engine_adapter._state, 'brightness_scale', 0.5)
+    headers = {'Authorization': authorization}
+    assert client.post('/api/v1/brightness/set', json={'brightness_scale': 0.17}, headers=headers).status_code == 200
     ticket = client.post('/api/v1/session/ws-ticket', json={'subscribe': ['heartbeat']}, headers=headers)
     assert ticket.status_code == 200
 
@@ -124,6 +117,26 @@ def test_new_ws_ticket_reclaims_expired_ticket_and_keeps_single_use(monkeypatch)
 def test_status_and_static_assets_remain_public(client):
     assert client.get('/api/v1/status').status_code == 200
     assert client.get('/').status_code == 200
+
+
+def test_anonymous_ticket_allows_one_websocket_handshake(client):
+    response = client.post('/api/v1/session/ws-ticket', json={'subscribe': ['heartbeat']})
+    assert response.status_code == 200
+    ticket = response.json()['data']['ws_ticket']
+    with client.websocket_connect('/ws?ticket=' + ticket) as socket:
+        assert socket.receive_json()['type'] == 'session.connected'
+    with pytest.raises(WebSocketDisconnect) as reused:
+        with client.websocket_connect('/ws?ticket=' + ticket):
+            pytest.fail('Reused ticket opened a second connection')
+    assert reused.value.code == 4401
+
+
+@pytest.mark.parametrize('url', ['/ws', '/ws?ticket=invalid'])
+def test_websocket_still_rejects_missing_or_invalid_ticket(client, url):
+    with pytest.raises(WebSocketDisconnect) as rejected:
+        with client.websocket_connect(url):
+            pytest.fail('Invalid ticket opened a WebSocket connection')
+    assert rejected.value.code == 4401
 
 
 @pytest.mark.parametrize('scheme,ws_scheme', [('http', 'ws'), ('https', 'wss')])

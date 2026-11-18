@@ -29,5 +29,5 @@ export function useVolume() {
   onMounted(() => { refresh(); timer = setInterval(refresh, 3000) })
   onUnmounted(() => clearInterval(timer))
 
-  return { volume, muted, setVolume, toggleMute, refresh }
+  return { volume, muted, setVolume, toggleMute }
 }

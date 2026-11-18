@@ -2,6 +2,10 @@
 
 This directory contains human-readable software acceptance reports for completed project phases and verification campaigns.
 
+## Cleanup closeout
+
+[2026-11-18 final cleanup acceptance](cleanup-final-20261118.md) records requirement traceability, Kiosk synchronization, retained regression assertions and the software/build gates.
+
 ## Acceptance Evidence Chain
 
 For acceptance campaigns that use fixed fixtures and committed machine-readable baselines, the full three-tier evidence chain applies:

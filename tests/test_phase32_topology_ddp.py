@@ -12,6 +12,7 @@ from light_engine.config import Config, ConfigError, validate_config
 from light_engine.mapping import Layout
 from light_engine.mapping.physical import (
     DigitalNodeFrame,
+    DigitalOutputFrame,
     PhysicalFrame,
     PhysicalMapping,
 )
@@ -329,3 +330,27 @@ def test_ddp_multi_node_packet_sequences_restart_from_shared_logical_sequence() 
         True,
         True,
     ]
+
+
+def test_ddp_concatenates_independent_outputs_in_output_id_order():
+    output = DdpOutput()
+    output.open()
+    try:
+        output.send_frame(PhysicalFrame(sequence=96, timestamp=3.2, digital_frames=[
+            DigitalNodeFrame(node_id=2, host="192.0.2.2", port=4048, outputs=[
+                DigitalOutputFrame(output_id=2, gpio=5, strip_id="second",
+                                   pixels=[(0.0, 1.0, 0.0)] * 20),
+                DigitalOutputFrame(output_id=1, gpio=4, strip_id="first",
+                                   pixels=[(1.0, 0.0, 0.0)] * 20),
+            ])]))
+        sent = output.get_sent_datagrams()
+        assert len(sent) == 1
+        packet, address = sent[0]
+        assert address == ("192.0.2.2", 4048)
+        assert packet[0] & DDP_FLAGS_PUSH
+        assert packet[2] == 0x0B
+        assert packet[3] == 0x01
+        assert packet[8:10] == (120).to_bytes(2, "big")
+        assert packet[DDP_HEADER_LEN:] == bytes((255, 0, 0)) * 20 + bytes((0, 255, 0)) * 20
+    finally:
+        output.close()

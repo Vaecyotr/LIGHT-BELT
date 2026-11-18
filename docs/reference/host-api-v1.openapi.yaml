@@ -3,6 +3,8 @@ info:
   title: LIGHT-BELT Host API
   version: "1.0"
   description: |
+    当前清理分支提供直通 REST，Authorization 可省略。配对与刷新接口保留，WebSocket 握手使用一次性票据。
+
     LIGHT-BELT APP 接入接口。APP 通过 HTTPS REST JSON 与 WSS WebSocket JSON 接入 RK3588 Host Service。
 
     RK3588 IP 已确定为 192.168.31.236。当前 LIGHT-BELT Host Service 尚未部署到 RK3588，本 OpenAPI 用于 APP 开发、Mock 和接口冻结。
@@ -45,8 +47,7 @@ tags:
     description: 音量与静音控制
   - name: Scenes
     description: 场景管理
-security:
-  - bearerAuth: []
+security: []
 paths:
   /status:
     get:
@@ -698,8 +699,7 @@ paths:
       summary: 获取当前音量和静音状态
       parameters:
         - $ref: "#/components/parameters/XRequestId"
-      security:
-        - bearerAuth: []
+      security: []
       responses:
         "200":
           description: 音频状态
@@ -724,8 +724,7 @@ paths:
       summary: 设置音量或静音状态
       parameters:
         - $ref: "#/components/parameters/XRequestId"
-      security:
-        - bearerAuth: []
+      security: []
       requestBody:
         required: true
         content:
@@ -763,8 +762,7 @@ paths:
       summary: 获取已保存场景列表
       parameters:
         - $ref: "#/components/parameters/XRequestId"
-      security:
-        - bearerAuth: []
+      security: []
       responses:
         "200":
           description: 场景列表
@@ -791,8 +789,7 @@ paths:
       summary: 保存或更新场景
       parameters:
         - $ref: "#/components/parameters/XRequestId"
-      security:
-        - bearerAuth: []
+      security: []
       requestBody:
         required: true
         content:
@@ -837,8 +834,7 @@ paths:
       summary: 应用已保存场景（自动停止当前节目）
       parameters:
         - $ref: "#/components/parameters/XRequestId"
-      security:
-        - bearerAuth: []
+      security: []
       requestBody:
         required: true
         content:
@@ -875,8 +871,7 @@ paths:
       summary: 删除已保存场景
       parameters:
         - $ref: "#/components/parameters/XRequestId"
-      security:
-        - bearerAuth: []
+      security: []
       requestBody:
         required: true
         content:

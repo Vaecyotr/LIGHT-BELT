@@ -18,5 +18,5 @@ export function useShows() {
 
   onMounted(load)
 
-  return { shows, loading, reload: load, DEMO_SHOW }
+  return { shows, loading, DEMO_SHOW }
 }

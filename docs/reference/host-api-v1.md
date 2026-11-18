@@ -33,8 +33,8 @@ APP 首次接入建议步骤：
 2. 配置 `ws_url = wss://192.168.31.236:8443/ws`。
 3. 使用预生成证书指纹进行 APP 开发和 Mock；实际联调时校验 RK3588 Host Service 使用的证书指纹和 SAN。
 4. 调用 `GET /status` 确认 Host Service 在线。
-5. 调用 `POST /auth/pair` 完成配对，保存 `access_token` 与 `refresh_token`。
-6. 后续 REST 请求携带 `Authorization: Bearer <access_token>`。
+5. 直接调用节目、状态和控制 REST 接口。需要保留原有 token 客户端流程时，可调用 `POST /auth/pair` 和 `POST /auth/refresh`。
+6. REST 请求的 `Authorization` 可省略，Kiosk 直接访问。WebSocket 先申请一次性票据。
 7. 调用 `GET /capabilities` 获取 APP 可见目标、灯效与消息能力。
 8. 调用 `POST /session/ws-ticket` 获取 `ws_ticket`。
 9. 使用 `wss://192.168.31.236:8443/ws?ticket=<ws_ticket>` 建立 WebSocket。
@@ -64,7 +64,7 @@ APP 调用 `POST /api/v1/auth/pair`，提交：
 文档中的 `123456` 为开发配对示例。真实模式要求独立配置配对码与JWT密钥。
 HTTPS地址和证书指纹描述目标接入合同，设备部署须另行配置TLS或可信加密通道。
 
-`/status`、`/auth/pair` 与 `/auth/refresh` 公开访问。其余 REST 请求使用 Bearer，`/session/ws-ticket` 同样需要鉴权。
+当前清理分支沿用 WT04 的直通 REST 行为。节目查询、控制和 `/session/ws-ticket` 可匿名访问。旧客户端可继续携带 Bearer，服务端保留配对、token 验证和刷新接口。WebSocket 握手须使用有效的一次性票据。
 
 ```http
 Authorization: Bearer <access_token>
@@ -113,7 +113,7 @@ wss://192.168.31.236:8443/ws?ticket=<ws_ticket>
 | Header | 必填 | 类型 | 说明 |
 |---|---:|---|---|
 | `Content-Type` | POST 请求必填 | string | 固定使用 `application/json`。 |
-| `Authorization` | 鉴权接口必填 | string | `Bearer <access_token>`。 |
+| `Authorization` | 否 | string | 兼容旧客户端的 `Bearer <access_token>`。直通 REST 入口可省略。 |
 | `X-Request-Id` | 否 | string | APP 生成的请求 ID。服务端会在响应中返回同一个 `request_id`，便于日志关联。 |
 
 ## 4. 通用 REST 响应格式
@@ -347,7 +347,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/session/ws-ticket` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -409,7 +409,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/state` |
 | Method | `GET` |
-| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -490,7 +490,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/shows` |
 | Method | `GET` |
-| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -543,7 +543,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/capabilities` |
 | Method | `GET` |
-| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -656,7 +656,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/play` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -717,7 +717,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/pause` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -771,7 +771,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/resume` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -826,7 +826,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/stop` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -879,7 +879,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/seek` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -937,7 +937,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/state` |
 | Method | `GET` |
-| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Authorization` 和 `X-Request-Id` 可选 |
 
 Response JSON 示例：
 
@@ -990,7 +990,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/reset` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Response JSON 示例：
 
@@ -1032,7 +1032,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/lights/set` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1098,7 +1098,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/effects/set` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例一：为单条灯带设置追逐灯效。
 
@@ -1194,7 +1194,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/audio` |
 | Method | `GET` |
-| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -1240,7 +1240,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/audio/set` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1299,7 +1299,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/scenes` |
 | Method | `GET` |
-| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -1352,7 +1352,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/scenes/save` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1427,7 +1427,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/scenes/apply` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1484,7 +1484,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/scenes/delete` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1535,7 +1535,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/brightness` |
 | Method | `GET` |
-| Header | `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Authorization` 和 `X-Request-Id` 可选 |
 
 Response JSON 示例：
 
@@ -1569,7 +1569,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/brightness/set` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization: Bearer <access_token>`, `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
 
 Request JSON 示例：
 

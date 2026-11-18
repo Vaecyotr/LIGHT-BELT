@@ -20,7 +20,9 @@ requested tests without layer filtering. An explicit `--suite` filters an explic
 path too. `pytest tests -q` consequently means all tests; bare `pytest -q` is production.
 
 New/unclassified test files stay in production and full. Add their purpose and
-tier to `suites.json` during review. Invalid tiers fail collection. DDP adoption
+tier to `suites.json` during review. Registering an existing unclassified module
+retains its inherited production tier unless a separate layer change is approved.
+Invalid tiers fail collection. DDP adoption
 does not retire UDP or RS-485; protocol safety coverage remains in full.
 
 ## Counts and timing
