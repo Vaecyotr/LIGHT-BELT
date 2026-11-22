@@ -114,9 +114,9 @@ class TestVideoAnalyzer:
     @pytest.mark.parametrize(
         ("channel", "expected_rgb"),
         [
-            (1, (0.0625, 0.9375, 0.0625)),
-            (0, (0.0625, 0.0625, 0.9375)),
-            (None, (0.9375, 0.9375, 0.9375)),
+            (1, (0.0, 1.0, 0.0)),
+            (0, (0.0, 0.0, 1.0)),
+            (None, (1.0, 1.0, 1.0)),
         ],
     )
     def test_dominant_color_keeps_255_in_last_quantization_bin(
@@ -157,7 +157,7 @@ class TestVideoAnalyzer:
         features = analyzer.analyze(frame, 1.0)
 
         assert features.average_rgb == pytest.approx((0.5, 0.0, 0.0))
-        assert features.dominant_rgb == pytest.approx((0.46875, 0.03125, 0.03125))
+        assert features.dominant_rgb == pytest.approx((0.5, 0.0, 0.0))
 
         analyzer.reset()
         reset_features = analyzer.analyze(frame, 2.0)

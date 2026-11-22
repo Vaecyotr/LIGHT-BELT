@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import asdict
+from itertools import islice
 from typing import Deque, Iterable
 
 import numpy as np
@@ -83,6 +84,8 @@ class MusicControlAnalyzer:
         if self.history_size > 0 and features.timestamp == self._last_state.timestamp:
             return self._last_state
 
+        recent_pcm = [item.pcm_rms for item in self._short
+                      if item.pcm_rms is not None and features.timestamp - item.timestamp <= 0.25]
         self._short.append(features)
         self._medium.append(features)
         self._long.append(features)
@@ -92,7 +95,12 @@ class MusicControlAnalyzer:
         energy = clamp(self._energy_smooth)
 
         spectral_motion = clamp(0.7 * features.spectral_flux + 0.3 * features.onset)
-        transient = self._transient(features, raw_energy)
+        pcm_rising = (features.pcm_rms is None or not recent_pcm or
+                      features.pcm_rms > max(recent_pcm) * 1.03)
+        transient = self._transient(features, raw_energy, pcm_rising)
+        if features.pcm_rms is not None and recent_pcm and pcm_rising:
+            previous_level = max(max(recent_pcm), 1e-5)
+            transient = max(transient, clamp((features.pcm_rms / previous_level - 1.0) * 0.5))
 
         bass_excess = max(0.0, features.bass - self._bass_baseline)
         bass_pulse = clamp(bass_excess * 4.0)
@@ -102,10 +110,14 @@ class MusicControlAnalyzer:
 
         event_strength = max(transient, bass_pulse, 1.0 if features.beat and transient > 0.25 else 0.0)
         if self._is_beat_event(features.timestamp, event_strength):
+            if self._last_event_time is not None and features.timestamp - self._last_event_time > 4.0:
+                self._beat_times.clear()
             self._beat_times.append(features.timestamp)
             self._last_event_time = features.timestamp
 
         tempo_bpm, tempo_confidence, beat_regularity = self._estimate_tempo()
+        if self._last_event_time is None or features.timestamp - self._last_event_time > 4.0:
+            tempo_bpm = tempo_confidence = beat_regularity = 0.0
         beat_phase = self._beat_phase(features.timestamp, tempo_bpm)
         energy_trend = self._energy_trend()
 
@@ -155,12 +167,14 @@ class MusicControlAnalyzer:
     def state_dict(self, state: MusicControlState) -> dict[str, float]:
         return asdict(state)
 
-    def _transient(self, features: AudioFeatures, raw_energy: float) -> float:
+    def _transient(self, features: AudioFeatures, raw_energy: float, pcm_rising: bool) -> float:
         if len(self._short) < 4:
             return clamp(max(0.0, raw_energy - self._energy_baseline) * 3.0)
         recent_energy = [0.65 * item.rms + 0.35 * max(item.bass, item.mid, item.treble) for item in self._short]
         baseline = float(np.percentile(recent_energy, 60))
         energy_excess = max(0.0, raw_energy - max(baseline, self._energy_baseline))
+        if not pcm_rising:
+            energy_excess = 0.0
         bass_excess = max(0.0, features.bass - self._bass_baseline)
         return clamp(max(energy_excess * 4.0, bass_excess * 3.0))
 
@@ -179,11 +193,28 @@ class MusicControlAnalyzer:
         self._bass_baseline = clamp(alpha * self._bass_baseline + (1.0 - alpha) * bass)
 
     def _is_beat_event(self, timestamp: float, strength: float) -> bool:
-        if strength < 0.55:
+        if strength < 0.55 and not self._regular_pcm_onset():
             return False
         if self._last_event_time is None:
             return True
         return (timestamp - self._last_event_time) >= MIN_BEAT_INTERVAL * 0.72
+
+    def _regular_pcm_onset(self) -> bool:
+        # A quiet drum over a melody can change the spectrum without a large
+        # change in total level. Require three consistent inter-onset intervals
+        # before admitting that weaker evidence to the tempo tracker.
+        latest = self._medium[-1]
+        if latest.pcm_rms is None or not latest.beat or latest.silence:
+            return False
+        times = list(islice((f.timestamp for f in reversed(self._medium)
+                             if f.beat and not f.silence and f.pcm_rms is not None), 4))
+        if len(times) < 4:
+            return False
+        gaps = [a - b for a, b in zip(times, times[1:])]
+        shortest, longest = min(gaps), max(gaps)
+        return (shortest >= MIN_BEAT_INTERVAL - 1e-8
+                and longest <= MAX_BEAT_INTERVAL + 1e-8
+                and longest - shortest <= 0.05)
 
     def _estimate_tempo(self) -> tuple[float, float, float]:
         times = list(self._beat_times)
@@ -218,11 +249,20 @@ class MusicControlAnalyzer:
     def _energy_trend(self) -> float:
         if len(self._medium) < 8:
             return 0.0
+        split = max(1, len(self._medium) // 3)
+        pcm = [item.pcm_rms for item in self._medium]
+        if all(value is not None for value in pcm):
+            early_pcm = float(np.mean(pcm[:split]))
+            late_pcm = float(np.mean(pcm[-split:]))
+            scale = max(early_pcm, late_pcm)
+            if scale < 1e-4:
+                return 0.0
+            change = (late_pcm - early_pcm) / scale
+            return math.copysign(max(0.0, abs(change) - 0.15) / 0.85, change)
         energies = np.array(
             [0.65 * item.rms + 0.35 * max(item.bass, item.mid, item.treble) for item in self._medium],
             dtype=np.float64,
         )
-        split = max(1, len(energies) // 3)
         early = float(np.mean(energies[:split]))
         late = float(np.mean(energies[-split:]))
         return clamp((late - early) * 2.5, -1.0, 1.0)

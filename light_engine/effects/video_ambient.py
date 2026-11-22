@@ -3,7 +3,7 @@
 from light_engine.config import Config
 from light_engine.color import rgb_to_rgbcct
 from light_engine.effects.base import BaseEffect, apply_common_intensity, runtime_float
-from light_engine.mapping.resolve import resolve_video_color
+from light_engine.mapping.resolve import resolve_video_color, sample_edge_pixels
 from light_engine.models import (
     DigitalStrip,
     EffectContext,
@@ -24,10 +24,10 @@ class VideoAmbientEffect(BaseEffect):
         super().__init__(name)
         config = Config.get_instance()
         smooth_alpha = config.get("effects.video_ambient.smoothing", 0.15)
-        self._smoothers: dict[str, ColorSmoother] = {}
+        self._smoothers: dict[str | tuple[str, int], ColorSmoother] = {}
         self._alpha = smooth_alpha
 
-    def _get_smoother(self, key: str, alpha: float) -> ColorSmoother:
+    def _get_smoother(self, key: str | tuple[str, int], alpha: float) -> ColorSmoother:
         if key not in self._smoothers:
             self._smoothers[key] = ColorSmoother(alpha=alpha)
         smoother = self._smoothers[key]
@@ -48,11 +48,14 @@ class VideoAmbientEffect(BaseEffect):
             video_zone = sd.get("video_zone", "center")
             direction = sd.get("direction", "forward")
 
-            base_rgb = resolve_video_color(video_zone, vf, sid)
-            sm = self._get_smoother(sid, alpha)
-            r, g, b = sm.update(*base_rgb)
-
-            pixels = [(r, g, b)] * n
+            profile = vf.edge_profiles.get(video_zone) if vf else None
+            if profile and n:
+                colors = sample_edge_pixels(profile, n)
+                pixels = [self._get_smoother((sid, i), alpha).update(*rgb)
+                          for i, rgb in enumerate(colors)]
+            else:
+                base_rgb = resolve_video_color(video_zone, vf, sid)
+                pixels = [self._get_smoother(sid, alpha).update(*base_rgb)] * n
             # Direction reverse: only for digital strips
             if direction == "reverse":
                 pixels = list(reversed(pixels))

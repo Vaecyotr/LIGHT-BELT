@@ -81,6 +81,8 @@ class VideoFeatures:
     brightness: float = 0.0
     saturation: float = 0.0
     scene_change: float = 0.0
+    # Ordered RGB samples along the active picture, independent of strip count or wiring.
+    edge_profiles: dict[str, tuple[Tuple[float, float, float], ...]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if math.isnan(self.timestamp) or math.isinf(self.timestamp):
@@ -93,6 +95,10 @@ class VideoFeatures:
         self.brightness = _validate_float(self.brightness, "brightness")
         self.saturation = _validate_float(self.saturation, "saturation")
         self.scene_change = _validate_float(self.scene_change, "scene_change")
+        self.edge_profiles = {
+            edge: tuple(clamp_rgb(*rgb) for rgb in colors)
+            for edge, colors in self.edge_profiles.items()
+        }
 
 
 @dataclass
@@ -111,6 +117,7 @@ class AudioFeatures:
         silence: Boolean silence flag.
         raw_level: Generic non-negative raw input level. This is source data,
             not a normalized loudness alias.
+        pcm_rms: Unnormalized PCM window RMS, or None for non-PCM sources.
         loudness: Generic normalized loudness in [0,1]. When provided, this
             is also exposed through the legacy ``rms`` field.
         spectrum: Immutable 16-band normalized spectrum. When provided, the
@@ -138,6 +145,7 @@ class AudioFeatures:
     peak: Optional[bool] = None
     dominant_frequency: float = 0.0
     dominant_magnitude: float = 0.0
+    pcm_rms: Optional[float] = None
 
     def __post_init__(self) -> None:
         if math.isnan(self.timestamp) or math.isinf(self.timestamp):
@@ -154,6 +162,8 @@ class AudioFeatures:
             min_val=0.0,
             max_val=float("inf"),
         )
+        if self.pcm_rms is not None:
+            self.pcm_rms = _validate_float(self.pcm_rms, "pcm_rms", min_val=0.0, max_val=float("inf"))
         if self.loudness is None:
             self.loudness = self.rms
         else:

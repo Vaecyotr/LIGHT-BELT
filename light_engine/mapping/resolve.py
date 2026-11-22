@@ -7,11 +7,28 @@ rather than re-implementing the zone→color lookup independently.
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from typing import Optional, Tuple
 
 from light_engine.models import VideoFeatures
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=64)
+def sample_edge_pixels(profile, count):
+    """Pool ordered edge samples into logical groups, retaining compact highlights."""
+    import cv2
+    import numpy as np
+
+    rgb = np.asarray(profile, dtype=np.float32)[None, :, :]
+    luma = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    weight = 0.001 + luma ** 2
+    size = (count, 1)
+    interpolation = cv2.INTER_AREA if count <= len(profile) else cv2.INTER_LINEAR
+    weighted = cv2.resize(rgb * weight[:, :, None], size, interpolation=interpolation)
+    total = cv2.resize(weight, size, interpolation=interpolation)
+    return tuple(map(tuple, (weighted / total[:, :, None])[0].clip(0, 1).tolist()))
 
 # Allowed video_zone values
 VALID_VIDEO_ZONES = frozenset({

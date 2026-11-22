@@ -76,7 +76,7 @@ class AudioAnalyzer:
         self._cached_n: int = 0
 
         # Silence threshold
-        self._noise_floor = 0.001
+        self._noise_floor = 1e-5
 
     def _get_window_and_freqs(self, sr: int, n: int) -> Tuple[np.ndarray, np.ndarray]:
         """Get or create cached window function and frequency bins.
@@ -120,6 +120,8 @@ class AudioAnalyzer:
         # Handle edge cases
         if samples is None or len(samples) == 0 or np.all(samples == 0):
             features.silence = True
+            features.pcm_rms = 0.0
+            self._advance_silence()
             return features
 
         # Remove DC offset
@@ -127,6 +129,13 @@ class AudioAnalyzer:
 
         # Compute RMS
         rms = float(np.sqrt(np.mean(samples ** 2)))
+        if not np.isfinite(rms):
+            raise ValueError(f"Non-finite PCM level at {timestamp:.3f}s")
+        features.pcm_rms = rms
+        if rms < self._noise_floor:
+            features.silence = True
+            self._advance_silence()
+            return features
         rms = min(1.0, rms * 10.0)  # Scale up for typical audio levels
 
         # Add to history and normalize
@@ -205,6 +214,12 @@ class AudioAnalyzer:
 
         return features
 
+    def _advance_silence(self) -> None:
+        if self._last_spectrum is not None:
+            self._last_spectrum.fill(0.0)
+        self._beat_threshold.update(0.0)
+        self._beat_cooldown = max(0, self._beat_cooldown - 1)
+
     def reset(self) -> None:
         """Reset all internal state."""
         self._rms_history.clear()
@@ -215,6 +230,7 @@ class AudioAnalyzer:
         self._rms_env.reset(0.0)
         self._bass_env.reset(0.0)
         self._beat_cooldown = 0
+        self._beat_threshold.reset()
         self._last_spectrum = None
         self._window_cache = None
         self._cached_sr = 0

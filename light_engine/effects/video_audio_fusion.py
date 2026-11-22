@@ -5,7 +5,7 @@ Audio RMS drives brightness.
 Bass drives pulse/diffusion.
 Mid affects saturation.
 Treble affects subtle shimmer (capped intensity).
-Beat triggers short flash.
+Confident beat phase reinforces the bass pulse.
 Silence preserves ambient video light.
 """
 
@@ -13,12 +13,11 @@ from __future__ import annotations
 
 import colorsys
 import math
-import random
 
 from light_engine.config import Config
 from light_engine.color import rgb_to_rgbcct
 from light_engine.effects.base import BaseEffect, apply_common_intensity, runtime_float
-from light_engine.mapping.resolve import resolve_video_color
+from light_engine.mapping.resolve import resolve_video_color, sample_edge_pixels
 from light_engine.models import (
     DigitalStrip,
     EffectContext,
@@ -54,9 +53,6 @@ class VideoAudioFusionEffect(BaseEffect):
         self._bass_env = AttackReleaseEnvelope(attack=0.5, release=0.15)
         self._color_sm = ColorSmoother(alpha=0.12)
 
-        # Per-strip micro-variation phase for treble shimmer
-        self._shimmer_phase: dict[str, float] = {}
-
     def process(self, ctx: EffectContext) -> PixelFrame:
         video_weight = runtime_float(ctx, "video_weight", self._video_weight)
         audio_weight = runtime_float(ctx, "audio_weight", self._audio_weight)
@@ -74,26 +70,38 @@ class VideoAudioFusionEffect(BaseEffect):
         silent = af.silence if af else True
 
         # ---- Brightness: blend video + audio ----
-        video_brightness = vf.brightness if vf else 0.5
-        target_brightness = (
-            video_brightness * video_weight + audio_rms * audio_weight
-        )
+        # Zone RGB carries picture luminance. Multiplying it by global luma
+        # again crushes dark scenes before the output gamma and quantization.
+        video_gain = 1.0 if vf else 0.5
+        target_brightness = video_gain * video_weight + audio_rms * audio_weight
         if silent:
-            target_brightness = max(target_brightness, video_brightness * 0.3)
+            target_brightness = max(target_brightness, video_gain * 0.3)
 
+        # Edge pixels already retain picture contrast. Follow changes in sound
+        # level within a few output ticks rather than holding the last accent.
+        has_edges = vf is not None and bool(vf.edge_profiles)
+        self._brightness_env.attack = 0.45 if has_edges else 0.3
+        self._brightness_env.release = 0.25 if has_edges else 0.1
         bri = self._brightness_env.update(target_brightness, ctx.delta_time)
 
         # ---- Bass pulse ----
-        bass_pulse = self._bass_env.update(bass * bass_boost, ctx.delta_time)
-        if beat:
-            bass_pulse = min(1.0, bass_pulse + 0.3)
+        music = ctx.music_control_state
+        if music is None:
+            pulse = bass
+            accent = 0.3 if beat else 0.0
+        else:
+            pulse = music.bass_pulse
+            accent = 0.3 * music.tempo_confidence * max(0.0, 1.0 - 4.0 * music.beat_phase)
+        # Coincident events share a single envelope and cannot stack two flashes.
+        target_pulse = min(1.0, max(pulse * bass_boost, accent))
+        bass_pulse = self._bass_env.update(0.0 if silent else target_pulse, ctx.delta_time)
 
         # ---- Global smoothed average (for blend) ----
         avg_rgb = vf.average_rgb if vf else (0.02, 0.02, 0.05)
         sr, sg, sb = self._color_sm.update(*avg_rgb)
 
         # ---- Treble shimmer cap ----
-        treble_shimmer = min(treble_limit, treble * 0.15)
+        treble_shimmer = 0.0 if silent else min(treble_limit, treble * 0.15) * audio_rms
 
         # ============================================================
         # Digital strips: each strip uses its own video_zone color
@@ -115,25 +123,22 @@ class VideoAudioFusionEffect(BaseEffect):
             zone_r, zone_g, zone_b = _apply_mid_saturation(
                 (zone_r, zone_g, zone_b), mid
             )
+            profile = vf.edge_profiles.get(video_zone) if vf else None
+            colors = sample_edge_pixels(profile, n) if profile else [(zone_r, zone_g, zone_b)] * n
 
             pixels = []
             for i in range(n):
                 dist_from_center = abs(i - n / 2) / max(1, n / 2)
                 pulse_factor = bass_pulse * (1.0 - dist_from_center * 0.7)
 
-                shimmer = 0.0
+                level = bri + pulse_factor * 0.3
                 if treble_shimmer > 0.001:
-                    key = f"{sid}_{i}"
-                    if key not in self._shimmer_phase:
-                        self._shimmer_phase[key] = random.uniform(0, math.pi * 2)
-                    shimmer = math.sin(
-                        self._shimmer_phase[key] + ctx.timestamp * 30
-                    ) * treble_shimmer * 0.5
-                    self._shimmer_phase[key] += ctx.delta_time * random.uniform(0.8, 1.2)
-
-                pr = zone_r * (bri + pulse_factor * 0.3) + shimmer
-                pg = zone_g * (bri + pulse_factor * 0.3) + shimmer
-                pb = zone_b * (bri + pulse_factor * 0.3) + shimmer
+                    phase = math.tau * (i / n - ctx.timestamp)
+                    level *= 1.0 + treble_shimmer * math.sin(phase)
+                r, g, b = colors[i]
+                if profile and max(r, g, b) * level > 1.0:
+                    level = 1.0 / max(r, g, b)
+                pr, pg, pb = r * level, g * level, b * level
 
                 pixels.append((
                     max(0.0, min(1.0, pr)),
@@ -194,4 +199,3 @@ class VideoAudioFusionEffect(BaseEffect):
         self._brightness_env.reset(0.0)
         self._bass_env.reset(0.0)
         self._color_sm.reset(0.0, 0.0, 0.0)
-        self._shimmer_phase.clear()

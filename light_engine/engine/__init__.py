@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
+from collections import deque
+from dataclasses import replace
 from typing import Callable, Optional
 
 import numpy as np
@@ -14,7 +17,7 @@ from light_engine.analysis import (
     VideoAnalyzer,
     WledAudioSyncV2Source,
 )
-from light_engine.clock import Clock, ClockError, MediaEnded, OfflineRenderClock
+from light_engine.clock import Clock, ClockError, MediaEnded, MpvIPCClock, OfflineRenderClock
 from light_engine.config import Config
 from light_engine.effects.base import BaseEffect, create_effect, list_effects
 from light_engine.mapping import Layout, ZoneDef, PhysicalMapping
@@ -86,6 +89,7 @@ class Engine:
         # Media readers
         self._video_reader: Optional[VideoReader] = None
         self._audio_reader: Optional[AudioReader] = None
+        self._media_closed = False
 
         # Data source
         self._data_source: Optional[SyntheticDataSource] = None
@@ -118,7 +122,8 @@ class Engine:
             raise ValueError("sequence_seed must be a uint32")
         self._sequence_seed: int = sequence_seed
         self._sequence: int = sequence_seed
-        self._fps_stats: list[float] = []
+        self._fps_stats: deque[float] = deque(maxlen=3600)
+        self._processing_time = 0.0
         self._run_start_wall: float = 0.0
         self._run_end_wall: float = 0.0
 
@@ -175,12 +180,17 @@ class Engine:
             reader.close()
             self._diagnostics["last_error"] = f"Video input failed: {exc}"
             raise
+        if self._video_reader is not None:
+            self._video_reader.close()
         self._video_reader = reader
         self._video_analyzer = VideoAnalyzer(self._config)
 
     def load_audio(self, path: str) -> None:
         """Load an audio file for analysis."""
-        self._audio_reader = AudioReader(path).open()
+        reader = AudioReader(path).open()
+        if self._audio_reader is not None:
+            self._audio_reader.close()
+        self._audio_reader = reader
         self._audio_analyzer = AudioAnalyzer(self._config)
 
     def set_effect(self, name: str) -> BaseEffect:
@@ -214,12 +224,19 @@ class Engine:
         """Reset Engine-owned state and reopen outputs for one Host session."""
         if isinstance(self._clock, OfflineRenderClock):
             self._clock.reset()
+        if self._media_closed:
+            if self._video_reader is not None:
+                self._video_reader.open()
+            if self._audio_reader is not None:
+                self._audio_reader.open()
+            self._media_closed = False
         self._handle_timeline_reset()
         self._timestamp = self._clock.now()
         self._last_clock_time = self._timestamp
         self._sequence = self._sequence_seed
         self._frame_count = 0
         self._fps_stats.clear()
+        self._processing_time = 0.0
         self._run_start_wall = 0.0
         self._run_end_wall = 0.0
         self._diagnostics["last_error"] = None
@@ -279,33 +296,46 @@ class Engine:
             and self._audio_reader is None
         )
 
-        last_video_time = -video_period
-        last_audio_time = -audio_period
+        next_video_time = 0.0
+        next_audio_time = 0.0
+        last_frame: PixelFrame | None = None
         try:
             self._begin_run_session()
             if on_ready is not None:
                 on_ready()
             self._run_start_wall = time.perf_counter()
+            previous_tick_wall = self._run_start_wall
             while self._running:
                 frame_start = time.perf_counter()
                 dt = self._clock.tick()
+                tick_wall = time.perf_counter()
+                elapsed_wall = tick_wall - previous_tick_wall
+                previous_tick_wall = tick_wall
                 self._timestamp = self._clock.now()
                 clock_delta = self._timestamp - self._last_clock_time
                 if dt <= 0.0:
                     dt = max(0.0, clock_delta)
-                if clock_delta < -frame_period:
+                media_rewind = isinstance(self._clock, MpvIPCClock) and clock_delta < 0
+                if clock_delta < -frame_period and not media_rewind:
                     raise RuntimeError(
                         "engine clock moved backward; call reset/replay before rendering earlier show time"
                     )
-                seek_detected = dt > frame_period * 2
+                # mpv also advances while decoding or output takes longer than a tick.
+                forward_jump = dt > frame_period * 2
+                if isinstance(self._clock, MpvIPCClock):
+                    forward_jump = clock_delta > elapsed_wall + frame_period * 2
+                seek_detected = media_rewind or forward_jump or (
+                    self._clock.paused and clock_delta != 0
+                )
                 paused = self._clock.paused or dt < frame_period * 0.1
                 if self._clock.ended:
                     break
 
                 if seek_detected:
                     self._handle_timeline_reset()
-                    last_video_time = -video_period
-                    last_audio_time = -audio_period
+                    last_frame = None
+                    next_video_time = self._timestamp
+                    next_audio_time = self._timestamp
                 self._last_clock_time = self._timestamp
 
                 # Check stop conditions
@@ -353,22 +383,26 @@ class Engine:
                     self._latest_video = None
                 elif (
                     (not paused or self._latest_video is None)
-                    and self._timestamp - last_video_time >= video_period
+                    and self._timestamp + 1e-9 >= next_video_time
                 ):
                     self._latest_video = self._get_video_features()
-                    last_video_time = self._timestamp
+                    next_video_time = (math.floor((self._timestamp + 1e-9) / video_period) + 1) * video_period
 
                 # Audio analysis
-                if not paused and self._timestamp - last_audio_time >= audio_period:
+                file_at_rest = self._audio_reader is not None and last_frame is None
+                if self._audio_reader is not None and audio_finished:
+                    self._latest_audio = None
+                    self._latest_music_control_state = None
+                elif (not paused or file_at_rest) and self._timestamp + 1e-9 >= next_audio_time:
                     self._latest_audio = self._get_audio_features()
                     self._latest_music_control_state = self._get_music_control_state(
                         self._latest_audio
                     )
-                    last_audio_time = self._timestamp
+                    next_audio_time = (math.floor((self._timestamp + 1e-9) / audio_period) + 1) * audio_period
 
                 # Build context and run effect
                 self._advance_sequence()
-                context_dt = dt if dt > 0.0 else 1e-9
+                context_dt = frame_period if seek_detected or dt <= 0 else dt
                 ctx = EffectContext(
                     timestamp=self._timestamp,
                     delta_time=context_dt,
@@ -381,7 +415,9 @@ class Engine:
                         "zone_defs": self._zone_defs,
                     },
                 )
-                if self._show_runtime is None:
+                if paused and last_frame is not None and self._timestamp == last_frame.timestamp:
+                    frame = replace(last_frame, sequence=self._sequence)
+                elif self._show_runtime is None:
                     if self._effect is None:
                         raise RuntimeError("single-effect engine path has no active effect")
                     frame = self._effect.process(ctx)
@@ -393,6 +429,7 @@ class Engine:
                         digital_strips=self._layout.strips,
                     )
                     frame = self._show_runtime.render(ctx, base)
+                last_frame = frame
                 frame = self._output_transform.apply_to_frame(frame)
                 physical_frame = self._physical_mapping.map(frame)
 
@@ -403,6 +440,7 @@ class Engine:
                 self._frame_count += 1
                 elapsed = time.perf_counter() - frame_start
                 self._fps_stats.append(elapsed)
+                self._processing_time += elapsed
                 self._diagnostics["fps"] = 1.0 / max(0.0001, elapsed)
                 self._diagnostics["media_position"] = self._timestamp
 
@@ -469,7 +507,8 @@ class Engine:
         if self._audio_reader is not None:
             if self._audio_analyzer is not None:
                 window = self._config.get("system.audio.window_size", 0.05)
-                samples = self._audio_reader.get_window_at(self._timestamp, window)
+                start = max(0.0, self._timestamp - window / 2)
+                samples = self._audio_reader.get_window_at(start, window)
                 if samples is not None and len(samples) > 0:
                     return self._audio_analyzer.analyze(
                         samples, self._timestamp, self._audio_reader.sample_rate
@@ -517,6 +556,7 @@ class Engine:
             self._video_reader.close()
         if self._audio_reader:
             self._audio_reader.close()
+        self._media_closed = True
         if self._live_audio_source is not None:
             self._live_audio_source.close()
         self._diagnostics["running"] = False
@@ -526,11 +566,12 @@ class Engine:
     def diagnostics(self) -> dict:
         """Return current diagnostic state."""
         self._diagnostics["output_health"] = health_summary(self._outputs)
-        self._diagnostics["audio_source"] = (
-            self._live_audio_source.diagnostics()
-            if self._live_audio_source is not None
-            else {"kind": "disabled"}
-        )
+        if self._audio_reader is not None:
+            self._diagnostics["audio_source"] = {"kind": "file"}
+        elif self._live_audio_source is not None:
+            self._diagnostics["audio_source"] = self._live_audio_source.diagnostics()
+        else:
+            self._diagnostics["audio_source"] = {"kind": "synthetic" if self._data_source else "disabled"}
         return self._diagnostics
 
     def get_fps_stats(self) -> dict:
@@ -538,6 +579,7 @@ class Engine:
 
         effective_fps: actual output frames / wall-clock duration (includes sleep).
         processing_capacity: raw compute speed based on per-frame processing time.
+        Percentiles describe the most recent 3600 output frames.
         """
         wall_time = max(0.001, self._run_end_wall - self._run_start_wall)
         effective_fps = self._frame_count / wall_time
@@ -553,7 +595,7 @@ class Engine:
         }
         if self._fps_stats:
             times_ms = np.array(self._fps_stats) * 1000
-            result["processing_capacity"] = 1.0 / max(0.0001, np.mean(self._fps_stats))
+            result["processing_capacity"] = 1.0 / max(0.0001, self._processing_time / self._frame_count)
             result["p50_ms"] = float(np.percentile(times_ms, 50))
             result["p95_ms"] = float(np.percentile(times_ms, 95))
             result["p99_ms"] = float(np.percentile(times_ms, 99))
