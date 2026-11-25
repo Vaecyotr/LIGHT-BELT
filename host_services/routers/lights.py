@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/v1", tags=["Lights"],
 
 
 @router.post("/lights/set")
-async def lights_set(body: LightsSetRequest, request: Request):
+def lights_set(body: LightsSetRequest, request: Request):
     data, err = engine_adapter.lights_set(
         body.target_id, body.brightness,
         body.color_temperature, body.transition_ms or 0,

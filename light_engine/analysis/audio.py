@@ -25,6 +25,9 @@ from light_engine.util import (
 
 logger = logging.getLogger(__name__)
 
+# WLED v16.0.1, 22050 Hz / 512-point FFT, no band-pass filter.
+_WLED_EDGES = (1, 2, 3, 5, 7, 10, 13, 19, 26, 33, 44, 56, 70, 86, 104, 165, 215)
+
 
 class AudioAnalyzer:
     """Real-time audio feature extractor.
@@ -36,10 +39,12 @@ class AudioAnalyzer:
     Avoids future data leakage by using only causal analysis.
     """
 
-    def __init__(self, config: Optional[Config] = None):
+    def __init__(self, config: Optional[Config] = None, *, managed_spectrum=False):
         if config is None:
             config = Config.get_instance()
         self._config = config
+        self._managed_spectrum = managed_spectrum
+        self._band_weights = None
 
         # Configurable frequency bands
         self._bass_range = config.get("system.audio.freq_bands.bass", [20, 200])
@@ -87,6 +92,18 @@ class AudioAnalyzer:
         if self._window_cache is None or self._cached_sr != sr or self._cached_n != n:
             window = np.hanning(n)
             freqs = rfftfreq(n, 1.0 / sr)
+            if self._managed_spectrum:
+                half = sr / (2 * n)
+                unit = 22050 / 512
+                weights = []
+                for low, high in zip(_WLED_EDGES, _WLED_EDGES[1:]):
+                    left = np.maximum(freqs - half, (low - 0.5) * unit)
+                    right = np.minimum(freqs + half, (high + 0.5) * unit)
+                    overlap = np.maximum(right - left, 0.0)
+                    if high * unit > sr / 2 or (high - low + 1) * unit < 2 * half:
+                        overlap.fill(0)
+                    weights.append(overlap / max(overlap.sum(), 1e-12))
+                self._band_weights = np.asarray(weights)
             # Precompute band masks (truncate bands to Nyquist)
             nyquist = sr / 2
             bass_mask = (freqs >= self._bass_range[0]) & (freqs <= min(self._bass_range[1], nyquist - 1))
@@ -115,7 +132,13 @@ class AudioAnalyzer:
             AudioFeatures with extracted metrics.
         """
         sr = sample_rate or self._target_sr
-        features = AudioFeatures(timestamp=timestamp)
+        features = AudioFeatures(timestamp=timestamp, native_pcm_bands=True)
+        if self._managed_spectrum and samples is not None and len(samples):
+            unit = 22050 / 512
+            features.spectrum_valid = tuple(
+                high * unit <= sr / 2 and (high - low + 1) * unit >= sr / len(samples)
+                for low, high in zip(_WLED_EDGES, _WLED_EDGES[1:])
+            )
 
         # Handle edge cases
         if samples is None or len(samples) == 0 or np.all(samples == 0):
@@ -152,6 +175,14 @@ class AudioAnalyzer:
         window, freqs = self._get_window_and_freqs(sr, n)
         spectrum = np.abs(rfft(samples * window))
         power = spectrum ** 2
+        if self._managed_spectrum and len(freqs) > 1:
+            amplitude = spectrum * (2.0 / max(float(window.sum()), 1e-12))
+            peak_bin = int(np.argmax(power[1:])) + 1
+            features.dominant_frequency = float(freqs[peak_bin])
+            features.dominant_magnitude = min(1.0, float(amplitude[peak_bin]))
+            bands = np.einsum("ij,j->i", self._band_weights, amplitude)
+            dbfs = 20 * np.log10(np.maximum(bands, 1e-3))
+            features.spectrum = tuple(np.clip((dbfs + 60) / 60, 0, 1))
 
         # Compute band energies
         total_power = np.sum(power)
@@ -213,6 +244,26 @@ class AudioAnalyzer:
         features.peak = features.beat
 
         return features
+
+    def analyze_stereo(
+        self, samples: np.ndarray, timestamp: float, sample_rate: Optional[int] = None
+    ) -> AudioFeatures:
+        """Analyze stereo PCM without cancellation from anti-phase channels.
+
+        The channel with the greater post-DC power is used as the mono analysis
+        signal. This preserves the existing single-channel feature semantics.
+        """
+        if samples is None:
+            return self.analyze(np.empty(0, dtype=np.float32), timestamp, sample_rate)
+        stereo = np.asarray(samples)
+        if stereo.ndim != 2 or stereo.shape[1] != 2:
+            raise ValueError("stereo samples must have shape (frames, 2)")
+        if stereo.shape[0] == 0:
+            return self.analyze(np.empty(0, dtype=np.float32), timestamp, sample_rate)
+        centered = stereo.astype(np.float32, copy=False) - np.mean(stereo, axis=0, keepdims=True)
+        channel_power = np.mean(centered ** 2, axis=0)
+        selected = int(np.argmax(channel_power))
+        return self.analyze(centered[:, selected], timestamp, sample_rate)
 
     def _advance_silence(self) -> None:
         if self._last_spectrum is not None:

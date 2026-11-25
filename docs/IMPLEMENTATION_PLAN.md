@@ -13,6 +13,13 @@ primitive/effect migration and casual Show-contract redesign do not. This is a
 software authoring-contract boundary, not hardware or product-release
 acceptance. Do not begin or prepare Phase 41 without new user approval.
 
+## Approved audio system upgrade
+
+The approved [audio system upgrade](../AUDIO_SYSTEM_UPGRADE_PLAN.md) defines
+the A–G work packages for Host, Engine and the network control screen.
+Software implementation is authorized. Production Bluetooth route migration
+requires H2/H3 and pairing-agent migration requires H4 on the target image.
+
 ## Approved workspace maintenance — 2026-11-02
 
 The user-approved WT04 cleanup and structure-governance work preserves product

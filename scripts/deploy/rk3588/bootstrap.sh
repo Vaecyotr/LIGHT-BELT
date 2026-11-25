@@ -14,6 +14,7 @@ done
 
 require_target_user
 require_repo
+require_legacy_audio_mode
 run_repo_script preflight.sh
 run_repo_script setup-python.sh --check
 ensure_sudo

@@ -9,12 +9,12 @@ router = APIRouter(prefix="/api/v1", tags=["Audio"],
 
 
 @router.get("/audio")
-async def get_audio(request: Request):
+def get_audio(request: Request):
     return ok(request, engine_adapter.get_audio())
 
 
 @router.post("/audio/set")
-async def audio_set(body: AudioSetRequest, request: Request):
+def audio_set(body: AudioSetRequest, request: Request):
     data, err = engine_adapter.audio_set(
         body.volume, body.muted, body.transition_ms or 0,
     )

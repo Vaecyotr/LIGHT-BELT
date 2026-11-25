@@ -5,7 +5,6 @@ import tempfile
 
 import numpy as np
 import pytest
-import pytest
 from light_engine.analysis.audio import AudioAnalyzer
 from light_engine.analysis.video import VideoAnalyzer
 from light_engine.config import Config
@@ -17,10 +16,54 @@ def _make_sine(freq: float, duration: float, sr: int = 44100) -> np.ndarray:
 
 
 class TestAudioAnalyzer:
+    def test_stereo_analysis_uses_stronger_channel_when_channels_cancel(self):
+        analyzer = AudioAnalyzer(managed_spectrum=True)
+        sample_rate = 48000
+        t = np.arange(int(sample_rate * 0.05), dtype=np.float32) / sample_rate
+        left = 0.05 * np.sin(2 * np.pi * 110 * t)
+        right = -0.5 * np.sin(2 * np.pi * 110 * t)
+        stereo = np.column_stack((left, right))
+
+        features = analyzer.analyze_stereo(stereo, timestamp=0.05, sample_rate=sample_rate)
+
+        assert features.silence is False
+        assert features.pcm_rms > 0.3
+        assert features.bass > 0.9
+        assert features.dominant_frequency == pytest.approx(110, abs=20)
+        assert len(features.spectrum) == 16
+        assert np.argmax(features.spectrum) in (0, 1)
+        assert max(features.spectrum) > 0.7
+
+    def test_managed_wled_band_frequency_gain_and_legacy_isolation(self):
+        samples = 0.1 * _make_sine(1000, 0.05, 48000)
+        analyzer = AudioAnalyzer(managed_spectrum=True)
+        loud = analyzer.analyze(samples, 0.05, 48000)
+        quiet = analyzer.analyze(samples / 10, 0.1, 48000)
+        assert np.argmax(loud.spectrum) == 7
+        assert loud.spectrum[7] - quiet.spectrum[7] == pytest.approx(1/3, abs=0.01)
+        legacy = AudioAnalyzer().analyze(samples, 0.05, 48000)
+        assert legacy.spectrum == (0.0,) * 16 and legacy.dominant_frequency == 0
+        assert loud.mid == pytest.approx(legacy.mid)
+        assert all(loud.spectrum_valid) and not any(legacy.spectrum_valid)
+        silence = analyzer.analyze(np.zeros(400), 0.15, 8000)
+        assert silence.silence and silence.spectrum_valid[0] and not silence.spectrum_valid[-1]
+
     @pytest.fixture
     def analyzer(self):
         Config.reset()
         return AudioAnalyzer(Config())
+
+    @pytest.mark.parametrize("rate", [44100, 48000])
+    def test_reference_band_overlap_and_separated_two_tone(self, rate):
+        analyzer = AudioAnalyzer(managed_spectrum=True)
+        t = np.arange(round(rate * 0.05)) / rate
+        edge = analyzer.analyze(0.15 * np.sin(2*np.pi*1120*t), 0, rate)
+        assert set(np.argsort(edge.spectrum)[-2:]) == {7, 8}
+        mixed = analyzer.analyze(0.15 * (np.sin(2*np.pi*83*t) + np.sin(2*np.pi*3000*t)), 0.05, rate)
+        assert mixed.bass == pytest.approx(0.5, abs=0.01)
+        assert mixed.treble == pytest.approx(0.5, abs=0.01)
+        assert max(mixed.spectrum[:2]) > 0.5 and max(mixed.spectrum[11:13]) > 0.25
+        assert max(mixed.spectrum[4:10]) < 0.01
 
     def test_bass_band_dominant_for_low_freq(self, analyzer):
         """80Hz sine should produce high bass, low mid/treble."""

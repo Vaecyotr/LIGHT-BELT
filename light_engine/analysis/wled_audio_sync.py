@@ -110,6 +110,8 @@ class WledAudioSyncV2Source:
         interface: str = "0.0.0.0",
         stale_after: float = 1.0,
         silence_threshold: float = 1.0 / WLED_AUDIO_SYNC_V2_FFT_MAX,
+        expected_sender: Optional[str] = None,
+        drain_budget: Optional[int] = None,
         udp_socket: Optional[DatagramSocket] = None,
         socket_factory: Optional[Callable[[], DatagramSocket]] = None,
         clock: Callable[[], float] = time.monotonic,
@@ -128,6 +130,13 @@ class WledAudioSyncV2Source:
         self.interface = interface
         self.stale_after = stale_after
         self.silence_threshold = silence_threshold
+        self.expected_sender = expected_sender
+        if drain_budget is not None and drain_budget < 1:
+            raise ValueError("drain_budget must be positive")
+        self._budget = drain_budget
+        self._discarding = False
+        self._discarded = 0
+        self._last_poll = None
         self._socket = udp_socket
         self._socket_factory = socket_factory or self._new_socket
         self._clock = clock
@@ -168,6 +177,7 @@ class WledAudioSyncV2Source:
             raise
         self._socket = udp_socket
         self._open = True
+        self._last_poll = self._clock()
         return self
 
     def poll(self, timestamp: float) -> AudioFeatures:
@@ -176,15 +186,28 @@ class WledAudioSyncV2Source:
         if not self._open or self._socket is None:
             raise RuntimeError("WledAudioSyncV2Source is not open")
         now = self._clock()
+        if self._budget and self._last_poll is not None and now - self._last_poll >= self.stale_after:
+            self._discarding = True
+        self._last_poll = now
+        dropping = self._discarding
+        drained = 0
         latest: Optional[WledAudioSyncV2Packet] = None
         peak = False
         max_flux = 0.0
-        while True:
+        while self._budget is None or drained < self._budget:
             try:
                 data, sender = self._socket.recvfrom(65535)
             except BlockingIOError:
+                self._discarding = False
                 break
+            drained += 1
             self._packets_received += 1
+            if dropping:
+                continue
+            if self.expected_sender is not None and sender[0] != self.expected_sender:
+                self._packets_invalid += 1
+                self._last_error = "packet sender does not match selected source"
+                continue
             try:
                 packet = decode_wled_audio_sync_v2(data)
             except WledAudioSyncV2DecodeError as exc:
@@ -203,6 +226,16 @@ class WledAudioSyncV2Source:
             self._previous_spectrum = packet.spectrum
             latest = packet
             peak = peak or packet.peak
+        else:
+            self._discarding = dropping = True
+
+        if dropping:
+            self._discarded += drained
+            if not self._stale:
+                self._stale_transitions += 1
+            self._stale = True
+            self._previous_spectrum = self._latest = self._last_packet_time = None
+            return AudioFeatures(timestamp=timestamp)
 
         if latest is not None:
             self._latest = latest
@@ -296,6 +329,7 @@ class WledAudioSyncV2Source:
             "packets_received": self._packets_received,
             "packets_valid": self._packets_valid,
             "packets_invalid": self._packets_invalid,
+            "discarded_backlog": self._discarded,
             "stale_transitions": self._stale_transitions,
             "reset_count": self._reset_count,
             "last_error": self._last_error,

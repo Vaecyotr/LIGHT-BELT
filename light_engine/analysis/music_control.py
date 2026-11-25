@@ -41,7 +41,8 @@ class MusicControlAnalyzer:
     long_capacity = int(long_seconds * assumed_fps) + 8
     beat_capacity = 64
 
-    def __init__(self) -> None:
+    def __init__(self, *, timing_resolution: float = 0.0) -> None:
+        self._timing_resolution = timing_resolution
         self._short: Deque[AudioFeatures] = deque(maxlen=self.short_capacity)
         self._medium: Deque[AudioFeatures] = deque(maxlen=self.medium_capacity)
         self._long: Deque[AudioFeatures] = deque(maxlen=self.long_capacity)
@@ -76,7 +77,11 @@ class MusicControlAnalyzer:
         self._energy_baseline = 0.0
         self._last_state = MusicControlState(timestamp=0.0)
 
-    def update(self, features: AudioFeatures) -> MusicControlState:
+    @property
+    def last_event_time(self) -> float | None:
+        return self._last_event_time
+
+    def update(self, features: AudioFeatures, *, allow_beat: bool = True) -> MusicControlState:
         if self.history_size > 0 and features.timestamp < self._last_state.timestamp:
             raise ValueError(
                 "music control timestamps must be non-decreasing; reset before replay"
@@ -109,7 +114,7 @@ class MusicControlAnalyzer:
         bass_ambient = clamp(self._bass_baseline)
 
         event_strength = max(transient, bass_pulse, 1.0 if features.beat and transient > 0.25 else 0.0)
-        if self._is_beat_event(features.timestamp, event_strength):
+        if allow_beat and self._is_beat_event(features.timestamp, event_strength):
             if self._last_event_time is not None and features.timestamp - self._last_event_time > 4.0:
                 self._beat_times.clear()
             self._beat_times.append(features.timestamp)
@@ -222,7 +227,11 @@ class MusicControlAnalyzer:
             return 0.0, 0.0, 0.0
 
         intervals = np.diff(np.array(times, dtype=np.float64))
-        intervals = intervals[(intervals >= MIN_BEAT_INTERVAL) & (intervals <= MAX_BEAT_INTERVAL)]
+        # Sampling a periodic click at a fixed hop rounds consecutive intervals
+        # in opposite directions. Keep both sides at the supported tempo limits.
+        margin = self._timing_resolution
+        intervals = intervals[(intervals >= MIN_BEAT_INTERVAL - margin)
+                              & (intervals <= MAX_BEAT_INTERVAL + margin)]
         if len(intervals) < 3:
             return 0.0, 0.0, 0.0
 
@@ -231,6 +240,8 @@ class MusicControlAnalyzer:
         deviations = np.abs(intervals - median_interval)
         tolerance = max(0.035, median_interval * 0.12)
         inliers = deviations <= tolerance
+        if margin and np.any(inliers):
+            tempo_bpm = clamp(60 / float(np.mean(intervals[inliers])), MIN_TEMPO_BPM, MAX_TEMPO_BPM)
         inlier_ratio = float(np.mean(inliers))
         regularity = clamp(1.0 - float(np.median(deviations)) / tolerance)
         evidence = clamp((len(intervals) - 2) / 8.0)

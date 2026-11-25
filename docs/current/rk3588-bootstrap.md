@@ -80,6 +80,43 @@ bootstrap 会安装并启用 Host、Bluetooth 配对/公共模式、RT5616 默�
 
 `lb-update.timer` 即使曾被开启也会在默认部署中停止并禁用。手动 LIGHT-BELT 更新器控制当前用户 Host，并在图形会话存在时核对实际 mpv 输出就绪状态。
 
+### 受管音频的隔离验证
+
+当前默认引导流程安装传统单路策略。受管音频入口由
+`LIGHT_BELT_CONTROL_ORIGIN` 显式启用。生产切换必须先取得相同镜像上 H2、H3、H4
+的证据及部署授权。旧安装程序检测到受管配置时会在改动公共 Agent 之前退出。
+
+在独立测试镜像记录现有 PA 配置、system/systemd 用户 unit 启用状态、绑定设备
+及 RT5616 路由。仅在该镜像的维护窗口，使原生 PA 已有的
+`module-bluetooth-policy` 带 `a2dp_source=false`，保留其它参数，并停止旧
+priority、public-mode、auto-agent 与任何其它自动接受配对的默认代理。确认目标
+sink 与 source 图后，以同一用户运行
+`bash scripts/deploy/rk3588/check-managed-audio.sh`。该脚本只读取设备信息。
+若有重复可听路由、PA 后端不同或 RT5616 不可用，应先记录并解决原因。
+
+在 pi 的 Host 环境配置受信 HTTPS origin（含实际端口，无末尾斜线）、
+`LIGHT_BELT_TLS=1`、`LIGHT_BELT_TLS_CERTFILE`、`LIGHT_BELT_TLS_KEYFILE`、
+`LIGHT_BELT_AUDIO_SINK` 及 `LIGHT_BELT_MIC_SENDER`（指定麦克风 IPv4）。
+验证 H2–H4 的**隔离镜像**使用 `LIGHT_BELT_AUDIO_TEST_IMAGE=isolated`；
+通过实机验收的生产镜像才使用 `LIGHT_BELT_AUDIO_VALIDATED=H2,H3,H4`。
+二者都不修改 PA 设置或替换系统服务。右屏通过证书校验以同源 HTTPS 访问。
+启用受管入口会校验该监听器上 V1/WS 的终端身份；现网旧 APP 若使用匿名 HTTP，
+上线前须验证隔离兼容接入。可选的本机兼容反代只监听隔离网段并仅转发
+`/api/v1/` 和 `/ws`，清除客户端传入的 `X-Light-Belt-Legacy-Proxy` 后，
+自行设置该头为本机安装时生成的随机 `LIGHT_BELT_LEGACY_PROXY_TOKEN`
+（至少 32 字符，禁止进入网页），从 loopback 经 TLS 连向 Host。Host 对新
+`/control` 不接受这个头。不能提供隔离入口时，不发布匿名兼容地址。
+本机 updater 可通过 `LIGHT_BELT_HEALTH_URL` 指向证书受信、解析到
+loopback 的 HTTPS `/api/v1/status`；应在目标镜像验证证书与原健康检查。
+
+在该设备上以 Host 用户执行 `.venv/bin/python -m host_services.control_terminal enroll`
+生成五分钟有效的一次性登记码；在右屏输入。更换屏幕时先执行
+`.venv/bin/python -m host_services.control_terminal revoke`，再登记新屏。
+凭据和意图保存在该用户的 `~/.config/light-belt/control/`，不要随系统镜像
+复制已登记的凭据。按升级方案 H1–H6 保存测量记录。回退先停止新 Host，核实自有
+loopback 已卸载，恢复所保存的 PA 配置和旧服务启用状态，再启动原 Host。恢复后
+用 mpv 与单部手机交替播放并听测；不要同时运行两套回放控制者。
+
 ### Bluetooth 路由所有权
 
 NanoPC-T6 历史实机已经冻结以下路线：

@@ -8,9 +8,11 @@
     </div>
     <div v-if="show && durationMs" class="pb-progress-wrap">
       <span class="pb-time">{{ formatMs(positionMs) }}</span>
-      <div class="pb-bar">
-        <div class="pb-fill" :style="{ width: (progress * 100) + '%' }"></div>
-      </div>
+      <input class="pb-seek" type="range" min="0" :max="durationMs" step="100"
+        aria-label="节目进度" :disabled="!isActive" :value="preview ?? positionMs"
+        @input="preview = Number($event.target.value)"
+        @change="$emit('seek', Number($event.target.value)); preview = null"
+        @pointercancel="preview = null">
       <span class="pb-time">{{ formatMs(durationMs) }}</span>
     </div>
     <div v-if="isActive" class="pb-controls">
@@ -23,7 +25,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+const preview = ref(null)
 
 const props = defineProps({
   state: String,
@@ -35,7 +38,7 @@ const props = defineProps({
   isPaused: Boolean,
   isActive: Boolean,
 })
-defineEmits(['pause', 'stop'])
+defineEmits(['pause', 'stop', 'seek'])
 
 const stateLabel = computed(() => {
   if (props.state === 'playing') return 'Playing'
@@ -53,6 +56,7 @@ function formatMs(ms) {
 </script>
 
 <style scoped>
+.pb-seek { flex: 1; min-height: 40px; min-width: 0; }
 .playback-bar {
   display: flex;
   align-items: center;

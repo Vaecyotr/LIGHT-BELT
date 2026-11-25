@@ -146,6 +146,8 @@ class AudioFeatures:
     dominant_frequency: float = 0.0
     dominant_magnitude: float = 0.0
     pcm_rms: Optional[float] = None
+    native_pcm_bands: bool = False
+    spectrum_valid: Optional[Tuple[bool, ...]] = None
 
     def __post_init__(self) -> None:
         if math.isnan(self.timestamp) or math.isinf(self.timestamp):
@@ -171,6 +173,12 @@ class AudioFeatures:
             self.rms = self.loudness
 
         supplied_spectrum = self.spectrum is not None
+        if self.spectrum_valid is None:
+            self.spectrum_valid = (supplied_spectrum,) * 16
+        elif len(self.spectrum_valid) != 16 or not all(type(v) is bool for v in self.spectrum_valid):
+            raise ValueError("spectrum_valid requires 16 boolean flags")
+        else:
+            self.spectrum_valid = tuple(self.spectrum_valid)
         spectrum = (0.0,) * 16 if self.spectrum is None else tuple(self.spectrum)
         if len(spectrum) != 16:
             raise ValueError(f"spectrum must contain exactly 16 bands, got {len(spectrum)}")
@@ -178,7 +186,7 @@ class AudioFeatures:
             _validate_float(value, f"spectrum[{index}]")
             for index, value in enumerate(spectrum)
         )
-        if supplied_spectrum:
+        if supplied_spectrum and not self.native_pcm_bands:
             self.bass = sum(self.spectrum[0:3]) / 3.0
             self.mid = sum(self.spectrum[3:10]) / 7.0
             self.treble = sum(self.spectrum[10:16]) / 6.0
@@ -202,6 +210,76 @@ class AudioFeatures:
             min_val=0.0,
             max_val=float("inf"),
         )
+
+
+@dataclass(frozen=True)
+class AudioObservation:
+    """Audio features with explicit source identity, time domain, and quality.
+
+    ``AudioFeatures.timestamp`` remains the legacy consumer-facing timeline.
+    The additional clocks are descriptive and must never be subtracted across
+    clock domains.
+    """
+
+    features: AudioFeatures
+    source_kind: str = "unknown"
+    source_id: Optional[str] = None
+    source_epoch: int = 0
+    sample_seq: int = 0
+    clock_domain: str = "media"
+    analysis_time_s: Optional[float] = None
+    media_time_s: Optional[float] = None
+    captured_ns: Optional[int] = None
+    received_ns: Optional[int] = None
+    estimated_present_ns: Optional[int] = None
+    uncertainty_ms: Optional[float] = None
+    age_ms: Optional[float] = None
+    quality: str = "fresh"
+    discontinuity: bool = False
+    capabilities: Tuple[str, ...] = ()
+    beat_event: bool = False
+    event_id: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.features, AudioFeatures):
+            raise ValueError("features must be AudioFeatures")
+        if self.source_kind not in {
+            "unknown", "file", "phone_pcm", "program_pcm", "wled", "synthetic"
+        }:
+            raise ValueError(f"source_kind is unsupported: {self.source_kind!r}")
+        if self.clock_domain not in {"media", "monotonic"}:
+            raise ValueError("clock_domain must be 'media' or 'monotonic'")
+        if self.quality not in {"fresh", "held", "stale", "unavailable", "warming"}:
+            raise ValueError(f"quality is unsupported: {self.quality!r}")
+        if not isinstance(self.beat_event, bool):
+            raise ValueError("beat_event must be a bool")
+        if self.beat_event and not self.event_id:
+            raise ValueError("event_id is required for a beat_event")
+        if self.event_id is not None and not isinstance(self.event_id, str):
+            raise ValueError("event_id must be a string when provided")
+        if len(set(self.capabilities)) != len(self.capabilities):
+            raise ValueError("capabilities must not contain duplicates")
+        if any(not isinstance(value, str) or not value for value in self.capabilities):
+            raise ValueError("capabilities must contain non-empty strings")
+        for name in ("source_epoch", "sample_seq"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+        for name in ("analysis_time_s", "media_time_s"):
+            value = getattr(self, name)
+            if value is not None and not math.isfinite(value):
+                raise ValueError(f"{name} must be finite when provided")
+        for name in ("captured_ns", "received_ns", "estimated_present_ns"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, int) or value < 0):
+                raise ValueError(f"{name} must be a non-negative integer when provided")
+        for name in ("uncertainty_ms", "age_ms"):
+            value = getattr(self, name)
+            if value is not None and (not math.isfinite(value) or value < 0.0):
+                raise ValueError(f"{name} must be finite and non-negative when provided")
+        if self.captured_ns is not None and self.received_ns is not None:
+            if self.received_ns < self.captured_ns:
+                raise ValueError("received_ns cannot precede captured_ns")
 
 
 @dataclass(frozen=True)

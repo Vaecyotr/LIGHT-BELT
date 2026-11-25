@@ -9,12 +9,12 @@ router = APIRouter(prefix="/api/v1/brightness", tags=["Brightness"],
 
 
 @router.get("")
-async def get_brightness(request: Request):
+def get_brightness(request: Request):
     data = engine_adapter.get_brightness_scale()
     return ok(request, data)
 
 
 @router.post("/set")
-async def set_brightness(body: BrightnessSetRequest, request: Request):
+def set_brightness(body: BrightnessSetRequest, request: Request):
     data, _ = engine_adapter.brightness_scale_set(body.brightness_scale, body.transition_ms or 0)
     return ok(request, data)

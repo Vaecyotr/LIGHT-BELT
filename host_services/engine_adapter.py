@@ -17,6 +17,7 @@ import uuid
 import socket
 import subprocess
 import threading
+from pathlib import Path
 from functools import wraps
 from typing import Any, Callable
 from light_engine.effects import get_effect_registration, list_effect_registrations
@@ -328,22 +329,37 @@ def _live_position_ms() -> int:
 
 def _push_brightness_scale() -> None:
     """Send current brightness_scale to all WLED nodes (fire-and-forget)."""
+    if _preferences and _preferences.data["intent"] == "off":
+        return
     from . import wled_brightness
     scale = _state["brightness_scale"]
     hosts_devices = [d for d in _devices if d.get("host") and d.get("enabled", True) and d.get("device_type") == WLED_DEVICE_TYPE]
     if hosts_devices:
-        wled_brightness.apply_scale(hosts_devices, scale, WLED_HTTP_TIMEOUT_S)
+        if _preferences:
+            wled_brightness.apply_managed(hosts_devices, scale, WLED_HTTP_TIMEOUT_S)
+        else:
+            wled_brightness.apply_scale(hosts_devices, scale, WLED_HTTP_TIMEOUT_S)
 
 
-def _push_wled_off() -> None:
+def _push_wled_off(*, explicit=False) -> None:
     """停止播放时把节点本地状态关掉。
 
     DDP 停流后 WLED 退出 realtime 会回落到本地状态（出厂默认 = 开 + 琥珀色），
     表现为节目结束后灯带全黄。显式发 {"on": false} 消掉这个回落。
     """
+    if _preferences and not explicit:
+        return
     from . import wled_brightness
     hosts_devices = [d for d in _devices if d.get("host") and d.get("enabled", True) and d.get("device_type") == WLED_DEVICE_TYPE]
-    if hosts_devices:
+    if explicit and _preferences and _real_adapter is not None:
+        global _power_error
+        try:
+            wled_brightness.apply_managed(hosts_devices, None, WLED_HTTP_TIMEOUT_S)
+            _power_error = None
+        except RuntimeError as exc:
+            _power_error = str(exc)
+            raise
+    elif hosts_devices:
         wled_brightness.apply_off(hosts_devices, WLED_HTTP_TIMEOUT_S)
 
 
@@ -397,6 +413,10 @@ def _mark_devices_output() -> None:
 # ══════════════════════════════════════════════
 
 _real_adapter = None  # type: Any  # RealEngineAdapter | None
+_preferences = None
+_audio_system = None
+_route_gate = False
+_power_error = None
 
 # Accumulated manual-target state for real-adapter calls.
 # key = target_id (strip), value = one complete manual Show effect request.
@@ -412,7 +432,11 @@ def _init_real_adapter():
         from .real_engine_adapter import RealEngineAdapter
         from .config import MPV_SOCKET_PATH
         strip_ids = _valid_target_ids - {"all", "starry_sky"}
-        _real_adapter = RealEngineAdapter(
+        adapter_class = RealEngineAdapter
+        if _preferences is not None:
+            from .managed_adapter import ManagedAdapter
+            adapter_class = ManagedAdapter
+        _real_adapter = adapter_class(
             profile_path=ENGINE_PROFILE_PATH,
             mpv_socket_path=MPV_SOCKET_PATH,
             strip_ids=strip_ids,
@@ -475,7 +499,11 @@ def _accumulate_hw_entry(
 
 def _apply_manual_targets() -> None:
     """Send the complete accumulated _manual_targets list to the real adapter."""
-    if _real_adapter is not None and _manual_targets:
+    if _preferences is not None and _manual_targets:
+        intent = "off" if _preferences.data["intent"] == "off" else "manual"
+        _preferences.set_intent(intent, _preferences.token, targets=dict(_manual_targets))
+        _sync_lighting()
+    elif _real_adapter is not None and _manual_targets:
         _refresh_wled_profile(reason="manual session resolve")
         # 节点可能被 playback_stop / 自然结束看门狗关过，先重新点亮再下发。
         _push_brightness_scale()
@@ -521,6 +549,8 @@ def get_brightness_scale() -> dict:
 
 
 def brightness_scale_set(brightness_scale: float, transition_ms: float) -> tuple[dict, None]:
+    if _preferences:
+        _preferences.save(brightness=brightness_scale)
     _state["brightness_scale"] = brightness_scale
     _push_brightness_scale()
     return {
@@ -567,11 +597,121 @@ def _serialized_session(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
         with _session_lock:
-            return fn(*args, **kwargs)
+            result = fn(*args, **kwargs)
+            if _preferences is not None:
+                _sync_lighting()
+            return result
     return wrapped
 
 
 _apply_manual_targets = _serialized_session(_apply_manual_targets)
+brightness_scale_set = _serialized_session(brightness_scale_set)
+
+
+def _sync_lighting(*, playing=False, start_ms=None, wait=False):
+    if _preferences is None or _real_adapter is None:
+        return
+    with _session_lock:
+        adapter = _real_adapter
+        show = adapter._active_show
+        facts = _audio_system.snapshot() if _audio_system else {}
+        speaker = facts.get("speaker", {})
+        phone = speaker.get("status") == "routed"
+        playback = "playing" if playing else _state["playback_state"]
+        target = {"kind":"none"}
+        if phone or (show and playback == "playing" and not _route_gate):
+            target = facts.get("digital_target") or target
+        media = (show or {}).get("media_path")
+        if not phone and not _route_gate and show and playback == "playing":
+            path = show.get("audio_path")
+            if not path and media and Path(media).suffix.lower() in {".flac",".mp3",".wav"}:
+                path = media
+            if path:
+                target = {"kind":"file","path":path}
+        intent = _preferences.data["intent"]
+        after_end = "music" if phone else "none"
+        role = intent
+        if intent == "follow":
+            role = after_end
+            position = start_ms if start_ms is not None else _state["position_ms"]
+            within_show = show and position < show.get("_engine_duration_ms",float("inf"))
+            if within_show and show.get("show_yaml") and (
+                playback == "playing" or (playback == "paused" and not phone)
+            ):
+                role = "show"
+        elif intent == "off":
+            role = "none"
+        spec = {"role":role,"role_on_video_end":after_end,"show":show,
+                "video_generation":_session_generation,"seek_generation":adapter.seek_generation,
+                "targets":list(_preferences.data["targets"].values()) if role=="manual" else [],
+                "mode":_preferences.data["mode"],"target":target,
+                "mic_sender":os.environ.get("LIGHT_BELT_MIC_SENDER")}
+        had_sender = adapter.sender is not None
+        if role != "none" and _power_error:
+            _push_wled_off(explicit=True)
+        adapter.configure(spec, wait=wait and role=="show")
+        if role == "none" and had_sender and intent != "off":
+            _push_wled_off(explicit=True)
+
+
+def gate_program(muted):
+    global _route_gate, _audio_pending
+    with _session_lock:
+        _route_gate = muted
+        effective = muted or _state["muted"]
+        client = _mpv
+        if client is None:
+            _audio_pending = True
+            from .config import MPV_SOCKET_PATH
+            if ENGINE_ADAPTER != "real" or not os.path.exists(MPV_SOCKET_PATH):
+                return
+            client = MpvClient(MPV_SOCKET_PATH)
+        client.set_mute(effective)
+        if client._command(["get_property","mute"]).get("data") is not effective:
+            raise MpvUnavailableError("mpv mute did not match the requested output gate")
+
+
+def control_mode(mode):
+    with _session_lock:
+        _preferences.set_mode(mode)
+        _sync_lighting()
+
+
+def control_intent(intent, token):
+    with _session_lock:
+        try:
+            _preferences.set_intent(intent, token)
+        except OSError:
+            if intent=="off":
+                _preferences.emergency_off()
+                _sync_lighting()
+                _push_wled_off(explicit=True)
+            raise
+        _sync_lighting()
+        if intent=="off":
+            _push_wled_off(explicit=True)
+
+
+def control_snapshot():
+    with _session_lock:
+        prefs = _preferences
+        playback = get_playback_state()
+        facts = _audio_system.snapshot() if _audio_system else {}
+        status = dict(_real_adapter.status) if prefs and _real_adapter else {}
+        speaker = dict(facts.get("speaker", {}))
+        if speaker.get("status") == "routed":
+            speaker["kind"] = "phone"
+        else:
+            speaker["kind"] = "program" if playback["playback_state"]=="playing" and not _route_gate else "none"
+        return {"video":{"state":playback["playback_state"],"volume":_state["volume"],
+                         "user_muted":_state["muted"]}, "speaker":speaker,
+                "bluetooth":facts.get("bluetooth",{"available":False,"devices":[]}),
+                "lighting":{"intent":prefs.data["intent"],"intent_token":prefs.token,
+                            "effective_role":status.get("effective_role","none"),
+                            "phase":"fault" if _power_error else status.get("role_phase","idle"),
+                            "brightness":_state["brightness_scale"], "reason":_power_error or status.get("reason")},
+                "analysis":dict(status.get("audio") or {"phase":"waiting","effective":None},
+                                mode=prefs.data["mode"])}
 
 
 def _close_mpv_observer() -> None:
@@ -597,7 +737,12 @@ def _handle_mpv_event(event: dict, generation: int, observer: dict) -> None:
     if generation != _session_generation:
         return
     kind = event.get("event")
-    if kind == "start-file":
+    if kind == "property-change" and event.get("name") == "pause" and _preferences:
+        if _mpv and _state["playback_state"] in ("playing","paused"):
+            result = _mpv._send(["get_property","pause"])
+            if result.get("error") == "success" and type(result.get("data")) is bool:
+                _state["playback_state"] = "paused" if result["data"] else "playing"
+    elif kind == "start-file":
         observer["entry_id"] = event.get("playlist_entry_id")
     elif kind == "file-loaded" and observer.get("entry_id") is not None:
         _media_loading_generation = None
@@ -649,6 +794,8 @@ def _start_mpv_observer(sock_path: str, generation: int) -> dict:
                             continue
                         if kind == "file-loaded" and observer["entry_id"] is not None:
                             observer["loaded"].set()
+                            if _preferences:
+                                sock.sendall(b'{"command":["observe_property",1,"pause"]}\n')
                         elif (kind == "end-file" and event.get("playlist_entry_id") == observer["entry_id"]
                               and event.get("reason") == "error"):
                             observer["load_error"] = event.get("file_error", "media playback failed")
@@ -805,7 +952,7 @@ def _ensure_mpv() -> MpvClient:
                  "--keep-open=no", "--no-terminal",
                  "--no-config",
                  "--audio-client-name=LIGHT-BELT-LocalMedia",
-                 "--fullscreen",
+                 *(["--mute=yes"] if _preferences else []), "--fullscreen",
                  "--ontop",
                  "--cursor-autohide=always",
                  "--input-default-bindings=no",
@@ -829,11 +976,11 @@ def _ensure_mpv() -> MpvClient:
         _mpv = MpvClient(sock)
         _audio_pending = True
         _mpv.set_volume(_state["volume"])
-        _mpv.set_mute(_state["muted"])
+        _mpv.set_mute(_state["muted"] or _route_gate)
         _audio_pending = False
     elif _audio_pending:
         _mpv.set_volume(_state["volume"])
-        _mpv.set_mute(_state["muted"])
+        _mpv.set_mute(_state["muted"] or _route_gate)
         _audio_pending = False
     return _mpv
 
@@ -848,7 +995,7 @@ def _active_mpv() -> MpvClient:
 
 
 @_serialized_session
-def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, str | None]:
+def playback_play(show_id: str, start_ms: float | None, *, preserve_controls=False) -> tuple[dict | None, str | None]:
     global _session_generation
     show = _find_show(show_id)
     if show is None:
@@ -876,7 +1023,10 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
         except RuntimeError as exc:
             _log.error("cannot stop previous engine: %s", exc)
             return None, "ENGINE_UNAVAILABLE"
-    _manual_targets.clear()
+    if not preserve_controls:
+        _manual_targets.clear()
+        if _preferences and _preferences.data["intent"] == "manual":
+            _preferences.set_intent("follow", _preferences.token, targets={})
     _session_generation += 1
     _close_mpv_observer()
     _state.update(playback_state="stopped", show_id=None, position_ms=0, duration_ms=0)
@@ -953,8 +1103,11 @@ def playback_play(show_id: str, start_ms: float | None) -> tuple[dict | None, st
     _state["position_ms"] = start_ms or 0
     _state["duration_ms"] = show["duration_ms"]
     _state["scene_id"] = None
-    _state["brightness_scale"] = BRIGHTNESS_SCALE_DEFAULT
-    _manual_targets.clear()
+    if not preserve_controls:
+        _state["brightness_scale"] = BRIGHTNESS_SCALE_DEFAULT
+        if _preferences:
+            _preferences.save(brightness=BRIGHTNESS_SCALE_DEFAULT)
+        _manual_targets.clear()
     if _real_adapter is not None:
         _mark_devices_output()
     _push_brightness_scale()
@@ -1007,7 +1160,8 @@ def playback_stop() -> tuple[dict | None, str | None]:
     _state["show_id"] = None
     _state["position_ms"] = 0
     _state["duration_ms"] = 0
-    _manual_targets.clear()
+    if not _preferences:
+        _manual_targets.clear()
     if _real_adapter is not None:
         _push_wled_off()
     return _playback_data(), None
@@ -1071,6 +1225,8 @@ def playback_reset() -> tuple[dict | None, str | None]:
     if _state["playback_state"] not in ("playing", "paused"):
         return None, "PLAYBACK_NOT_READY"
     _manual_targets.clear()
+    if _preferences and _preferences.data["intent"] != "off":
+        _preferences.set_intent("follow", _preferences.token, targets={})
     if _real_adapter is not None:
         _refresh_wled_profile(reason="playback resume resolve")
         try:
@@ -1095,6 +1251,7 @@ def playback_reset() -> tuple[dict | None, str | None]:
 # Lights
 # ══════════════════════════════════════════════
 
+@_serialized_session
 def lights_set(target_id: str, brightness: float | None,
                color_temperature: int | None,
                transition_ms: float,
@@ -1161,6 +1318,7 @@ def _validate_effect_request(
         return {}, {"field": "effect_params", "reason": str(exc)}
 
 
+@_serialized_session
 def effects_set(target_id: str, effect_type: str,
                 transition_ms: float,
                 params=None, effect_params=None) -> tuple[dict | None, str | None]:
@@ -1235,6 +1393,9 @@ def audio_set(volume: float | None, muted: bool | None,
     global _audio_pending
     if volume is None and muted is None:
         return None, "INVALID_ARGUMENT"
+    if _preferences:
+        _preferences.save(volume=_state["volume"] if volume is None else volume,
+                          muted=_state["muted"] if muted is None else muted)
     if volume is not None:
         _state["volume"] = volume
     if muted is not None:
@@ -1247,7 +1408,7 @@ def audio_set(volume: float | None, muted: bool | None,
             if volume is not None:
                 _mpv.set_volume(volume)
             if muted is not None:
-                _mpv.set_mute(muted)
+                _mpv.set_mute(muted or _route_gate)
             _audio_pending = was_pending
         except Exception as exc:
             _log.warning("audio_set: mpv IPC failed: %s", exc)
@@ -1511,7 +1672,8 @@ def _finalize_natural_end(expected_generation: int | None = None) -> None:
     _state["show_id"] = None
     _state["position_ms"] = 0
     _state["duration_ms"] = 0
-    _manual_targets.clear()
+    if not _preferences:
+        _manual_targets.clear()
     if _mpv_proc is not None and _mpv_proc.poll() is not None:
         _log.warning(
             "_finalize_natural_end: mpv process already dead (exit %s); clearing references",
@@ -1666,7 +1828,11 @@ def shutdown() -> None:
         errors = []
         if _real_adapter is not None:
             try:
-                _real_adapter.on_playback_stop()
+                if _preferences:
+                    _real_adapter.shutdown()
+                    _push_wled_off(explicit=True)
+                else:
+                    _real_adapter.on_playback_stop()
             except (RuntimeError, OSError) as exc:
                 errors.append(str(exc))
         try:

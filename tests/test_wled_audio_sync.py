@@ -92,6 +92,24 @@ def test_decoder_freezes_exact_44_byte_v2_layout_and_normalization():
     assert decoded.dominant_frequency == 440.0
 
 
+def test_receiver_can_reject_other_multicast_senders():
+    udp = FakeSocket()
+    udp.datagrams.extend([
+        (packet(), ("192.0.2.2", 11988)),
+        (packet(sample_raw=20.0), ("192.0.2.1", 11988)),
+    ])
+    source = WledAudioSyncV2Source(
+        udp_socket=udp,
+        expected_sender="192.0.2.1",
+        clock=Clock(),
+    ).open()
+
+    features = source.poll(0.25)
+
+    assert features.raw_level == 20.0
+    assert source.diagnostics()["packets_invalid"] == 1
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -279,3 +297,20 @@ def test_source_requires_open_and_valid_configuration():
         WledAudioSyncV2Source(
             udp_socket=FakeSocket(), socket_factory=lambda: FakeSocket()
         )
+
+
+def test_managed_receiver_discards_backlog_after_scheduler_stall():
+    clock, sock = Clock(), FakeSocket()
+    source = WledAudioSyncV2Source(udp_socket=sock, clock=clock, stale_after=.25,
+                                    drain_budget=3).open()
+    datum = (packet(peak=1), ("192.0.2.4", 11988))
+    sock.datagrams.append(datum)
+    assert source.poll(0).beat
+    sock.datagrams.extend([datum] * 7)
+    clock.now = 1
+    for left in (4,1,0):
+        assert source.poll(1).silence
+        assert source.stale and len(sock.datagrams) == left
+    assert source.diagnostics()["discarded_backlog"] == 7
+    sock.datagrams.append((packet(peak=0),datum[1]))
+    assert not source.poll(1.01).beat and not source.stale

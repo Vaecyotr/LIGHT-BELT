@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/v1/playback", tags=["Playback"],
 
 
 @router.post("/play")
-async def play(body: PlayRequest, request: Request):
+def play(body: PlayRequest, request: Request):
     data, err = engine_adapter.playback_play(body.show_id, body.start_position_ms)
     if err:
         if err == "NOT_FOUND":
@@ -28,7 +28,7 @@ async def play(body: PlayRequest, request: Request):
 
 
 @router.post("/pause")
-async def pause(request: Request):
+def pause(request: Request):
     data, err = engine_adapter.playback_pause()
     if err:
         return error(request, err, f"Cannot pause: {err}", 409)
@@ -36,7 +36,7 @@ async def pause(request: Request):
 
 
 @router.post("/resume")
-async def resume(request: Request):
+def resume(request: Request):
     data, err = engine_adapter.playback_resume()
     if err:
         return error(request, err, f"Cannot resume: {err}", 409)
@@ -44,7 +44,7 @@ async def resume(request: Request):
 
 
 @router.post("/stop")
-async def stop(request: Request):
+def stop(request: Request):
     data, err = engine_adapter.playback_stop()
     if err:
         return error(request, err, f"Cannot stop: {err}", 503)
@@ -52,7 +52,7 @@ async def stop(request: Request):
 
 
 @router.post("/seek")
-async def seek(body: SeekRequest, request: Request):
+def seek(body: SeekRequest, request: Request):
     data, err = engine_adapter.playback_seek(body.position_ms)
     if err:
         return error(request, err, f"Cannot seek: {err}", 409)
@@ -60,13 +60,13 @@ async def seek(body: SeekRequest, request: Request):
 
 
 @router.get("/state")
-async def playback_state(request: Request):
+def playback_state(request: Request):
     data = engine_adapter.get_playback_state()
     return ok(request, data)
 
 
 @router.post("/reset")
-async def reset(request: Request):
+def reset(request: Request):
     data, err = engine_adapter.playback_reset()
     if err:
         if err == "PLAYBACK_NOT_READY":

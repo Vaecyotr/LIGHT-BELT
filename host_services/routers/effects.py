@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/v1", tags=["Effects"],
 
 
 @router.post("/effects/set")
-async def effects_set(body: EffectsSetRequest, request: Request):
+def effects_set(body: EffectsSetRequest, request: Request):
     data, err = engine_adapter.effects_set(
         body.target_id, body.effect_type,
         body.transition_ms or 0,

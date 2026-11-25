@@ -117,6 +117,11 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
 from .routers import status, auth, state, shows, capabilities
 from .routers import playback, lights, effects, audio, scenes, brightness
 from . import ws
+from .routers import control
+
+app.add_middleware(control.TerminalBoundary)
+app.include_router(control.router)
+app.include_router(control.controls)
 
 app.include_router(status.router)
 app.include_router(auth.router)
@@ -153,7 +158,28 @@ async def _poll_devices():
 
 async def _start_runtime():
     from . import engine_adapter
+    if control.origin():
+        from .control_terminal import ControlPreferences, ControlTerminal, control_dir
+        from .bluetooth import AudioSystem, create_backend
+        prefs = ControlPreferences(control_dir())
+        engine_adapter._preferences = prefs
+        engine_adapter._state.update(volume=prefs.data["volume"], muted=prefs.data["muted"],
+                                     brightness_scale=prefs.data["brightness"])
+        engine_adapter._manual_targets.update(prefs.data["targets"])
+        real = engine_adapter.ENGINE_ADAPTER == "real"
+        verified = os.getenv("LIGHT_BELT_AUDIO_VALIDATED") == "H2,H3,H4"
+        backend = create_backend(allow_real=real,h2_h3_verified=verified,
+                                 isolated_test_image=os.getenv("LIGHT_BELT_AUDIO_TEST_IMAGE")=="isolated")
+        if real:
+            backend.terminal_generation = ControlTerminal(control_dir()).generation
+        system = AudioSystem(backend,
+                             gate_mpv=lambda value: asyncio.to_thread(engine_adapter.gate_program,value),
+                             notify=lambda: asyncio.to_thread(engine_adapter._sync_lighting))
+        engine_adapter._audio_system = system
+        await system.start()
     await _run_in_thread(engine_adapter.startup)
+    if control.origin():
+        await _run_in_thread(engine_adapter._sync_lighting)
     if engine_adapter.ENGINE_ADAPTER == "real" and engine_adapter._real_adapter is not None:
         app.state.device_probe_task = asyncio.create_task(_poll_devices())
     ws.bind_event_loop(asyncio.get_running_loop())
@@ -169,7 +195,15 @@ async def _stop_runtime():
     if task is not None:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
-    await _run_in_thread(engine_adapter.shutdown)
+    try:
+        if engine_adapter._audio_system:
+            await engine_adapter._audio_system.close()
+    finally:
+        try:
+            await _run_in_thread(engine_adapter.shutdown)
+        finally:
+            engine_adapter._preferences = engine_adapter._audio_system = None
+            engine_adapter._route_gate = False
 
 
 from fastapi.staticfiles import StaticFiles
@@ -188,6 +222,10 @@ def run():
     if ENABLE_TLS:
         kwargs["ssl_certfile"] = TLS_CERTFILE
         kwargs["ssl_keyfile"] = TLS_KEYFILE
+    if control.origin():
+        kwargs["proxy_headers"] = False
+        if not ENABLE_TLS:
+            raise RuntimeError("The managed control listener requires TLS")
     uvicorn.run(app, **kwargs)
 
 

@@ -51,9 +51,9 @@ def validate_security_configuration() -> None:
         raise RuntimeError("Set LIGHT_BELT_PAIRING_CODE to an independent pairing code")
 
 # ── TLS（生产部署用，本地默认关闭） ──
-ENABLE_TLS = False
-TLS_CERTFILE = "/etc/light-belt/cert.pem"
-TLS_KEYFILE = "/etc/light-belt/key.pem"
+ENABLE_TLS = os.environ.get("LIGHT_BELT_TLS") == "1"
+TLS_CERTFILE = os.getenv("LIGHT_BELT_TLS_CERTFILE", "/etc/light-belt/cert.pem")
+TLS_KEYFILE = os.getenv("LIGHT_BELT_TLS_KEYFILE", "/etc/light-belt/key.pem")
 
 # ── mpv IPC（生产环境用；可用环境变量覆盖，本地调试可设 /tmp/mpv.sock） ──
 MPV_SOCKET_PATH = os.environ.get("MPV_SOCKET_PATH", "/run/light-belt/mpv.sock")

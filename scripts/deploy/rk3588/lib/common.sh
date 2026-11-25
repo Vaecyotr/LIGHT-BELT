@@ -27,6 +27,18 @@ require_repo() {
     [[ -f "$LB_REPO/pyproject.toml" ]] || die "缺少 $LB_REPO/pyproject.toml"
 }
 
+# The legacy installer enables a public Agent and automatic A2DP routing.
+# Running it on a managed cabin would introduce a second policy owner.
+require_legacy_audio_mode() {
+    local environment_file="$LB_HOME/.config/light-belt/host.env"
+    if [[ -n "${LIGHT_BELT_CONTROL_ORIGIN:-}" ]] || {
+        [[ -f "$environment_file" ]] &&
+        grep -Eq '^[[:space:]]*LIGHT_BELT_CONTROL_ORIGIN=[[:space:]]*["'\'']?https://' "$environment_file"
+    }; then
+        die "此设备已配置受管音频；旧安装流程会开启公共配对和重复音频策略，已停止。"
+    fi
+}
+
 ensure_sudo() {
     sudo -v || die "无法获得 sudo 权限"
 }

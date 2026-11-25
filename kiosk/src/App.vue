@@ -24,7 +24,7 @@
             v-for="show in (shows.length ? shows : [DEMO_SHOW])"
             :key="show.show_id"
             :show="show"
-            :disabled="!show.duration_ms"
+            :disabled="!show.duration_ms || managed === null"
             @play="show.duration_ms ? startPlay(show.show_id) : null"
           />
         </div>
@@ -32,8 +32,8 @@
 
       <!-- Right column: Brightness + Volume -->
       <section class="panel panel--right">
-        <div class="panel panel--control">
-          <h2 class="panel-title">Brightness</h2>
+        <div class="panel panel--control" ref="brightnessPanel">
+          <h2 class="panel-title">灯带亮度</h2>
           <BrightnessSlider
             v-model="brightnessScale"
             @commit="setBrightness"
@@ -41,7 +41,7 @@
         </div>
 
         <div class="panel panel--control panel--volume">
-          <h2 class="panel-title">Volume</h2>
+          <h2 class="panel-title">节目原声音量</h2>
           <VolumeSlider
             v-model="volume"
             :muted="muted"
@@ -49,6 +49,7 @@
             @toggleMute="toggleMute"
           />
         </div>
+        <AudioControls @available="managed = $event" @brightness="focusBrightness" />
       </section>
     </main>
 
@@ -64,6 +65,7 @@
       :is-active="isActive"
       @pause="pause"
       @stop="stop"
+      @seek="seek"
     />
 
     <!-- Playback HUD overlay (auto-hides after 3s) -->
@@ -88,6 +90,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import AudioControls from './components/AudioControls.vue'
 import StatusIndicator from './components/StatusIndicator.vue'
 import ShowCard from './components/ShowCard.vue'
 import BrightnessSlider from './components/BrightnessSlider.vue'
@@ -97,9 +100,18 @@ import { usePlayback } from './composables/usePlayback.js'
 import { useShows } from './composables/useShows.js'
 import { useVolume } from './composables/useVolume.js'
 import { useKeyboard } from './composables/useKeyboard.js'
-import { clearRequestError, requestError } from './api.js'
+import { api, control, clearRequestError, requestError } from './api.js'
 
-const { state, show, positionMs, durationMs, brightnessScale, progress, isPlaying, isPaused, isActive, play, pause, stop, setBrightness } = usePlayback()
+const { state, show, positionMs, durationMs, brightnessScale, progress, isPlaying, isPaused, isActive, play, pause, stop, setBrightness, refresh } = usePlayback()
+const managed = ref(null)
+const brightnessPanel = ref(null)
+function focusBrightness() {
+  brightnessPanel.value?.querySelector('input')?.focus()
+}
+async function seek(position) {
+  await api.seek(position)
+  await refresh()
+}
 const { shows, loading: showsLoading, DEMO_SHOW } = useShows()
 const { volume, muted, setVolume, toggleMute } = useVolume()
 
@@ -125,7 +137,11 @@ if (typeof window !== 'undefined') {
 }
 
 async function startPlay(show_id) {
-  await play(show_id)
+  if (managed.value === null) return
+  if (managed.value) {
+    await control('POST', '/play', {show_id, start_position_ms:0})
+    await refresh()
+  } else await play(show_id)
   showHud()
 }
 

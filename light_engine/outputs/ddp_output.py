@@ -102,6 +102,9 @@ class DdpOutput(LightOutput):
         self.port = port
         self._socket = socket
         self._owns_socket = False
+        self._writer_lock = None
+        self.last_node_submission = {}
+        self.last_node_safe_submission = {}
         self._sent_datagrams: list[tuple[bytes, tuple[str, int]]] = []
         self._queue: LatestFrameQueue[PhysicalFrame] = LatestFrameQueue()
         self._auto_flush = auto_flush
@@ -110,11 +113,20 @@ class DdpOutput(LightOutput):
         if self._socket is None and self.mode is OutputMode.PRODUCTION:
             try:
                 import socket as _socket
+                import sys
+
+                if sys.platform.startswith("linux"):
+                    # The kernel releases this local lock even after a hard process exit.
+                    self._writer_lock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_DGRAM)
+                    self._writer_lock.bind("\0light-belt-ddp-writer")
 
                 self._socket = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
                 self._owns_socket = True
             except Exception as exc:
                 self._health.healthy = False
+                if self._writer_lock is not None:
+                    self._writer_lock.close()
+                    self._writer_lock = None
                 self._health.last_error = f"DDP production socket unavailable: {exc}"
                 raise RuntimeError(self._health.last_error) from exc
         self._open = True
@@ -141,6 +153,7 @@ class DdpOutput(LightOutput):
 
         frame_ok = True
         safe_state = frame.metadata.get("SAFE_STATE") is True
+        results = self.last_node_safe_submission if safe_state else self.last_node_submission
         for digital_frame in frame.digital_frames:
             if not digital_frame.enabled:
                 continue
@@ -150,10 +163,13 @@ class DdpOutput(LightOutput):
                     self._send_datagram(packet, (digital_frame.host, self.port))
                     self._health.packets_sent += 1
                 self._health.mark_success()
+                results[digital_frame.node_id] = {"sequence":frame.sequence,"submitted":True}
             except Exception as exc:
                 frame_ok = False
                 self._health.packets_dropped += 1
                 self._health.last_error = f"DDP send error: {exc}"
+                results[digital_frame.node_id] = {"sequence":frame.sequence,
+                                                   "submitted":False,"reason":str(exc)}
                 if self.mode is OutputMode.PRODUCTION:
                     self._health.healthy = False
                     if safe_state:
@@ -198,6 +214,9 @@ class DdpOutput(LightOutput):
         self._socket = None
         self._owns_socket = False
         self._open = False
+        if self._writer_lock is not None:
+            self._writer_lock.close()
+            self._writer_lock = None
 
     def get_sent_datagrams(self) -> list[tuple[bytes, tuple[str, int]]]:
         return list(self._sent_datagrams)

@@ -31,7 +31,7 @@ async def scene_save(body: SceneSaveRequest, request: Request):
 
 
 @router.post("/scenes/apply")
-async def scene_apply(body: SceneApplyRequest, request: Request):
+def scene_apply(body: SceneApplyRequest, request: Request):
     data, err = engine_adapter.scene_apply(body.scene_id, body.transition_ms)
     if err == "NOT_FOUND":
         return not_found(request, f"Scene not found: {body.scene_id}")

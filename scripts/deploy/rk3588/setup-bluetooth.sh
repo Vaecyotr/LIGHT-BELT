@@ -5,6 +5,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 require_target_user
 require_repo
+require_legacy_audio_mode
 ensure_sudo
 
 MAIN_CONF="/etc/bluetooth/main.conf"

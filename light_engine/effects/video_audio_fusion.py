@@ -166,6 +166,9 @@ class VideoAudioFusionEffect(BaseEffect):
             zb = base_rgb[2] * 0.7 + sb * 0.3
             zr, zg, zb = _apply_mid_saturation((zr, zg, zb), mid)
             zone_bri = bri + bass_pulse * 0.2
+            peak = max(zr, zg, zb)
+            if peak * zone_bri > 1.0:
+                zone_bri = 1.0 / peak
             zones.append(ZoneOutput(
                 zone_id=zid,
                 color=rgb_to_rgbcct(zr * zone_bri, zg * zone_bri, zb * zone_bri),

@@ -39,6 +39,33 @@ def apply_scale(devices: list[dict], scale: float, timeout: float = 1.0) -> None
                 pass
 
 
+def apply_managed(devices: list[dict], scale: float | None, timeout: float) -> None:
+    """Set the stored brightness or power off, confirming each enabled node."""
+    wanted = {"on": False} if scale is None else {"bri": round(255 * scale)}
+    def update(host):
+        url = f"http://{host}/json/state"
+        request = urllib.request.Request(url, data=json.dumps(wanted).encode(),
+                                         headers={"Content-Type":"application/json"})
+        with urllib.request.urlopen(request, timeout=timeout):
+            pass
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            actual = json.load(response)
+        if any(actual.get(key) != value for key, value in wanted.items()):
+            raise RuntimeError(f"{host}: WLED state does not match the requested setting")
+
+    hosts = [device["host"] for device in devices if device.get("host")]
+    failures = []
+    with ThreadPoolExecutor(max_workers=max(1,len(hosts))) as executor:
+        attempts = [(host,executor.submit(update,host)) for host in hosts]
+        for host, future in attempts:
+            try:
+                future.result()
+            except (RuntimeError, ValueError, OSError) as exc:
+                failures.append(f"{host}: {exc}")
+    if failures or not hosts:
+        raise RuntimeError("; ".join(failures) or "no enabled WLED output")
+
+
 def apply_off(devices: list[dict], timeout: float = 1.0) -> None:
     """把各节点本地状态关掉。
 

@@ -9,13 +9,13 @@ export function clearRequestError() {
   requestError.path = ''
 }
 
-async function call(method, path, body) {
+async function call(method, path, body, base = BASE) {
   const options = { method, headers: { 'Content-Type': 'application/json' } }
   if (body !== undefined) options.body = JSON.stringify(body)
 
   let result
   try {
-    const response = await fetch(BASE + path, options)
+    const response = await fetch(base + path, options)
     result = await response.json()
   } catch (_) {
     result = { ok: false, error: { code: 'NETWORK_ERROR', message: '无法连接 Host，请检查服务和网络。' } }
@@ -29,6 +29,8 @@ async function call(method, path, body) {
   }
   return result
 }
+
+export const control = (method, path, body) => call(method, path, body, '/control')
 
 export const api = {
   status: () => call('GET', '/status'),
