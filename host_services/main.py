@@ -172,7 +172,8 @@ async def _start_runtime():
         real = engine_adapter.ENGINE_ADAPTER == "real"
         verified = os.getenv("LIGHT_BELT_AUDIO_VALIDATED") == "H2,H3,H4"
         backend = create_backend(allow_real=real,h2_h3_verified=verified,
-                                 isolated_test_image=os.getenv("LIGHT_BELT_AUDIO_TEST_IMAGE")=="isolated")
+                                 isolated_test_image=os.getenv("LIGHT_BELT_AUDIO_TEST_IMAGE")=="isolated",
+                                 program_pid=engine_adapter.program_mpv_pid)
         if real:
             backend.terminal_generation = ControlTerminal(control_dir()).generation
         system = AudioSystem(backend,

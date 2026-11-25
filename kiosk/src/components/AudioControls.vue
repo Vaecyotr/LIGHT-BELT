@@ -5,13 +5,16 @@
       <button>登记</button>
     </form>
     <template v-else-if="state">
+      <p v-if="state.preferences?.recovery_error" role="alert">部分控制设置已恢复。有效的灯光意图和静音设置已保留：{{ state.preferences.recovery_error }}</p>
+      <p v-if="state.preferences?.persistence_error" role="alert">控制设置未能保存：{{ state.preferences.persistence_error }}</p>
+      <p v-else-if="state.preferences?.saved === false" role="status">控制设置尚未保存</p>
       <p><b>扬声器</b> {{ speakerLabel }}</p>
       <small v-if="phone">手机音乐音量请在手机上调整。</small>
       <p><b>灯光来源</b> {{ sourceLabel }}</p>
       <button v-for="(label, mode) in modes" :key="mode" :disabled="busy || !fresh"
         :aria-pressed="state.analysis.mode === mode" @click="act('PUT','/analysis',{mode})">{{ label }}</button>
       <p><b>灯光</b> {{ intents[state.lighting.intent] }} · {{ lightStatus }}</p>
-      <small v-if="state.lighting.intent === 'off'">播放节目仍保持关灯。</small>
+      <small v-if="state.lighting.intent === 'off'">关灯设置会在播放节目时保留。</small>
       <button v-if="state.lighting.intent !== 'follow'" :disabled="busy || !fresh"
         @click="lighting('follow')">恢复随播放</button>
       <button v-if="state.lighting.intent !== 'music'" :disabled="busy || !fresh" @click="lighting('music')">独立音乐灯效</button>
@@ -64,13 +67,13 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { control } from '../api.js'
-import { challengeInputRequired, describeOperation, isControlSnapshotFresh, speakerDescription } from './audioControlState.js'
+import { challengeInputRequired, describeOperation, isControlSnapshotFresh, lightDescription, speakerDescription } from './audioControlState.js'
 const emit = defineEmits(['available','brightness'])
 const enabled = ref(false), enrollNeeded = ref(false), state = ref(null), capturedAt = ref(null), now = ref(Date.now())
 const busy = ref(false), offline = ref(false), code = ref(''), pins = ref({}), message = ref('')
 const answering = ref(new Set())
 const modes = {auto:'设备音频（自动跟随）',mic:'环境麦克风'}
-const intents = {follow:'随播放', music:'独立音乐', manual:'手动灯效', off:'已关闭'}
+const intents = {follow:'随播放', music:'独立音乐', manual:'手动灯效', off:'保持关灯'}
 const operationLabel = (operation, id) => describeOperation(operation,
   bt.value.devices?.find(device => device.id === id) || {})
 const bt = computed(() => state.value?.bluetooth || {})
@@ -90,9 +93,7 @@ const sourceLabel = computed(() => {
   if (a.silent) return a.effective === 'wled' ? '环境安静' : '设备音频安静'
   return {phone_pcm:'手机数字音乐',program_pcm:'节目音轨',file:'节目音轨',wled:'环境麦克风'}[a.effective] || '等待输入'
 })
-const lightStatus = computed(() => ({
-  preparing:'切换中',fault:'输出异常',idle:'等待播放',applied:'已生效'
-}[state.value.lighting.phase] || '等待确认'))
+const lightStatus = computed(() => lightDescription(state.value.lighting))
 let timer, clockTimer, closed = false, reading = false, refreshAgain = false
 let commandGeneration = 0
 async function refresh() {

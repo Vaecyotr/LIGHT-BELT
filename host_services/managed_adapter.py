@@ -65,8 +65,9 @@ class ManagedAdapter(RealEngineAdapter):
                     raise
                 self.command = spec
             if wait:
+                ready_phase = "held" if spec.get("await_media") else "applied"
                 if not self.changed.wait_for(
-                    lambda: self.status["role_phase"] in ("applied", "fault", "idle"),
+                    lambda: self.status["role_phase"] in (ready_phase, "fault", "idle"),
                     10,
                 ):
                     raise RuntimeError("lighting content did not become ready")
@@ -129,6 +130,14 @@ class ManagedAdapter(RealEngineAdapter):
     def on_playback_seek_prepare(self):
         self._stop_aux_poll()
         self.seek_generation += 1
+        self.hold_show_for_media_change()
+
+    def hold_show_for_media_change(self):
+        if self.command and self.command["role"] == "show":
+            self.configure(
+                dict(self.command, seek_generation=self.seek_generation, await_media=True),
+                wait=True,
+            )
 
     def on_playback_resume_yaml(self):
         if self._active_show and self._active_show.get("aux_triggers"):

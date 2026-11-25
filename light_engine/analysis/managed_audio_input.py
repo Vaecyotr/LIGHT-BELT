@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import ipaddress
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import replace
 from typing import Callable
 
@@ -47,6 +48,8 @@ class ManagedAudioInput:
         self._audio_analyzer: AudioAnalyzer | None = None
         self._reader: AudioReader | None = None
         self._capture: ParecCapture | None = None
+        self._capture_cleanup: Future | None = None
+        self._capture_cleanup_executor: ThreadPoolExecutor | None = None
         self._wled: WledAudioSyncV2Source | None = None
         self._kind = "none"
         self._source_id: str | None = None
@@ -125,6 +128,12 @@ class ManagedAudioInput:
                     self._config, managed_spectrum=True
                 )
             elif self._kind in {"phone_pcm", "program_pcm", "monitor"}:
+                if self._capture_cleanup is not None:
+                    if not self._capture_cleanup.done():
+                        self._last_quality = "warming"
+                        return
+                    cleanup, self._capture_cleanup = self._capture_cleanup, None
+                    cleanup.result()
                 device = self._target.get("device") or self._target.get("monitor")
                 if not device:
                     raise ValueError("PCM target requires device")
@@ -139,6 +148,11 @@ class ManagedAudioInput:
                     sample_rate=int(self._target.get("sample_rate", 48_000)),
                     channels=int(self._target.get("channels", 2)),
                     block_ms=int(self._target.get("block_ms", 20)),
+                    **(
+                        {"target_proof": self._target}
+                        if "pa_sink_index" in self._target
+                        else {}
+                    ),
                 ).start()
                 self._audio_analyzer = AudioAnalyzer(
                     self._config, managed_spectrum=True
@@ -184,6 +198,13 @@ class ManagedAudioInput:
         self, media_time_s: float
     ) -> tuple[AudioFeatures | None, MusicControlState | None]:
         """Poll one selected source and derive music state from fresh windows."""
+        if (self._fault is None and self._kind in {"phone_pcm", "program_pcm", "monitor"}
+                and self._capture is None and self._capture_cleanup is not None):
+            if not self._capture_cleanup.done():
+                return None, None
+            self._start_source()
+            if self._fault is not None:
+                return None, None
         if self._fault is not None:
             if self._clock_ns() >= self._retry_after_ns:
                 self._fault = None
@@ -252,9 +273,14 @@ class ManagedAudioInput:
                 self._kind in {"phone_pcm", "program_pcm", "monitor"} and self._capture
             ):
                 chunk = self._capture.read_latest()
-                if chunk is None and not self._capture.status()["running"]:
+                capture_status = self._capture.status()
+                if (
+                    chunk is None
+                    and not capture_status["running"]
+                    and capture_status.get("phase") not in {"validating", "starting"}
+                ):
                     raise RuntimeError(
-                        self._capture.status().get("error") or "parec exited"
+                        capture_status.get("error") or "parec exited"
                     )
                 if chunk is not None:
                     if chunk.discontinuity:
@@ -491,6 +517,10 @@ class ManagedAudioInput:
 
     def close(self) -> None:
         self._close_source()
+        if self._capture_cleanup_executor is not None:
+            self._capture_cleanup_executor.shutdown(wait=True)
+            self._capture_cleanup_executor = None
+            self._capture_cleanup = None
         self._selector.select("none")
         self._kind = "none"
         self._source_id = None
@@ -502,8 +532,17 @@ class ManagedAudioInput:
             self._reader.close()
             self._reader = None
         if self._capture is not None:
-            self._capture.close()
-            self._capture = None
+            capture, self._capture = self._capture, None
+            if self._capture_cleanup is None or self._capture_cleanup.done():
+                if self._capture_cleanup_executor is None:
+                    self._capture_cleanup_executor = ThreadPoolExecutor(
+                        max_workers=1, thread_name_prefix="audio-capture-cleanup"
+                    )
+                self._capture_cleanup = self._capture_cleanup_executor.submit(
+                    capture.close
+                )
+            else:
+                raise RuntimeError("audio capture cleanup already in progress")
         if self._wled is not None:
             self._wled.close()
             self._wled = None

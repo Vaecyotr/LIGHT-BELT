@@ -5,6 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import itertools
+import logging
+import re
 import shlex
 from typing import Any
 
@@ -26,6 +29,44 @@ class PulseAudioRouter:
         self._watch_task: asyncio.Task | None = None
         self._watch_process = None
         self._watch_callback = None
+        self._generation = 0
+        self._flow_generations: dict[tuple[str, int], int] = {}
+        self._flow_generation_counter = itertools.count(1)
+
+    @property
+    def generation(self) -> int:
+        """Return the observed PulseAudio server incarnation."""
+        return self._generation
+
+    def flow_generation(self, kind: str, index: int) -> int:
+        """Return the observed lifecycle generation of one PA stream index."""
+        return self._flow_generations.get((kind, index), 0)
+
+    def _observe_event(self, event: str) -> None:
+        match = re.search(
+            r"Event '(new|remove|change)' on (sink-input|source-output) #(\d+)",
+            event,
+        )
+        if match:
+            action, kind, index = match.groups()
+            key = (kind, int(index))
+            if action == "new":
+                self._flow_generations[key] = next(self._flow_generation_counter)
+            elif action == "remove":
+                self._flow_generations.pop(key, None)
+
+    async def _invalidate_observation(self) -> None:
+        self._generation += 1
+        self._flow_generations.clear()
+        if self._watch_callback is not None:
+            try:
+                result = self._watch_callback()
+                if hasattr(result, "__await__"):
+                    await result
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "PulseAudio target reconciliation failed after observer loss"
+                )
 
     async def start_monitor(self, callback) -> None:
         self._watch_callback = callback
@@ -55,39 +96,40 @@ class PulseAudioRouter:
                     stream = self._subscriber()
                     if hasattr(stream, "__await__"):
                         stream = await stream
-                    async for _event in stream:
+                    async for event in stream:
                         delay = 0.2
+                        self._observe_event(str(event))
                         result = self._watch_callback()
                         if hasattr(result, "__await__"):
                             await result
+                    await self._invalidate_observation()
                 else:
                     process = await asyncio.create_subprocess_exec(
                         "pactl", "subscribe", stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.DEVNULL,
-                        env={**os.environ, "LC_ALL": "C"},
+                        env={**os.environ, "LC_ALL": "C", "LANG": "C"},
                     )
                     self._watch_process = process
                     if process.stdout is None:
                         raise BackendUnavailable("pactl subscribe has no stdout")
                     while True:
-                        line = await asyncio.wait_for(process.stdout.readline(), 30)
+                        line = await process.stdout.readline()
                         if not line:
                             break
                         delay = 0.2
+                        self._observe_event(line.decode(errors="replace"))
                         result = self._watch_callback()
                         if hasattr(result, "__await__"):
                             await result
                     await process.wait()
                     self._watch_process = None
                     # A subscription ending can mean PA restarted; reconcile.
-                    if self._watch_callback is not None:
-                        result = self._watch_callback()
-                        if hasattr(result, "__await__"):
-                            await result
+                    await self._invalidate_observation()
                 await asyncio.sleep(delay)
             except asyncio.CancelledError:
                 return
             except Exception:
+                await self._invalidate_observation()
                 await asyncio.sleep(delay)
                 delay = min(2.0, delay * 2)
             finally:

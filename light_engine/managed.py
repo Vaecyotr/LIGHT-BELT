@@ -10,14 +10,16 @@ import sys
 from threading import Event, Lock, Thread
 import time
 
-from light_engine.cli import _configure_engine_show
 from light_engine.config import Config
-from light_engine.engine import Engine
-from light_engine.media.mpv_adapter import MpvIPCAdapter, MpvIPCError
+from light_engine.engine import Engine, RenderContext
+from light_engine.media.mpv_adapter import MpvIPCAdapter, MpvIPCError, MpvState
 from light_engine.models import EffectContext
 from light_engine.outputs import send_all
 from light_engine.show.compositor import ShowRuntime, black_base_frame
-from light_engine.show.loader import TargetCatalog, validate_show_data
+from light_engine.show.loader import TargetCatalog, load_show, validate_show_data
+
+
+PREPARE_TIMEOUT = 10.0
 
 
 class FrameHandoff:
@@ -35,16 +37,27 @@ class FrameHandoff:
 
     def publish(self, number, role, frame, audio, now):
         with self.lock:
-            if number == self.requested:
+            if number == self.requested and self.latest is None:
                 self.latest = (role, frame, audio, number, now)
                 return True
             return False
+
+    def disposition(self, number, role):
+        with self.lock:
+            if self.committed is not None and (
+                self.committed[3], self.committed[0]
+            ) == (number, role):
+                return "committed"
+            if number != self.requested:
+                return "superseded"
+            return "pending"
 
     def claim(self, item):
         """Claim a current candidate or the committed active role for one send."""
         with self.lock:
             return item is self.latest and item[3] == self.requested or (
-                item is self.committed
+                self.committed is not None
+                and (item[3], item[0]) == (self.committed[3], self.committed[0])
             )
 
     def commit(self, item):
@@ -54,13 +67,15 @@ class FrameHandoff:
                 self.committed = item
                 self.latest = None
                 return True
-            if item is self.committed:
+            if item is self.committed and item[3] == self.requested:
                 return True
             return False
 
     def refresh_active(self, number, role, frame, audio, now):
         with self.lock:
-            if self.committed is not None and self.committed[3] == number:
+            if self.committed is not None and (
+                self.committed[3], self.committed[0]
+            ) == (number, role):
                 self.committed = (role, frame, audio, number, now)
 
     def sample(self, now):
@@ -99,14 +114,25 @@ def effect_show(targets, layout):
             "cues": cues,
         },
     }
-    return ShowRuntime.from_layout(
-        validate_show_data(doc, TargetCatalog.from_layout(layout)), layout
-    )
+    return validate_show_data(doc, TargetCatalog.from_layout(layout))
+
+
+def validate_candidate(frame, layout):
+    strips = {strip.strip_id: len(strip.pixels) for strip in frame.strips}
+    zones = {zone.zone_id for zone in frame.zones}
+    if (
+        len(strips) != len(frame.strips)
+        or strips != {strip.id: strip.pixel_count for strip in layout.strips}
+        or len(zones) != len(frame.zones)
+        or zones != {zone.id for zone in layout.zones}
+        or not frame.all_pixels_valid()
+    ):
+        raise ValueError("candidate frame does not cover the complete logical layout")
 
 
 class Content:
-    def __init__(self, config, command):
-        self.engine = Engine(config)
+    def __init__(self, config, command, layout):
+        self.renderer = RenderContext(config, layout)
         self.role = command["role"]
         self.start = time.monotonic()
         self.last_time = None
@@ -115,18 +141,20 @@ class Content:
         self.mpv = MpvIPCAdapter(command["mpv_socket"])
         self.last_video = None
         self.frozen = False
-        e = self.engine
+        self.paused = False
+        self.prepared_media = None
+        self.show = None
+        e = self.renderer
         try:
             if self.role == "show":
                 show = command["show"]
-                self.duration = _configure_engine_show(e, show["show_yaml"])
+                self.show = load_show(Path(show["show_yaml"]), TargetCatalog.from_layout(layout))
+                self.duration = self.show.duration
                 if Path(show["media_path"]).suffix.lower() in (".mp4", ".mkv", ".mov"):
                     e.load_video(show["media_path"])
             elif self.role == "manual":
-                e.set_show_runtime(effect_show(command["targets"], e._layout))
-            elif self.role == "music":
-                e.set_effect("audio_pulse")
-            else:
+                self.show = effect_show(command["targets"], layout)
+            elif self.role != "music":
                 raise ValueError("unknown content role")
         except BaseException:
             self.close()
@@ -134,21 +162,68 @@ class Content:
 
     def close(self):
         self.mpv.close()
-        if self.engine._video_reader:
-            self.engine._video_reader.close()
+        if self.renderer._video_reader:
+            self.renderer._video_reader.close()
 
-    def render(self, audio, command):
-        media = None
+    def _read_media(self, command):
         if self.role == "show" or command["target"].get("kind") == "file":
             try:
-                media = self.mpv.read_state()
+                return self.mpv.read_state()
             except MpvIPCError:
                 if self.role == "show" and self.mpv.get_property("idle-active"):
-                    return None
+                    return MpvState(0.0, False, True)
                 raise
+        return None
+
+    def _refresh_video(self, position):
+        e = self.renderer
+        if e._video_reader and (
+            self.last_video is None or position - self.last_video >= 1 / e._video_fps
+        ):
+            e._timestamp = position
+            e._latest_video = (
+                e._get_video_features() if position < e._video_reader.duration else None
+            )
+            self.last_video = position
+
+    def _prepare_media(self, command, deadline, cancelled):
+        media = self._read_media(command)
+        if self.renderer._video_reader is None:
+            return media
+        while not media.ended and media.position < self.duration:
+            if cancelled.is_set():
+                raise RuntimeError("content preparation cancelled")
+            if time.monotonic() >= deadline:
+                raise TimeoutError("content preparation timed out")
+            self._refresh_video(media.position)
+            current = self._read_media(command)
+            if abs(current.position - media.position) <= 1 / self.renderer._output_fps:
+                return current
+            self.renderer._reset_content_timeline()
+            self.last_video = None
+            media = current
+        return media
+
+    @classmethod
+    def prepare(cls, config, command, layout, cancelled=None):
+        deadline = time.monotonic() + PREPARE_TIMEOUT
+        content = cls(config, command, layout)
+        try:
+            content.prepared_media = content._prepare_media(command, deadline, cancelled or Event())
+            return content
+        except BaseException:
+            content.close()
+            raise
+
+    def render(self, audio, command):
+        media = self.prepared_media
+        self.prepared_media = None
+        if media is None:
+            media = self._read_media(command)
         if self.role == "show":
             if media.ended or media.position >= self.duration:
                 return None
+            self.paused = media.paused
             t = media.position
         else:
             t = time.monotonic() - self.start
@@ -159,28 +234,27 @@ class Content:
             and self.frame is not None
             and self.last_time == t
         ):
-            self.frozen = True
+            self.frozen = self.paused
             return self.frame
         if features is not None:
             features = copy(features)
             features.timestamp = t
         if music is not None:
             music = replace(music, timestamp=t)
-        e = self.engine
+        e = self.renderer
+        if self.show is not None:
+            e.set_show_runtime(ShowRuntime.from_layout(self.show, e._layout))
+            self.show = None
+        elif e._effect is None and self.role == "music":
+            e.set_effect("audio_pulse")
         dt = 1 / e._output_fps if self.last_time is None else max(0, t - self.last_time)
         if self.last_time is not None and t < self.last_time:
-            e._handle_timeline_reset()
+            e._reset_content_timeline()
             self.last_video = None
             dt = 1/e._output_fps
         self.last_time = t
         e._timestamp = t
-        if e._video_reader and (
-            self.last_video is None or t - self.last_video >= 1 / e._video_fps
-        ):
-            e._latest_video = (
-                e._get_video_features() if t < e._video_reader.duration else None
-            )
-            self.last_video = t
+        self._refresh_video(t)
         ctx = EffectContext(
             timestamp=t,
             delta_time=min(0.25, dt),
@@ -243,6 +317,8 @@ def serve(config, commands, report):
     def produce():
         active = pending = ready = None
         active_key = pending_key = None
+        prepare_cancel = None
+        offered = None
         abandoned = False
         failed_key = None
         audio = ManagedAudioInput(config)
@@ -250,6 +326,8 @@ def serve(config, commands, report):
         ended = None
         audio_key = None
         applied_number = None
+        held_number = None
+        paused_frame = None
         try:
             while not stop.is_set():
                 with lock:
@@ -258,6 +336,8 @@ def serve(config, commands, report):
                     stop.wait(period)
                     continue
                 timeline = (cfg["video_generation"], cfg["seek_generation"])
+                if paused_frame is not None and paused_frame[0] != timeline:
+                    paused_frame = None
                 if timeline == ended and cfg["role"] == "show":
                     cfg = dict(cfg, role=cfg["role_on_video_end"])
                 if cfg["role"] == "none":
@@ -276,47 +356,96 @@ def serve(config, commands, report):
                     cfg.get("seek_generation") if role == "show" else None,
                     cfg.get("targets") if role == "manual" else None,
                 )
+                if offered is not None:
+                    number, offered_key = offered
+                    result = handoff.disposition(number, offered_key[0])
+                    if result == "committed":
+                        if ready:
+                            if active:
+                                if (
+                                    active.role == "show"
+                                    and active.paused
+                                    and active.frame is not None
+                                    and active_key[1:3] == timeline
+                                ):
+                                    paused_frame = (timeline, active.frame)
+                                active.close()
+                            active, active_key, ready = ready, offered_key, None
+                            if active.role == "show":
+                                paused_frame = None
+                        applied_number = number
+                        offered = None
+                    elif result == "superseded":
+                        if ready:
+                            ready.close()
+                        ready = offered = None
+                if ready is not None and offered is None and pending_key != key:
+                    ready.close()
+                    ready = None
+                if pending and pending_key != key and not abandoned:
+                    abandoned = True
+                    prepare_cancel.set()
+                holding = cfg.get("await_media", False)
+                if holding:
+                    if held_number != cfg["n"]:
+                        report({"n": cfg["n"], "role_phase": "held"})
+                        held_number = cfg["n"]
+                    if active is None or active.role == "show":
+                        stop.wait(period)
+                        continue
                 if pending and pending.done():
                     try:
                         ready = pending.result()
                         if key != pending_key or abandoned:
                             ready.close()
                             ready = None
+                        elif ready.role == "show" and paused_frame is not None:
+                            _, ready.frame = paused_frame
+                            ready.last_time = ready.frame.timestamp
                     except Exception as exc:
-                        failed_key = (pending_key, cfg["n"])
-                        report(
-                            {"n": cfg["n"], "role_phase": "fault", "reason": str(exc)}
-                        )
+                        if key == pending_key and not abandoned:
+                            if active is None:
+                                raise
+                            failed_key = (key, cfg["n"])
+                            report(
+                                {"n": cfg["n"], "role_phase": "fault", "reason": str(exc)}
+                            )
                     pending = None
                 if (
-                    not pending
+                    not holding
+                    and not pending
                     and not ready
                     and key != active_key
                     and (key, cfg["n"]) != failed_key
                 ):
                     pending_key = key
-                    pending = loader.submit(Content, config, cfg)
+                    prepare_cancel = Event()
+                    pending = loader.submit(
+                        Content.prepare, config, cfg, writer._layout, prepare_cancel
+                    )
                     abandoned = False
                     prepare_start = time.monotonic()
-                if pending and not abandoned and time.monotonic() - prepare_start > 10:
-                    if active is None:
-                        raise TimeoutError("content preparation timed out")
+                if pending and not abandoned and time.monotonic() - prepare_start > PREPARE_TIMEOUT:
                     abandoned = True
-                    failed_key = (pending_key, cfg["n"])
-                    report(
-                        {
-                            "n": cfg["n"],
-                            "role_phase": "fault",
-                            "reason": "content preparation timed out",
-                        }
-                    )
-                current = ready or active
+                    prepare_cancel.set()
+                    if key == pending_key:
+                        if active is None:
+                            raise TimeoutError("content preparation timed out")
+                        failed_key = (key, cfg["n"])
+                        report(
+                            {
+                                "n": cfg["n"],
+                                "role_phase": "fault",
+                                "reason": "content preparation timed out",
+                            }
+                        )
+                current = (ready if offered is None and not holding else None) or active
                 old_timeline_valid = active_key is not None and (
                     active_key[0] != "show"
                     or active_key[1:3] == timeline
                     and ended != timeline
                 )
-                if current and (ready or active_key == key or old_timeline_valid):
+                if current and (current is ready or active_key == key or old_timeline_valid):
                     target = cfg["target"]
                     if cfg["mode"] == "mic":
                         target = {"kind": "wled", "source_id": cfg.get("mic_sender")}
@@ -334,8 +463,10 @@ def serve(config, commands, report):
                         audio_key = source_key
                     try:
                         frame = current.render(audio, cfg)
+                        if frame is not None and current is ready:
+                            validate_candidate(frame, writer._layout)
                     except Exception as exc:
-                        if ready is None:
+                        if current is not ready or active is None:
                             raise
                         ready.close()
                         ready = None
@@ -346,7 +477,7 @@ def serve(config, commands, report):
                     else:
                         if frame is None:
                             ended = timeline
-                            if ready:
+                            if current is ready:
                                 ready.close()
                                 ready = None
                         else:
@@ -359,21 +490,16 @@ def serve(config, commands, report):
                                     effective=None,
                                     reason="节目暂停，灯光定格",
                                 )
-                            if current is active and active_key != key:
+                            if current is active and (
+                                active_key != key or offered is not None
+                            ):
                                 handoff.refresh_active(
                                     applied_number, current.role, frame, status, now
                                 )
                             elif handoff.publish(
                                 cfg["n"], current.role, frame, status, now
                             ):
-                                applied_number = cfg["n"]
-                                if ready:
-                                    if active:
-                                        active.close()
-                                    active, active_key, ready = ready, key, None
-                            elif ready:
-                                ready.close()
-                                ready = None
+                                offered = (cfg["n"], key)
                 stop.wait(period)
         except Exception as exc:
             failures.append(str(exc))
@@ -385,6 +511,7 @@ def serve(config, commands, report):
             if ready:
                 ready.close()
             if pending and not pending.cancel():
+                prepare_cancel.set()
                 pending.add_done_callback(
                     lambda job: job.result().close() if not job.exception() else None
                 )
@@ -399,15 +526,19 @@ def serve(config, commands, report):
         while not stop.is_set():
             now = time.monotonic()
             item = handoff.sample(now)
-            if item and handoff.claim(item):
+            if item:
                 role, frame, source, n, _ = item
-                frame = replace(frame, sequence=writer._advance_sequence())
-                writer._timestamp = frame.timestamp
                 physical = writer._physical_mapping.map(
                     writer._output_transform.apply_to_frame(frame)
                 )
+                if stop.is_set() or not handoff.claim(item):
+                    stop.wait(max(0, period - (time.monotonic() - now)))
+                    continue
                 if not any(node.enabled for node in physical.digital_frames):
                     raise RuntimeError("no enabled DDP node")
+                sequence = writer._advance_sequence()
+                writer._timestamp = frame.timestamp
+                physical = replace(physical, sequence=sequence)
                 send_all(writer._outputs, physical)
                 applied_current = handoff.commit(item)
                 identity = (
@@ -426,7 +557,7 @@ def serve(config, commands, report):
                             "role_phase": "applied",
                             "effective_role": role,
                             "audio": source,
-                            "frame_seq": frame.sequence,
+                            "frame_seq": sequence,
                         }
                     )
                     last_report = identity

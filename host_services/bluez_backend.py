@@ -13,7 +13,7 @@ import os
 import re
 import sys
 import time
-from typing import Any
+from typing import Any, Callable
 
 from .audio_routing import PulseAudioRouter
 from .bluetooth import BackendUnavailable
@@ -38,6 +38,8 @@ class LinuxBluezBackend:
         challenge_timeout: float = 60.0,
         pair_timeout: float = 90.0,
         max_connections: int = 2,
+        program_pid: Callable[[], int | None] | None = None,
+        require_program_pid: bool = False,
     ) -> None:
         if not sys.platform.startswith("linux") and bus is None:
             raise BackendUnavailable("real Bluetooth backend requires Linux")
@@ -47,6 +49,8 @@ class LinuxBluezBackend:
         self.challenge_timeout = challenge_timeout
         self.pair_timeout = pair_timeout
         self.max_connections = max_connections
+        self.program_pid = program_pid
+        self.require_program_pid = require_program_pid
         self._callbacks = None
         self._objects: dict[str, dict[str, dict[str, Any]]] = {}
         self._challenges: dict[str, dict[str, Any]] = {}
@@ -272,6 +276,15 @@ class LinuxBluezBackend:
                     "source_id": self._route_device,
                     "device": self._source_monitor.get(self._route["sink"]),
                     "monitor_stream": details["sink_input_index"],
+                    "pa_generation": self.router.generation,
+                    "flow_generation": self.router.flow_generation(
+                        "sink-input", details["sink_input_index"]
+                    ),
+                    "pa_sink": self._route["sink"],
+                    "pa_sink_index": details["sink_index"],
+                    "pa_monitor_source": details["monitor_source"],
+                    "pa_source": self._route["source"],
+                    "pa_owner_module": self._route["module_id"],
                 }
         else:
             sink = self.sink or (await self.router._runner("get-default-sink")).strip()
@@ -886,6 +899,9 @@ class LinuxBluezBackend:
         self._source_monitor = monitors
 
     async def _program_target(self, sink: str):
+        expected_pid = self.program_pid() if self.program_pid is not None else None
+        if self.require_program_pid and expected_pid is None:
+            return None
         sinks = json.loads(await self.router._runner("--format=json", "list", "sinks"))
         selected = next((row for row in sinks if row.get("name") == sink), None)
         monitor = self._source_monitor.get(sink)
@@ -900,6 +916,11 @@ class LinuxBluezBackend:
             if str(row.get("sink")) == str(selected["index"])
             and row.get("properties", {}).get("application.name")
             == "LIGHT-BELT-LocalMedia"
+            and (
+                expected_pid is None
+                or str(row.get("properties", {}).get("application.process.id"))
+                == str(expected_pid)
+            )
         ]
         if len(matches) == 1:
             return {
@@ -907,6 +928,15 @@ class LinuxBluezBackend:
                 "source_id": "LIGHT-BELT-LocalMedia",
                 "device": monitor,
                 "monitor_stream": int(matches[0]["index"]),
+                "pa_generation": self.router.generation,
+                "flow_generation": self.router.flow_generation(
+                    "sink-input", int(matches[0]["index"])
+                ),
+                "flow_identity": f"mpv:{expected_pid}:{matches[0]['index']}",
+                "pa_sink": sink,
+                "pa_sink_index": int(selected["index"]),
+                "pa_monitor_source": monitor,
+                "pa_owner_pid": expected_pid,
             }
         return None
 

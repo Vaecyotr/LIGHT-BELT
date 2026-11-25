@@ -200,6 +200,59 @@ async def _pulse_subscribe_events_trigger_reconciliation_and_monitor_closes_clea
     assert router._watch_task is None
 
 
+def test_pulse_subscription_termination_advances_server_generation():
+    async def run():
+        first_subscription = asyncio.Event()
+
+        async def subscription():
+            if not first_subscription.is_set():
+                first_subscription.set()
+                yield "server restarted"
+
+        router = PulseAudioRouter(subscriber=subscription)
+        await router.start_monitor(lambda: None)
+        await asyncio.wait_for(first_subscription.wait(), 0.5)
+        for _ in range(20):
+            if router.generation:
+                break
+            await asyncio.sleep(0.01)
+        assert router.generation == 1
+        await router.stop_monitor()
+
+    asyncio.run(run())
+
+
+def test_pulse_observer_exception_invalidates_flows_and_notifies_reconciliation():
+    async def run():
+        disconnected = asyncio.Event()
+        callbacks = []
+        calls = 0
+
+        async def subscription():
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise OSError("PulseAudio observer disconnected")
+            await asyncio.Event().wait()
+            yield "unreachable"
+
+        async def changed():
+            callbacks.append(True)
+            disconnected.set()
+
+        router = PulseAudioRouter(subscriber=subscription)
+        router._flow_generations[("sink-input", 19)] = 7
+        await router.start_monitor(changed)
+        await asyncio.wait_for(disconnected.wait(), 0.5)
+
+        assert router.generation == 1
+        assert router.flow_generation("sink-input", 19) == 0
+        assert callbacks == [True]
+        await router.stop_monitor()
+
+    asyncio.run(run())
+
+
 async def _pulse_router_rejects_wrong_readback_and_unloads_partial_module():
     calls = []
 

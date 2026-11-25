@@ -46,103 +46,22 @@ logger = logging.getLogger(__name__)
 _SEQUENCE_MODULUS = 1 << 32
 
 
-class Engine:
-    """Main lighting engine orchestrating analysis, effects, and output."""
+class RenderContext:
+    """Media reader, analysis, and effect state for one rendered role."""
 
-    def __init__(
-        self,
-        config: Optional[Config] = None,
-        clock: Optional[Clock] = None,
-        *,
-        sequence_seed: Optional[int] = None,
-        live_audio_source: Optional[WledAudioSyncV2Source] = None,
-    ):
-        if config is None:
-            config = Config.get_instance()
+    def __init__(self, config: Config, layout: Layout | None = None):
         self._config = config
-
-        # Rates
+        self._layout = layout if layout is not None else Layout.from_config(config)
         self._output_fps = config.get("system.output_fps", 30.0)
         self._video_fps = config.get("system.video_analysis_fps", 10.0)
-        self._audio_fps = config.get("system.audio_update_fps", 60.0)
-
-        # Layout
-        self._layout = Layout.from_config(config)
-        self._physical_mapping = PhysicalMapping(self._layout)
-
-        # Analyzers (lazy init)
         self._video_analyzer: Optional[VideoAnalyzer] = None
-        self._audio_analyzer: Optional[AudioAnalyzer] = None
-        self._music_control_analyzer = MusicControlAnalyzer()
-
-        audio_source_config = config.get("system.audio.source", {})
-        self._live_audio_source: Optional[WledAudioSyncV2Source] = live_audio_source
-        if self._live_audio_source is None and audio_source_config.get("kind") == "wled_audio_sync_v2":
-            self._live_audio_source = WledAudioSyncV2Source(
-                multicast_group=audio_source_config["multicast_group"],
-                port=audio_source_config["port"],
-                interface=audio_source_config["interface_ipv4"],
-                stale_after=audio_source_config["stale_after_ms"] / 1000.0,
-            )
-        self._live_audio_was_stale = True
-
-        # Media readers
         self._video_reader: Optional[VideoReader] = None
-        self._audio_reader: Optional[AudioReader] = None
-        self._media_closed = False
-
-        # Data source
-        self._data_source: Optional[SyntheticDataSource] = None
-
-        # Current effect
         self._effect: Optional[BaseEffect] = None
-        self._effect_name: str = ""
+        self._effect_name = ""
         self._show_runtime: Optional[ShowRuntime] = None
-
-        # Outputs
-        self._outputs: dict[str, LightOutput] = {}
-        transform_config = config.get("outputs.transform", {})
-        self._output_transform = OutputTransform(
-            global_brightness=config.get("system.smoothing.max_brightness", 0.85),
-            gamma=config.get("system.smoothing.gamma", 1.0),
-            power_limit=transform_config.get("power_limit", 5.0),
-            per_zone_warm_bias=transform_config.get("per_zone_warm_bias", {}),
-            per_zone_cool_bias=transform_config.get("per_zone_cool_bias", {}),
-        )
-        self._clock: Clock = clock or OfflineRenderClock(fps=self._output_fps)
-
-        # State
-        self._running = False
-        self._timestamp: float = 0.0
-        self._last_clock_time: float = self._clock.now()
-        self._frame_count: int = 0
-        if sequence_seed is None:
-            sequence_seed = 0
-        if not isinstance(sequence_seed, int) or not 0 <= sequence_seed < _SEQUENCE_MODULUS:
-            raise ValueError("sequence_seed must be a uint32")
-        self._sequence_seed: int = sequence_seed
-        self._sequence: int = sequence_seed
-        self._fps_stats: deque[float] = deque(maxlen=3600)
-        self._processing_time = 0.0
-        self._run_start_wall: float = 0.0
-        self._run_end_wall: float = 0.0
-
-        # Latest features
         self._latest_video: Optional[VideoFeatures] = None
-        self._latest_audio: Optional[AudioFeatures] = None
-        self._latest_music_control_state: Optional[MusicControlState] = None
-
-        # Diagnostic state
-        self._diagnostics: dict = {
-            "running": False,
-            "mode": "",
-            "fps": 0.0,
-            "media_position": 0.0,
-            "video_available": False,
-            "audio_available": False,
-            "output_health": {},
-            "last_error": None,
-        }
+        self._timestamp = 0.0
+        self._diagnostics: dict = {"mode": "", "last_error": None}
 
         # Strip and zone definitions for effects
         self._strip_defs = [
@@ -163,12 +82,6 @@ class Engine:
             for z in self._layout.zones
         ]
 
-    # ---- Setup methods ----
-
-    def use_synthetic(self, seed: int = 42) -> None:
-        """Use synthetic/generative data for demo/testing."""
-        self._data_source = SyntheticDataSource(seed=seed)
-
     def load_video(self, path: str) -> None:
         """Load a video file for analysis."""
         reader = VideoReader(path)
@@ -185,14 +98,6 @@ class Engine:
         self._video_reader = reader
         self._video_analyzer = VideoAnalyzer(self._config)
 
-    def load_audio(self, path: str) -> None:
-        """Load an audio file for analysis."""
-        reader = AudioReader(path).open()
-        if self._audio_reader is not None:
-            self._audio_reader.close()
-        self._audio_reader = reader
-        self._audio_analyzer = AudioAnalyzer(self._config)
-
     def set_effect(self, name: str) -> BaseEffect:
         """Set the active lighting effect."""
         self._effect = create_effect(name)
@@ -208,6 +113,129 @@ class Engine:
         self._effect = None
         self._effect_name = runtime.show.id
         self._diagnostics["mode"] = runtime.show.id
+
+    def _reset_content_timeline(self) -> None:
+        if self._video_analyzer is not None and hasattr(self._video_analyzer, "reset"):
+            self._video_analyzer.reset()
+        if self._effect is not None:
+            self._effect.reset()
+        if self._show_runtime is not None:
+            self._show_runtime.reset()
+        self._latest_video = None
+
+    def _get_video_features(self) -> Optional[VideoFeatures]:
+        """Get latest video features from the current media reader."""
+        if self._video_reader is not None:
+            if self._video_analyzer is None:
+                raise RuntimeError("Video reader is active without a video analyzer")
+            frame = self._video_reader.read_frame(self._timestamp)
+            if frame is None:
+                raise RuntimeError(
+                    f"Video frame decoding failed at {self._timestamp:.3f}s"
+                )
+            return self._video_analyzer.analyze(frame, self._timestamp)
+        return None
+
+
+class Engine(RenderContext):
+    """Main lighting engine orchestrating analysis, effects, and output."""
+
+    def __init__(
+        self,
+        config: Optional[Config] = None,
+        clock: Optional[Clock] = None,
+        *,
+        sequence_seed: Optional[int] = None,
+        live_audio_source: Optional[WledAudioSyncV2Source] = None,
+    ):
+        if config is None:
+            config = Config.get_instance()
+        super().__init__(config)
+
+        # Rates
+        self._audio_fps = config.get("system.audio_update_fps", 60.0)
+
+        # Layout
+        self._physical_mapping = PhysicalMapping(self._layout)
+
+        # Analyzers (lazy init)
+        self._audio_analyzer: Optional[AudioAnalyzer] = None
+        self._music_control_analyzer = MusicControlAnalyzer()
+
+        audio_source_config = config.get("system.audio.source", {})
+        self._live_audio_source: Optional[WledAudioSyncV2Source] = live_audio_source
+        if self._live_audio_source is None and audio_source_config.get("kind") == "wled_audio_sync_v2":
+            self._live_audio_source = WledAudioSyncV2Source(
+                multicast_group=audio_source_config["multicast_group"],
+                port=audio_source_config["port"],
+                interface=audio_source_config["interface_ipv4"],
+                stale_after=audio_source_config["stale_after_ms"] / 1000.0,
+            )
+        self._live_audio_was_stale = True
+
+        # Media readers
+        self._audio_reader: Optional[AudioReader] = None
+        self._media_closed = False
+
+        # Data source
+        self._data_source: Optional[SyntheticDataSource] = None
+
+        # Outputs
+        self._outputs: dict[str, LightOutput] = {}
+        transform_config = config.get("outputs.transform", {})
+        self._output_transform = OutputTransform(
+            global_brightness=config.get("system.smoothing.max_brightness", 0.85),
+            gamma=config.get("system.smoothing.gamma", 1.0),
+            power_limit=transform_config.get("power_limit", 5.0),
+            per_zone_warm_bias=transform_config.get("per_zone_warm_bias", {}),
+            per_zone_cool_bias=transform_config.get("per_zone_cool_bias", {}),
+        )
+        self._clock: Clock = clock or OfflineRenderClock(fps=self._output_fps)
+
+        # State
+        self._running = False
+        self._last_clock_time: float = self._clock.now()
+        self._frame_count: int = 0
+        if sequence_seed is None:
+            sequence_seed = 0
+        if not isinstance(sequence_seed, int) or not 0 <= sequence_seed < _SEQUENCE_MODULUS:
+            raise ValueError("sequence_seed must be a uint32")
+        self._sequence_seed: int = sequence_seed
+        self._sequence: int = sequence_seed
+        self._fps_stats: deque[float] = deque(maxlen=3600)
+        self._processing_time = 0.0
+        self._run_start_wall: float = 0.0
+        self._run_end_wall: float = 0.0
+
+        # Latest features
+        self._latest_audio: Optional[AudioFeatures] = None
+        self._latest_music_control_state: Optional[MusicControlState] = None
+
+        # Diagnostic state
+        self._diagnostics: dict = {
+            "running": False,
+            "mode": "",
+            "fps": 0.0,
+            "media_position": 0.0,
+            "video_available": False,
+            "audio_available": False,
+            "output_health": {},
+            "last_error": None,
+        }
+
+    # ---- Setup methods ----
+
+    def use_synthetic(self, seed: int = 42) -> None:
+        """Use synthetic/generative data for demo/testing."""
+        self._data_source = SyntheticDataSource(seed=seed)
+
+    def load_audio(self, path: str) -> None:
+        """Load an audio file for analysis."""
+        reader = AudioReader(path).open()
+        if self._audio_reader is not None:
+            self._audio_reader.close()
+        self._audio_reader = reader
+        self._audio_analyzer = AudioAnalyzer(self._config)
 
     def reset(self) -> None:
         """Explicitly reset stateful runtime components before replaying from start."""
@@ -466,19 +494,13 @@ class Engine:
 
     def _handle_timeline_reset(self) -> None:
         """Reset stateful analysis/effect components after a media seek."""
-        if self._video_analyzer is not None and hasattr(self._video_analyzer, "reset"):
-            self._video_analyzer.reset()
+        self._reset_content_timeline()
         if self._audio_analyzer is not None and hasattr(self._audio_analyzer, "reset"):
             self._audio_analyzer.reset()
         if self._live_audio_source is not None:
             self._live_audio_source.reset()
             self._live_audio_was_stale = True
         self._music_control_analyzer.reset()
-        if self._effect is not None:
-            self._effect.reset()
-        if self._show_runtime is not None:
-            self._show_runtime.reset()
-        self._latest_video = None
         self._latest_audio = None
         self._latest_music_control_state = None
 
@@ -488,17 +510,9 @@ class Engine:
         return self._sequence
 
     def _get_video_features(self) -> Optional[VideoFeatures]:
-        """Get latest video features from reader or synthetic source."""
         if self._video_reader is not None:
-            if self._video_analyzer is None:
-                raise RuntimeError("Video reader is active without a video analyzer")
-            frame = self._video_reader.read_frame(self._timestamp)
-            if frame is None:
-                raise RuntimeError(
-                    f"Video frame decoding failed at {self._timestamp:.3f}s"
-                )
-            return self._video_analyzer.analyze(frame, self._timestamp)
-        if self._data_source:
+            return super()._get_video_features()
+        if self._data_source is not None:
             return self._data_source.get_video_features(self._timestamp)
         return None
 

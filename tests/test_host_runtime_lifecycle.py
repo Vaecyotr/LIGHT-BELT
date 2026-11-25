@@ -184,3 +184,86 @@ def test_lifespan_owns_single_probe_and_waits_for_inflight_work(monkeypatch):
             await host._stop_runtime()
 
     asyncio.run(run())
+
+
+def test_runtime_startup_recovers_corrupt_preferences_and_keeps_host_available(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "preferences.json").write_text("{broken", encoding="utf-8")
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_ORIGIN", "https://cabin.example")
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_DIR", str(tmp_path))
+    monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "memory")
+    monkeypatch.setattr(engine_adapter, "startup", lambda: None)
+    monkeypatch.setattr(engine_adapter, "shutdown", lambda: None)
+    monkeypatch.setattr(engine_adapter, "_reconcile_lighting", lambda: None)
+    monkeypatch.setattr(host.ws, "bind_event_loop", lambda _loop: None)
+
+    class Backend:
+        pass
+
+    class AudioSystem:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def start(self):
+            pass
+
+        async def close(self):
+            pass
+
+        def snapshot(self):
+            return {}
+
+    monkeypatch.setattr("host_services.bluetooth.create_backend", lambda **_kwargs: Backend())
+    monkeypatch.setattr("host_services.bluetooth.AudioSystem", AudioSystem)
+
+    async def run():
+        await host._start_runtime()
+        try:
+            assert engine_adapter._preferences.data["intent"] == "off"
+            assert engine_adapter._preferences.data["muted"] is True
+            assert engine_adapter.control_snapshot()["preferences"]["recovery_error"]
+        finally:
+            await host._stop_runtime()
+
+    asyncio.run(run())
+
+
+def test_runtime_startup_tolerates_corrupt_enrollment_database(tmp_path, monkeypatch):
+    (tmp_path / "terminal.sqlite").write_bytes(b"not a sqlite database")
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_ORIGIN", "https://cabin.example")
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_DIR", str(tmp_path))
+    monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
+    monkeypatch.setattr(engine_adapter, "_real_adapter", object())
+    monkeypatch.setattr(engine_adapter, "startup", lambda: None)
+    monkeypatch.setattr(engine_adapter, "shutdown", lambda: None)
+    monkeypatch.setattr(engine_adapter, "_reconcile_lighting", lambda: None)
+    monkeypatch.setattr(host.ws, "bind_event_loop", lambda _loop: None)
+
+    class Backend:
+        terminal_generation = None
+
+    class AudioSystem:
+        def __init__(self, backend, **_kwargs):
+            self.backend = backend
+
+        async def start(self):
+            assert self.backend.terminal_generation() is None
+
+        async def close(self):
+            pass
+
+        def snapshot(self):
+            return {}
+
+    monkeypatch.setattr("host_services.bluetooth.create_backend", lambda **_kwargs: Backend())
+    monkeypatch.setattr("host_services.bluetooth.AudioSystem", AudioSystem)
+
+    async def run():
+        await host._start_runtime()
+        try:
+            assert host.app.state.ready is True
+        finally:
+            await host._stop_runtime()
+
+    asyncio.run(run())

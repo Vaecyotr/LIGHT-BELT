@@ -12,7 +12,7 @@ from pathlib import Path
 from light_engine import __version__
 from light_engine.clock import FakeClock, MpvIPCClock, OfflineRenderClock
 from light_engine.config import Config, ConfigError
-from light_engine.engine import Engine
+from light_engine.engine import Engine, RenderContext
 from light_engine.mapping import Layout
 from light_engine.outputs import health_summary
 from light_engine.show import ShowValidationError, ShowRuntime, TargetCatalog, load_show
@@ -57,9 +57,10 @@ def _load_show_for_config(show_path: str, config: Config):
     return load_show(Path(show_path), catalog), layout
 
 
-def _configure_engine_show(engine: Engine, show_path: str) -> float:
-    show, _layout = _load_show_for_config(show_path, engine._config)
-    engine.set_show_runtime(ShowRuntime.from_layout(show, engine._layout))
+def _configure_engine_show(renderer: RenderContext, show_path: str) -> float:
+    layout = renderer._layout
+    show = load_show(Path(show_path), TargetCatalog.from_layout(layout))
+    renderer.set_show_runtime(ShowRuntime.from_layout(show, layout))
     return show.duration
 
 

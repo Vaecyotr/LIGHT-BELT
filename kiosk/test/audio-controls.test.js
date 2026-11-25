@@ -4,8 +4,16 @@ import {
   challengeInputRequired,
   describeOperation,
   isControlSnapshotFresh,
+  lightDescription,
   speakerDescription,
 } from '../src/components/audioControlState.js'
+
+test('off intent, submitted request and confirmed device state are shown separately', () => {
+  assert.equal(lightDescription({intent:'off', off_status:'requested'}), '等待设备确认')
+  assert.equal(lightDescription({intent:'off', off_status:'unknown'}), '设备状态未知')
+  assert.equal(lightDescription({intent:'off', off_status:'unknown', off_submitted:true}), '已发送关灯请求，设备状态未知')
+  assert.equal(lightDescription({intent:'off', off_status:'confirmed'}), '设备已确认关闭')
+})
 
 test('routed speaker is reported only after route readback', () => {
   assert.equal(speakerDescription({status:'waiting', device:'b', name:'B', kind:'program'}), '节目原声 · 等待 B 开始播放')

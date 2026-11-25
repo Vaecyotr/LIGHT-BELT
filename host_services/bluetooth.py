@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 import sys
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 
 class BackendUnavailable(RuntimeError):
@@ -71,6 +71,7 @@ def create_backend(
     allow_real: bool = False,
     h2_h3_verified: bool = False,
     isolated_test_image: bool = False,
+    program_pid: Callable[[], int | None] | None = None,
 ) -> BluetoothBackend:
     """Create a backend; hardware control requires explicit H2/H3 approval."""
     if not allow_real:
@@ -81,7 +82,9 @@ def create_backend(
         )
     if not sys.platform.startswith("linux"):
         raise BackendUnavailable("real Bluetooth backend requires Linux")
-    return LinuxBackend()
+    if program_pid is None:
+        return LinuxBackend()
+    return LinuxBackend(program_pid=program_pid, require_program_pid=True)
 
 
 class AudioSystem:

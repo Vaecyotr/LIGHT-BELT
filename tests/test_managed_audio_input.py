@@ -1,3 +1,6 @@
+import threading
+import time
+
 import numpy as np
 import pytest
 from scipy.io import wavfile
@@ -180,6 +183,88 @@ def test_managed_configure_same_target_is_idempotent():
     assert first == second
     assert len(calls) == 1
     source.close()
+
+
+def test_managed_pcm_rebinds_when_pulse_server_generation_changes():
+    calls = []
+
+    class Capture:
+        sample_rate = 48000
+
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+
+        def start(self):
+            return self
+
+        def close(self):
+            pass
+
+        def read_latest(self):
+            return None
+
+        def status(self):
+            return {"running": True}
+
+    source = ManagedAudioInput(Config(), capture_factory=Capture)
+    target = {
+        "kind": "phone_pcm", "device": "bluez_source.phone.monitor",
+        "monitor_stream": 19, "source_id": "phone-a", "pa_generation": "pa-1",
+    }
+    first = source.configure("device", target)
+    target["pa_generation"] = "pa-2"
+    second = source.configure("device", target)
+
+    assert second > first
+    assert len(calls) == 2
+    source.close()
+
+
+def test_switching_pcm_source_does_not_wait_for_retired_capture_close():
+    close_started = threading.Event()
+    allow_close = threading.Event()
+    captures = []
+
+    class Capture:
+        sample_rate = 48000
+
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            captures.append(self)
+
+        def start(self):
+            return self
+
+        def close(self):
+            close_started.set()
+            assert allow_close.wait(2)
+
+        def read_latest(self):
+            return None
+
+        def status(self):
+            return {"running": True}
+
+    source = ManagedAudioInput(Config(), capture_factory=Capture)
+    source.configure("device", {"kind": "phone_pcm", "device": "source-a", "monitor_stream": 1})
+
+    started = time.monotonic()
+    source.configure("device", {"kind": "phone_pcm", "device": "source-b", "monitor_stream": 2})
+    assert time.monotonic() - started < 0.2
+    assert close_started.wait(1)
+    assert source.poll(0.0) == (None, None)
+    assert len(captures) == 1
+
+    allow_close.set()
+    deadline = time.monotonic() + 1
+    while len(captures) == 1 and time.monotonic() < deadline:
+        source.poll(0.0)
+        time.sleep(0.005)
+    try:
+        assert len(captures) == 2
+        assert source._capture is captures[1]
+    finally:
+        source.close()
 
 
 def test_managed_pcm_capture_failure_is_reported_and_does_not_escape_poll():

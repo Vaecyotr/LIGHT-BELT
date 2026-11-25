@@ -31,3 +31,17 @@ export function speakerDescription(speaker = {}) {
   if (speaker.kind === 'program') return speaker.user_muted ? '节目已静音' : '节目原声'
   return '当前无声'
 }
+
+export function lightDescription(lighting = {}) {
+  if (lighting.intent === 'off') {
+    if (lighting.off_status === 'confirmed') return '设备已确认关闭'
+    if (lighting.off_status === 'unknown') {
+      return lighting.off_submitted ? '已发送关灯请求，设备状态未知' : '设备状态未知'
+    }
+    return '等待设备确认'
+  }
+  return ({
+    preparing: '切换中', held: '等待视频定位',
+    fault: '输出异常', idle: '等待播放', applied: '已生效',
+  })[lighting.phase] || '等待确认'
+}

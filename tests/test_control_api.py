@@ -113,6 +113,59 @@ def test_persisted_off_is_reasserted_when_host_starts_without_a_renderer(
     assert write.call_count == 2
 
 
+def test_same_wled_address_is_rechecked_after_reboot(tmp_path, monkeypatch):
+    import io
+    import json
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from host_services import engine_adapter as host
+    from host_services.control_terminal import ControlPreferences
+
+    prefs = ControlPreferences(tmp_path)
+    prefs.set_intent("off", None)
+    adapter = SimpleNamespace(
+        _active_show=None, seek_generation=0, sender=None, configure=Mock(),
+        status={"role_phase": "idle", "effective_role": "none"},
+    )
+    device = {"host": "192.0.2.1", "device_type": host.WLED_DEVICE_TYPE}
+    for name, value in {
+        "_preferences": prefs, "_real_adapter": adapter, "_audio_system": None,
+        "_devices": [device], "_confirmed_off_hosts": None,
+        "_off_request_submitted": False,
+        "_power_error": None, "_lighting_error": None,
+    }.items():
+        monkeypatch.setattr(host, name, value)
+    state = {"on": True, "uptime": 200, "live": True}
+    writes = []
+
+    def fetch(request, **kwargs):
+        if not isinstance(request, str):
+            payload = json.loads(request.data)
+            writes.append(payload)
+            state.update(payload)
+            return io.BytesIO(b'{"success":true}')
+        return io.BytesIO(json.dumps({
+            "on": state["on"], "state": {"on": state["on"]},
+            "info": {"uptime": state["uptime"], "live": state["live"]},
+        }).encode())
+
+    monkeypatch.setattr(host.urllib.request, "urlopen", fetch)
+    host._reconcile_lighting()
+    lighting = host.control_snapshot()["lighting"]
+    assert lighting["off_submitted"] is True
+    assert lighting["off_status"] == "unknown"
+    state["live"] = False
+    host._probe_devices()
+    host._reconcile_lighting()
+    assert host.control_snapshot()["lighting"]["off_status"] == "confirmed"
+    assert writes == [{"on": False}]
+    state.update(on=True, uptime=1)
+    host._probe_devices()
+    host._reconcile_lighting()
+    assert state["on"] is False
+    assert writes == [{"on": False}, {"on": False}]
+
+
 def test_phone_gate_preserves_program_mute_and_volume_when_user_changes_them(
     tmp_path, monkeypatch
 ):
@@ -191,3 +244,22 @@ def test_separate_cabins_do_not_share_screen_authority_or_lighting_intent(
                     client.put("/control/lighting", json={"intent": "off"}).status_code
                     == 200
                 )
+
+
+def test_corrupt_enrollment_storage_fails_closed_without_blocking_public_v1(
+    tmp_path, monkeypatch
+):
+    url = "https://cabin.example"
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_ORIGIN", url)
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_DIR", str(tmp_path))
+    monkeypatch.setattr("host_services.engine_adapter.ENGINE_ADAPTER", "mock")
+    (tmp_path / "terminal.sqlite").write_bytes(b"damaged sqlite data")
+
+    with TestClient(app, base_url=url) as client:
+        response = client.post(
+            "/control/enroll", headers={"Origin": url}, json={"code": "unused"}
+        )
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "ENROLLMENT_STORAGE_UNAVAILABLE"
+        monkeypatch.delenv("LIGHT_BELT_CONTROL_ORIGIN")
+        assert client.get("/api/v1/status").status_code == 200

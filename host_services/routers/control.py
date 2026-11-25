@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.requests import HTTPConnection
 from pydantic import BaseModel, Field
+import sqlite3
 
 from .. import engine_adapter
 from ..control_terminal import ControlConflict, ControlTerminal, control_dir
@@ -74,6 +75,8 @@ class Intent(BaseModel):
 def enroll(body: Enrollment, request: Request):
     try:
         session = ControlTerminal(control_dir()).enroll(body.code)
+    except sqlite3.DatabaseError as exc:
+        denied(503, "ENROLLMENT_STORAGE_UNAVAILABLE", "控制屏登记数据损坏，需维护后重新登记")
     except ValueError as exc:
         denied(403, "ENROLLMENT_FAILED", str(exc))
     response = ok(request, {"enrolled": True})

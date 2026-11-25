@@ -15,6 +15,7 @@ import os
 import sys
 import uuid
 import socket
+import struct
 import subprocess
 import threading
 from pathlib import Path
@@ -174,6 +175,7 @@ class MpvClient:
     ):
         self._sock_path = sock_path
         self._socket_factory = socket_factory
+        self.peer_pid = None
 
     _SEND_TIMEOUT_S = 2.0
 
@@ -352,12 +354,14 @@ def _push_wled_off(*, explicit=False) -> None:
     from . import wled_brightness
     hosts_devices = _enabled_wled_devices()
     if explicit and _preferences and _real_adapter is not None:
-        global _power_error, _confirmed_off_hosts
+        global _power_error, _confirmed_off_hosts, _off_request_submitted
         try:
             wled_brightness.apply_managed(hosts_devices, None, WLED_HTTP_TIMEOUT_S)
+            _off_request_submitted = True
             _power_error = None
             _confirmed_off_hosts = frozenset(d["host"] for d in hosts_devices)
         except RuntimeError as exc:
+            _off_request_submitted = isinstance(exc, wled_brightness.ManagedStateError) and exc.submitted
             _confirmed_off_hosts = None
             _power_error = str(exc)
             raise
@@ -375,11 +379,19 @@ from contextlib import closing
 
 def _probe_devices() -> None:
     """Collect one batch, then publish it for unchanged device endpoints."""
+    from .wled_brightness import reports_off
+
     global _devices
+    global _confirmed_off_hosts, _power_error
     t = _now_ms()
+    with _session_lock:
+        prefs = _preferences
+        off_token = prefs.token if prefs and prefs.data["intent"] == "off" else None
+        confirmed = _confirmed_off_hosts
     with _profile_refresh_lock:
         devices = [(device, dict(device)) for device in _devices]
     updates = []
+    off_readback = {}
     for original, d in devices:
         if not d.get("enabled", True):
             updates.append((original, d, {"status": "offline", "connection_confirmed": False,
@@ -391,8 +403,10 @@ def _probe_devices() -> None:
         if not host:
             continue
         try:
-            with closing(urllib.request.urlopen(f"http://{host}/json/info", timeout=1)):
-                pass
+            endpoint = "si" if off_token is not None else "info"
+            with closing(urllib.request.urlopen(f"http://{host}/json/{endpoint}", timeout=1)) as response:
+                if off_token is not None:
+                    off_readback[host] = reports_off(json.load(response))
             result = {"status": "online", "connection_confirmed": True,
                       "last_seen_ms": t, "error_code": None}
         except Exception:
@@ -407,6 +421,18 @@ def _probe_devices() -> None:
                     devices[index] = {**current, **result}
                     break
         _devices = devices
+    if off_token is not None:
+        with _session_lock:
+            if (prefs is _preferences and prefs.token == off_token
+                    and prefs.data["intent"] == "off"
+                    and confirmed is _confirmed_off_hosts):
+                hosts = frozenset(d["host"] for d in _enabled_wled_devices())
+                if hosts and all(off_readback.get(host) for host in hosts):
+                    _confirmed_off_hosts = hosts
+                    _power_error = None
+                else:
+                    _confirmed_off_hosts = None
+                    _power_error = "WLED off state is not confirmed"
 
 def _mark_devices_output() -> None:
     t = _now_ms()
@@ -426,6 +452,7 @@ _route_gate = False
 _power_error = None
 _lighting_error = None
 _confirmed_off_hosts = None
+_off_request_submitted = False
 
 # Accumulated manual-target state for real-adapter calls.
 # key = target_id (strip), value = one complete manual Show effect request.
@@ -712,17 +739,20 @@ def control_mode(mode):
 
 
 def control_intent(intent, token):
-    global _confirmed_off_hosts
+    global _confirmed_off_hosts, _off_request_submitted
     with _session_lock:
-        if intent == "off":
-            _confirmed_off_hosts = None
         try:
             _preferences.set_intent(intent, token)
         except OSError:
             if intent=="off":
+                _confirmed_off_hosts = None
+                _off_request_submitted = False
                 _preferences.emergency_off()
                 _reconcile_lighting()
             raise
+        if intent == "off":
+            _confirmed_off_hosts = None
+            _off_request_submitted = False
         _sync_lighting()
 
 
@@ -737,16 +767,28 @@ def control_snapshot():
             speaker["kind"] = "phone"
         else:
             speaker["kind"] = "program" if playback["playback_state"]=="playing" and not _route_gate else "none"
+        off_status = None
+        if prefs.data["intent"] == "off":
+            hosts = frozenset(d["host"] for d in _enabled_wled_devices())
+            if hosts and _confirmed_off_hosts == hosts and not _power_error:
+                off_status = "confirmed"
+            else:
+                off_status = "unknown" if _power_error else "requested"
         return {"video":{"state":playback["playback_state"],"volume":_state["volume"],
                          "user_muted":_state["muted"]}, "speaker":speaker,
                 "bluetooth":facts.get("bluetooth",{"available":False,"devices":[]}),
                 "lighting":{"intent":prefs.data["intent"],"intent_token":prefs.token,
+                            "off_status":off_status,
+                            "off_submitted":bool(off_status and _off_request_submitted),
                             "effective_role":status.get("effective_role","none"),
                             "phase":"fault" if (_power_error or _lighting_error) else status.get("role_phase","idle"),
                             "brightness":_state["brightness_scale"],
                             "reason":_power_error or _lighting_error or status.get("reason")},
                 "analysis":dict(status.get("audio") or {"phase":"waiting","effective":None},
-                                mode=prefs.data["mode"])}
+                                mode=prefs.data["mode"]),
+                "preferences":{"recovery_error":prefs.recovery_error,
+                              "persistence_error":prefs.persistence_error,
+                              "saved":prefs.saved}}
 
 
 def _close_mpv_observer() -> None:
@@ -907,8 +949,12 @@ def _wait_until(cond, timeout_s: float = 3.0, interval_s: float = 0.05) -> bool:
 def _mpv_position_matches(mpv: MpvClient, position_ms: float) -> bool:
     reply = mpv._send(["get_property", "time-pos"])
     value = reply.get("data")
-    return (reply.get("error") == "success" and isinstance(value, (int, float))
-            and abs(value * 1000 - position_ms) <= 250)
+    matches = (reply.get("error") == "success" and isinstance(value, (int, float))
+               and abs(value * 1000 - position_ms) <= 250)
+    if not matches or _preferences is None:
+        return matches
+    seeking = mpv._send(["get_property", "seeking"])
+    return seeking.get("error") == "success" and seeking.get("data") is False
 
 
 def _drain_stderr(proc: subprocess.Popen, name: str) -> None:
@@ -937,14 +983,17 @@ def _ensure_mpv() -> MpvClient:
     global _mpv, _mpv_proc, _audio_pending
     from .config import MPV_SOCKET_PATH, MPV_DISPLAY, MPV_XAUTHORITY, uses_wayland, wayland_display_available
     sock = MPV_SOCKET_PATH
+    peer_pid = None
 
     if os.path.exists(sock):
         # Probe whether mpv is actually alive behind the socket.
         try:
-            probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            probe.settimeout(1.0)
-            probe.connect(sock)
-            probe.close()
+            with closing(socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)) as probe:
+                probe.settimeout(1.0)
+                probe.connect(sock)
+                if _preferences is not None and hasattr(socket, "SO_PEERCRED"):
+                    credentials = probe.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+                    peer_pid, _, _ = struct.unpack("iII", credentials)
         except (ConnectionRefusedError, FileNotFoundError, OSError):
             _log.warning("mpv socket %s is stale; removing and restarting mpv", sock)
             _stop_owned_mpv()
@@ -1010,6 +1059,7 @@ def _ensure_mpv() -> MpvClient:
     if _mpv is None:
         _mpv = MpvClient(sock)
         _audio_pending = True
+    _mpv.peer_pid = peer_pid
     if _audio_pending:
         _mpv.set_volume(_state["volume"])
         if _preferences is not None:
@@ -1018,6 +1068,14 @@ def _ensure_mpv() -> MpvClient:
             _mpv.set_mute(_state["muted"] or _route_gate)
         _audio_pending = False
     return _mpv
+
+
+def program_mpv_pid():
+    proc = _mpv_proc
+    client = _mpv
+    if proc is not None:
+        return proc.pid if proc.poll() is None else None
+    return client.peer_pid if client is not None else None
 
 
 def _active_mpv() -> MpvClient:
@@ -1044,6 +1102,11 @@ def playback_play(show_id: str, start_ms: float | None, *, preserve_controls=Fal
         return None, "INVALID_ARGUMENT"
     if _real_adapter is not None:
         _refresh_wled_profile(reason="playback session resolve")
+    if _preferences and _real_adapter is not None:
+        try:
+            _real_adapter.hold_show_for_media_change()
+        except (RuntimeError, OSError) as exc:
+            _log.warning("Could not hold managed lighting before media replacement: %s", exc)
     # Tear down current lighting playback before starting the new show.
     # When the new show has media, loadfile(..., "replace") replaces the
     # current media directly; stopping mpv first is unnecessary.
@@ -1165,6 +1228,8 @@ def playback_pause() -> tuple[dict | None, str | None]:
 def playback_resume() -> tuple[dict | None, str | None]:
     if _state["playback_state"] not in ("playing", "paused"):
         return None, "PLAYBACK_NOT_READY"
+    if _preferences and _state["playback_state"] == "paused":
+        _reconcile_lighting(playing=True, start_ms=_live_position_ms(), wait=True)
     try:
         _active_mpv().resume()
     except MpvUnavailableError:
@@ -1229,6 +1294,8 @@ def playback_seek(position_ms: float) -> tuple[dict | None, str | None]:
             if not _real_adapter.on_playback_resume_yaml():
                 _set_playback_error("NO_ACTIVE_SHOW", "could not restart the active show after seek")
                 return None, "NO_ACTIVE_SHOW"
+            if _preferences:
+                _reconcile_lighting(playing=was_playing, start_ms=position_ms, wait=True)
             if was_playing:
                 mpv.resume()
                 _state["playback_state"] = "playing"

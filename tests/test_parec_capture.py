@@ -2,7 +2,7 @@ from io import BytesIO
 
 import numpy as np
 
-from light_engine.analysis.pulse_capture import ParecCapture
+from light_engine.analysis.pulse_capture import ParecCapture, validate_pulse_target
 
 
 class _Process:
@@ -80,3 +80,86 @@ def test_fragmented_stereo_sample_is_joined_before_pcm_decoding():
         assert not chunk.discontinuity
     finally:
         capture.close()
+
+
+def test_invalid_target_proof_prevents_parec_from_binding_reused_index():
+    started = []
+    capture = ParecCapture(
+        device="rt5616.monitor",
+        monitor_stream=19,
+        target_proof={"pa_sink_index": 2},
+        target_validator=lambda _proof: False,
+        popen=lambda *_args, **_kwargs: started.append(True),
+    ).start()
+    capture._thread.join(timeout=1)
+
+    assert started == []
+    assert capture.status()["phase"] == "invalid"
+    assert capture.status()["error"]
+    capture.close()
+
+
+def test_valid_target_proof_matches_pa_sink_and_mpv_stream_identity():
+    outputs = {
+        ("--format=json", "list", "sinks"): '[{"index":2,"name":"rt5616","monitor_source":"rt5616.monitor"}]',
+        ("--format=json", "list", "sink-inputs"): '[{"index":19,"sink":2,"owner_module":7,"properties":{"application.process.id":"2468"}}]',
+        ("list", "short", "modules"): "",
+    }
+
+    class Result:
+        returncode = 0
+
+        def __init__(self, stdout):
+            self.stdout = stdout
+
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command[1:])
+        return Result(outputs[tuple(command[1:])])
+
+    target = {
+        "monitor_stream": 19,
+        "device": "rt5616.monitor",
+        "pa_sink": "rt5616",
+        "pa_sink_index": 2,
+        "pa_monitor_source": "rt5616.monitor",
+        "pa_owner_pid": 2468,
+    }
+
+    assert validate_pulse_target(target, run=run)
+    target["device"] = "other.monitor"
+    assert not validate_pulse_target(target, run=run)
+
+
+def test_capture_closed_during_spawn_reaps_late_process(monkeypatch):
+    from threading import Event, Thread
+
+    spawning, allow_spawn, joining = Event(), Event(), Event()
+    process = _Process([])
+    process.returncode = None
+
+    def popen(*args, **kwargs):
+        spawning.set()
+        assert allow_spawn.wait(2)
+        return process
+
+    capture = ParecCapture(device="sink.monitor", monitor_stream=5, popen=popen).start()
+    assert spawning.wait(2)
+    join = capture._thread.join
+
+    def observed_join(*args, **kwargs):
+        joining.set()
+        join(*args, **kwargs)
+
+    monkeypatch.setattr(capture._thread, "join", observed_join)
+    closer = Thread(target=capture.close)
+    closer.start()
+    try:
+        assert joining.wait(2)
+    finally:
+        allow_spawn.set()
+        closer.join(3)
+    assert not closer.is_alive()
+    assert process.poll() is not None
+    assert process.stdout.closed and process.stderr.closed

@@ -10,6 +10,18 @@ from concurrent.futures import ThreadPoolExecutor
 _log = logging.getLogger(__name__)
 
 
+class ManagedStateError(RuntimeError):
+    def __init__(self, message: str, *, submitted: bool):
+        super().__init__(message)
+        self.submitted = submitted
+
+
+def reports_off(snapshot: dict) -> bool:
+    return (
+        snapshot["state"]["on"] is False and snapshot["info"]["live"] is False
+    )
+
+
 def _post_bri(host: str, bri: int, timeout: float) -> None:
     try:
         payload = json.dumps({"on": True, "bri": bri, "v": False}).encode()
@@ -48,22 +60,31 @@ def apply_managed(devices: list[dict], scale: float | None, timeout: float) -> N
                                          headers={"Content-Type":"application/json"})
         with urllib.request.urlopen(request, timeout=timeout):
             pass
-        with urllib.request.urlopen(url, timeout=timeout) as response:
-            actual = json.load(response)
-        if any(actual.get(key) != value for key, value in wanted.items()):
-            raise RuntimeError(f"{host}: WLED state does not match the requested setting")
+        try:
+            readback = f"http://{host}/json/si" if scale is None else url
+            with urllib.request.urlopen(readback, timeout=timeout) as response:
+                actual = json.load(response)
+            confirmed = reports_off(actual) if scale is None else actual.get("bri") == wanted["bri"]
+            if not confirmed:
+                raise ValueError("WLED state does not match the requested setting")
+        except (AttributeError, KeyError, TypeError, ValueError, OSError) as exc:
+            raise ManagedStateError(str(exc), submitted=True) from exc
 
     hosts = [device["host"] for device in devices if device.get("host")]
     failures = []
+    submitted = bool(hosts)
     with ThreadPoolExecutor(max_workers=max(1,len(hosts))) as executor:
         attempts = [(host,executor.submit(update,host)) for host in hosts]
         for host, future in attempts:
             try:
                 future.result()
             except (RuntimeError, ValueError, OSError) as exc:
+                submitted = submitted and isinstance(exc, ManagedStateError) and exc.submitted
                 failures.append(f"{host}: {exc}")
     if failures or not hosts:
-        raise RuntimeError("; ".join(failures) or "no enabled WLED output")
+        raise ManagedStateError(
+            "; ".join(failures) or "no enabled WLED output", submitted=submitted,
+        )
 
 
 def apply_off(devices: list[dict], timeout: float = 1.0) -> None:
