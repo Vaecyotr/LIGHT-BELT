@@ -975,12 +975,12 @@ def _ensure_mpv() -> MpvClient:
     if _mpv is None:
         _mpv = MpvClient(sock)
         _audio_pending = True
+    if _audio_pending:
         _mpv.set_volume(_state["volume"])
-        _mpv.set_mute(_state["muted"] or _route_gate)
-        _audio_pending = False
-    elif _audio_pending:
-        _mpv.set_volume(_state["volume"])
-        _mpv.set_mute(_state["muted"] or _route_gate)
+        if _preferences is not None:
+            gate_program(_route_gate)
+        else:
+            _mpv.set_mute(_state["muted"] or _route_gate)
         _audio_pending = False
     return _mpv
 

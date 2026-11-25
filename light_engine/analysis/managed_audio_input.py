@@ -65,6 +65,8 @@ class ManagedAudioInput:
         self._pcm_buffer = np.zeros((0, 2), dtype=np.float32)
         self._pcm_music_state: MusicControlState | None = None
         self._last_observation: AudioObservation | None = None
+        self._fade_pending = False
+        self._fade_start_ns: int | None = None
         self._last_file_media_time: float | None = None
         self._last_file_state_time: float | None = None
 
@@ -74,6 +76,8 @@ class ManagedAudioInput:
         mode = "auto" if mode == "device" else mode
         if self._configured_key == (mode, target):
             return self._epoch
+        self._fade_pending = self._last_quality in {"fresh", "held"} or self._fade_pending
+        self._fade_start_ns = None
         self._close_source()
         self._music.reset()
         self._last_music_state = None
@@ -408,13 +412,31 @@ class ManagedAudioInput:
             if self._audio_analyzer is not None:
                 self._audio_analyzer.reset()
             return None, None
-        if selected.quality == "fresh":
-            if self._kind in {"phone_pcm", "program_pcm", "monitor"}:
-                self._last_music_state = self._pcm_music_state
-            return selected.features, self._last_music_state
-        if selected.quality == "held":
-            return selected.features, self._last_music_state
-        return None, None
+        if selected.quality not in {"fresh", "held"}:
+            return None, None
+        if selected.quality == "fresh" and self._kind in {"phone_pcm", "program_pcm", "monitor"}:
+            self._last_music_state = self._pcm_music_state
+        features = selected.features
+        music = self._last_music_state
+        if self._fade_pending:
+            now = self._clock_ns()
+            if self._fade_start_ns is None:
+                self._fade_start_ns = now
+            gain = min(1.0, max(0.0, (now - self._fade_start_ns) / 150_000_000))
+            if gain == 1.0:
+                self._fade_pending = False
+            else:
+                # Ramp only the rendering projection; the tempo tracker and
+                # freshness/silence diagnostics retain the actual observation.
+                features = replace(features, loudness=features.loudness * gain,
+                                   bass=features.bass * gain, mid=features.mid * gain,
+                                   treble=features.treble * gain,
+                                   spectrum=tuple(band * gain for band in features.spectrum))
+                if music is not None:
+                    music = replace(music, energy=music.energy * gain,
+                                    bass_ambient=music.bass_ambient * gain,
+                                    bass_pulse=music.bass_pulse * gain)
+        return features, music
 
     def status(self) -> dict[str, object]:
         result = self._selector.status()

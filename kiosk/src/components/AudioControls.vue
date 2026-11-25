@@ -94,13 +94,20 @@ const lightStatus = computed(() => ({
   preparing:'切换中',fault:'输出异常',idle:'等待播放',applied:'已生效'
 }[state.value.lighting.phase] || '等待确认'))
 let timer, clockTimer, closed = false, reading = false, refreshAgain = false
+let commandGeneration = 0
 async function refresh() {
   if (closed) return
   if (reading) { refreshAgain = true; return }
   reading = true
+  const generation = commandGeneration
+  const started = Date.now()
   try {
     const r = await fetch('/control/state', {cache:'no-store'})
     const result = await r.json()
+    if (closed || generation !== commandGeneration) {
+      refreshAgain = !closed
+      return
+    }
     if (result.error?.code === 'CONTROL_DISABLED') { emit('available',false); return }
     enabled.value = true
     emit('available',true)
@@ -108,7 +115,8 @@ async function refresh() {
     offline.value = !result.ok && !enrollNeeded.value
     if (result.ok) {
       state.value = result.data
-      capturedAt.value = Date.now()
+      capturedAt.value = started
+      now.value = Date.now()
       offline.value = false
       for (const id of Object.keys(pins.value)) {
         if (!(result.data.bluetooth?.challenges || []).some(challenge => challenge.id === id)) {
@@ -129,13 +137,16 @@ async function refresh() {
 async function act(method,path,body) {
   if (busy.value) return
   busy.value = true
+  commandGeneration++
   try {
     const result = await control(method,path,body)
+    commandGeneration++
     const pendingDeviceAction = path.startsWith('/bluetooth/') || path === '/speaker'
     message.value = result.ok ? (pendingDeviceAction ? '操作已提交，等待设备状态确认。' : '') : result.error?.message || '操作失败'
     if (result.ok && result.data?.bluetooth) {
       state.value = result.data
       capturedAt.value = Date.now()
+      now.value = capturedAt.value
       offline.value = false
       await refresh()
     } else await refresh()

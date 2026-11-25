@@ -98,5 +98,56 @@ def test_real_backend_factory_fails_closed_without_explicit_hardware_gate():
     assert isinstance(create_backend(), DisabledBackend)
 
 
+def test_two_simultaneous_pair_reservations_cannot_overbook_one_free_slot():
+    async def run():
+        backend = Backend()
+        backend.devices = [
+            {"id": "a", "paired": True, "connected": True},
+            {"id": "b", "paired": False, "connected": False},
+            {"id": "c", "paired": False, "connected": False},
+        ]
+        system = AudioSystem(backend, gate_mpv=_gate)
+        await system.start()
+        results = await asyncio.gather(
+            system.pair("b", operation_id="b-op"),
+            system.pair("c", operation_id="c-op"),
+            return_exceptions=True,
+        )
+        assert sum(isinstance(result, str) for result in results) == 1
+        assert sum(isinstance(result, BackendUnavailable) for result in results) == 1
+        assert len(system._pending) == 1
+
+    asyncio.run(run())
+
+
+def test_unknown_route_owner_keeps_gate_closed_until_route_is_verified_or_removed():
+    async def run():
+        class UnknownRouteBackend(Backend):
+            async def snapshot(self):
+                facts = await super().snapshot()
+                facts["route_error"] = "module index was reused by another owner"
+                return facts
+
+        gates = []
+        system = AudioSystem(
+            UnknownRouteBackend(), gate_mpv=lambda muted: _record(gates, muted)
+        )
+        system._started = True
+        system._route = {"device": "a", "module_id": "9", "verified": True}
+        await system._gate_program(True)
+        with pytest.raises(BackendUnavailable, match="ownership is uncertain"):
+            await system._on_backend_event()
+        assert system._route["module_id"] == "9"
+        assert gates == [True]
+        system._started = False
+        system._closed = True
+
+    asyncio.run(run())
+
+
 async def _gate(_muted):
     return None
+
+
+async def _record(values, value):
+    values.append(value)

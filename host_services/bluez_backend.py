@@ -57,10 +57,14 @@ class LinuxBluezBackend:
         self._pair_results: dict[str, dict[str, Any]] = {}
         self._agent_interface = None
         self._agent_manager = None
+        self._agent_registration_lock = asyncio.Lock()
+        self._agent_retry_task: asyncio.Task | None = None
         self._owner = True
         self._started = False
+        self._closing = False
         self._route_device: str | None = None
         self._route: dict[str, Any] | None = None
+        self._route_error: str | None = None
         self._event_task = None
         self._dirty = False
         self._last_discovery = False
@@ -72,6 +76,7 @@ class LinuxBluezBackend:
     async def start(self, callbacks) -> None:
         if self._started:
             return
+        self._closing = False
         if self.bus is None:
             try:
                 from dbus_next import BusType
@@ -180,10 +185,7 @@ class LinuxBluezBackend:
         # merged by re-enumeration so startup changes cannot disappear.
         await self.router.assert_exclusive_policy()
         await self._check_legacy_services()
-        manager = await self._interface(BLUEZ, "/org/bluez", AGENT_MANAGER_IFACE)
-        self._agent_manager = manager
-        await manager.call_register_agent(AGENT_PATH, "KeyboardDisplay")
-        await manager.call_request_default_agent(AGENT_PATH)
+        await self._register_default_agent()
         self._started = True
         await self._read_objects()
         await self.set_pairing_window(False)
@@ -195,11 +197,15 @@ class LinuxBluezBackend:
         await self._emit()
 
     async def close(self) -> None:
+        self._closing = True
         self._callbacks = None
+        if self._agent_retry_task and not self._agent_retry_task.done():
+            self._agent_retry_task.cancel()
+            await asyncio.gather(self._agent_retry_task, return_exceptions=True)
         if self._event_task and not self._event_task.done():
             self._event_task.cancel()
             await asyncio.gather(self._event_task, return_exceptions=True)
-        if not self._started:
+        if not self._started or not self._owner:
             if self.bus is not None and hasattr(self.bus, "disconnect"):
                 self.bus.disconnect()
             return
@@ -241,8 +247,12 @@ class LinuxBluezBackend:
         if self._route and self._route_device:
             try:
                 details = await self.router.route_details(self._route["module_id"])
-            except BackendUnavailable:
-                await self.close_speaker_route()
+            except BackendUnavailable as exc:
+                # The module index may have been reused by another owner. Do
+                # not unload an unverified module or release the mpv gate.
+                self._route_error = str(exc)
+                self._route = None
+                self._route_device = None
             else:
                 digital_target = {
                     "kind": "phone_pcm",
@@ -267,6 +277,7 @@ class LinuxBluezBackend:
             "reserved_slots": len(self._incoming_reservations),
             "reserved_devices": sorted(self._incoming_reservations),
             "speaker_route": dict(self._route) if self._route else None,
+            "route_error": self._route_error,
         }
 
     async def pair(self, device_id: str, operation_id: str) -> None:
@@ -421,12 +432,14 @@ class LinuxBluezBackend:
         route["monitor_source"] = self._source_monitor.get(sink)
         self._route_device = device_id
         self._route = route
+        self._route_error = None
         return route
 
     async def close_speaker_route(self) -> None:
         await self.router.close()
         self._route = None
         self._route_device = None
+        self._route_error = None
 
     async def _challenge(self, device_path: str, kind: str, value: str | None):
         authorization = self.terminal_generation() if self.terminal_generation else None
@@ -536,6 +549,10 @@ class LinuxBluezBackend:
     def _agent_released(self) -> None:
         self._owner = False
         self._cancel_challenges()
+        if self._started and not self._closing and (
+            self._agent_retry_task is None or self._agent_retry_task.done()
+        ):
+            self._agent_retry_task = asyncio.create_task(self._retry_agent_registration())
         self._schedule_emit()
 
     @staticmethod
@@ -549,6 +566,8 @@ class LinuxBluezBackend:
         }
 
     def _pair_done(self, operation_id, task):
+        if self._pair_tasks.get(operation_id) is not task:
+            return
         self._pair_tasks.pop(operation_id, None)
         device = self._pair_devices.pop(operation_id, None)
         if task.cancelled():
@@ -636,17 +655,30 @@ class LinuxBluezBackend:
             self._cancel_challenges()
         else:
             try:
-                self._agent_manager = await self._interface(
-                    BLUEZ, "/org/bluez", AGENT_MANAGER_IFACE
-                )
-                await self._agent_manager.call_register_agent(
-                    AGENT_PATH, "KeyboardDisplay"
-                )
-                await self._agent_manager.call_request_default_agent(AGENT_PATH)
+                await self._register_default_agent()
                 await self._read_objects()
             except Exception:
                 self._owner = False
         await self._emit()
+
+    async def _register_default_agent(self):
+        async with self._agent_registration_lock:
+            manager = await self._interface(BLUEZ, "/org/bluez", AGENT_MANAGER_IFACE)
+            await manager.call_register_agent(AGENT_PATH, "KeyboardDisplay")
+            await manager.call_request_default_agent(AGENT_PATH)
+            self._agent_manager = manager
+            self._owner = True
+
+    async def _retry_agent_registration(self):
+        while self._started:
+            await asyncio.sleep(0.2)
+            try:
+                await self._register_default_agent()
+                await self._read_objects()
+                await self._emit()
+                return
+            except Exception:
+                self._owner = False
 
     def _schedule_emit(self):
         self._dirty = True

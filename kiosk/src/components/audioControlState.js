@@ -22,7 +22,7 @@ export function speakerDescription(speaker = {}) {
   if (speaker.status === 'fault') return '音响路由异常'
   if (speaker.status === 'waiting') {
     const audible = speaker.kind === 'phone' ? `手机 ${speaker.name || speaker.device}`
-      : speaker.kind === 'program' ? '节目原声' : '当前无声'
+      : speaker.kind === 'program' ? (speaker.user_muted ? '节目已静音' : '节目原声') : '当前无声'
     return `${audible} · 等待 ${speaker.waiting_for || speaker.name || speaker.device} 开始播放`
   }
   if (speaker.status === 'routed' || speaker.kind === 'phone') {

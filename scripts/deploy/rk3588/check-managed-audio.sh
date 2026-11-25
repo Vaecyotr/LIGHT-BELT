@@ -35,6 +35,13 @@ if ! awk '$2 == "module-bluetooth-policy" {
     echo 'FAIL expected exactly one Bluetooth policy with automatic A2DP loopback disabled' >&2
     failures=$((failures + 1))
 fi
+if ! awk '$2 == "module-loopback" && $0 ~ /bluez_source\./ {
+              if ($0 !~ /sink_input_properties=["\047]?light_belt\.route_owner=/) foreign++
+              else owned++
+          } END { exit !(foreign == 0 && owned <= 1) }' <<<"$modules"; then
+    echo 'FAIL found a competing Bluetooth loopback; inspect route ownership' >&2
+    failures=$((failures + 1))
+fi
 native_server() {
     local info
     info="$(pactl info)" || return 1

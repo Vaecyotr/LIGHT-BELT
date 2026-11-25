@@ -25,10 +25,13 @@ class FrameHandoff:
         self.lock = Lock()
         self.requested = 0
         self.latest = None
+        self.committed = None
 
     def request(self, number):
         with self.lock:
             self.requested = number
+            if self.latest is not None and self.latest[3] != number:
+                self.latest = None
 
     def publish(self, number, role, frame, audio, now):
         with self.lock:
@@ -37,16 +40,35 @@ class FrameHandoff:
                 return True
             return False
 
+    def claim(self, item):
+        """Claim a current candidate or the committed active role for one send."""
+        with self.lock:
+            return item is self.latest and item[3] == self.requested or (
+                item is self.committed
+            )
+
+    def commit(self, item):
+        """Commit only frames still current after the complete output send."""
+        with self.lock:
+            if item is self.latest and item[3] == self.requested:
+                self.committed = item
+                self.latest = None
+                return True
+            if item is self.committed:
+                return True
+            return False
+
     def refresh_active(self, number, role, frame, audio, now):
         with self.lock:
-            if self.latest is not None and self.latest[3] == number:
-                self.latest = (role, frame, audio, number, now)
+            if self.committed is not None and self.committed[3] == number:
+                self.committed = (role, frame, audio, number, now)
 
     def sample(self, now):
         with self.lock:
-            if self.latest is not None and now - self.latest[-1] > 0.5:
+            item = self.latest if self.latest is not None else self.committed
+            if item is not None and now - item[-1] > 0.5:
                 raise TimeoutError("lighting content exceeded the frame hold deadline")
-            return self.latest
+            return item
 
 
 def effect_show(targets, layout):
@@ -377,7 +399,7 @@ def serve(config, commands, report):
         while not stop.is_set():
             now = time.monotonic()
             item = handoff.sample(now)
-            if item:
+            if item and handoff.claim(item):
                 role, frame, source, n, _ = item
                 frame = replace(frame, sequence=writer._advance_sequence())
                 writer._timestamp = frame.timestamp
@@ -387,6 +409,7 @@ def serve(config, commands, report):
                 if not any(node.enabled for node in physical.digital_frames):
                     raise RuntimeError("no enabled DDP node")
                 send_all(writer._outputs, physical)
+                applied_current = handoff.commit(item)
                 identity = (
                     n,
                     role,
@@ -396,7 +419,7 @@ def serve(config, commands, report):
                     source.get("silent"),
                     source.get("reason"),
                 )
-                if identity != last_report:
+                if applied_current and identity != last_report:
                     report(
                         {
                             "n": n,

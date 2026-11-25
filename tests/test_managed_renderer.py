@@ -43,19 +43,26 @@ def test_superseded_candidate_cannot_replace_or_black_live_frame():
     handoff = FrameHandoff()
     handoff.request(1)
     handoff.publish(1, "show", "show pixels", {}, 0.0)
-    assert handoff.sample(0.01)[1] == "show pixels"
+    active = handoff.sample(0.01)
+    assert active[1] == "show pixels"
+    assert handoff.claim(active) and handoff.commit(active)
     handoff.request(2)
     handoff.request(3)
     handoff.publish(2, "music", "old candidate", {}, 0.05)
     assert handoff.sample(0.1)[1] == "show pixels"
     handoff.publish(3, "manual", "new pixels", {}, 0.11)
-    assert handoff.sample(0.11)[1] == "new pixels"
+    candidate = handoff.sample(0.11)
+    assert candidate[1] == "new pixels"
+    assert handoff.claim(candidate) and handoff.commit(candidate)
+    assert handoff.sample(0.12)[1] == "new pixels"
 
 
 def test_keepalive_cannot_mask_stalled_renderer():
     handoff = FrameHandoff()
     handoff.request(1)
     handoff.publish(1, "show", "pixels", {}, 1.0)
+    active = handoff.sample(1.0)
+    assert handoff.claim(active) and handoff.commit(active)
     handoff.request(2)
     assert handoff.sample(1.4)[1] == "pixels"
     handoff.request(3)
@@ -67,12 +74,127 @@ def test_active_role_can_refresh_without_acknowledging_pending_manual_role():
     handoff = FrameHandoff()
     handoff.request(1)
     handoff.publish(1, "music", "frame 1", {}, 0)
+    first = handoff.sample(0)
+    assert handoff.claim(first) and handoff.commit(first)
     handoff.request(2)
     handoff.refresh_active(1, "music", "frame 2", {}, 0.4)
     assert handoff.sample(0.7)[:4] == ("music", "frame 2", {}, 1)
     handoff.publish(2, "manual", "frame 3", {}, 0.71)
     handoff.refresh_active(1, "music", "late frame", {}, 0.8)
     assert handoff.sample(0.8)[:4] == ("manual", "frame 3", {}, 2)
+
+
+def test_superseded_uncommitted_candidate_does_not_replace_committed_active_frame():
+    handoff = FrameHandoff()
+    handoff.request(1)
+    assert handoff.publish(1, "show", "show frame", {}, 0.0)
+    active = handoff.sample(0.0)
+    assert handoff.claim(active)
+    assert handoff.commit(active)
+
+    handoff.request(2)
+    assert handoff.publish(2, "music", "stale candidate", {}, 0.1)
+    stale_candidate = handoff.sample(0.1)
+    handoff.request(3)
+
+    assert handoff.sample(0.2) is active
+    assert not handoff.claim(stale_candidate)
+
+
+def test_candidate_superseded_while_in_flight_is_not_acknowledged_applied():
+    handoff = FrameHandoff()
+    handoff.request(1)
+    handoff.publish(1, "show", "show frame", {}, 0.0)
+    active = handoff.sample(0.0)
+    handoff.claim(active)
+    handoff.commit(active)
+
+    handoff.request(2)
+    handoff.publish(2, "music", "candidate frame", {}, 0.1)
+    candidate = handoff.sample(0.1)
+    assert handoff.claim(candidate)
+    handoff.request(3)
+
+    assert not handoff.commit(candidate)
+    assert handoff.sample(0.2) == active
+
+
+def test_failed_output_send_never_reports_candidate_as_applied(monkeypatch):
+    import json
+    from pathlib import Path
+    from queue import Queue
+    from threading import Thread
+    import time
+
+    from light_engine.config import Config
+    from light_engine.engine import Engine
+    from light_engine.managed import serve
+    from light_engine.outputs import NullOutput
+
+    commands, reports = Queue(), Queue()
+    output = NullOutput()
+    safe_frames = []
+
+    def send_frame(frame):
+        if frame.metadata.get("SAFE_STATE"):
+            safe_frames.append(frame)
+            return
+        raise OSError("injected DDP send failure")
+
+    output.send_frame = send_frame
+    monkeypatch.setattr(
+        Engine,
+        "init_outputs",
+        lambda engine: (setattr(engine, "_outputs", {"memory": output}), output.open()),
+    )
+
+    def run():
+        serve(
+            Config(Path("config/profiles/rk3588-host-service.yaml").resolve()),
+            iter(commands.get, None),
+            reports.put,
+        )
+
+    errors = []
+
+    def guarded_run():
+        try:
+            run()
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = Thread(target=guarded_run, daemon=True)
+    thread.start()
+    commands.put(
+        json.dumps(
+            {
+                "n": 1,
+                "role": "music",
+                "role_on_video_end": "none",
+                "video_generation": 1,
+                "seek_generation": 0,
+                "mode": "auto",
+                "target": {"kind": "none"},
+            }
+        )
+    )
+    try:
+        deadline = time.monotonic() + 10
+        events = []
+        while time.monotonic() < deadline:
+            event = reports.get(timeout=max(0.1, deadline - time.monotonic()))
+            events.append(event)
+            if event.get("role_phase") == "fault":
+                break
+        assert events[-1].get("role_phase") == "fault", events
+        assert not any(event.get("role_phase") == "applied" for event in events)
+        assert "injected DDP send failure" in events[-1].get("reason", "")
+    finally:
+        commands.put(None)
+        thread.join(10)
+    assert not thread.is_alive()
+    assert not errors
+    assert safe_frames
 
 
 def test_managed_sender_switches_real_effects_without_intermediate_safety_frame(

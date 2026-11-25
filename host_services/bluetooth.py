@@ -189,6 +189,10 @@ class AudioSystem:
 
     async def _refresh(self) -> dict[str, Any]:
         facts = await self.backend.snapshot()
+        if facts.get("route_error"):
+            raise BackendUnavailable(
+                f"speaker route ownership is uncertain: {facts['route_error']}"
+            )
         if "speaker_route" in facts and self._route is not None:
             actual = facts["speaker_route"]
             if actual is None:
