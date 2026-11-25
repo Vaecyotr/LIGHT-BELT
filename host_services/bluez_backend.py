@@ -187,6 +187,7 @@ class LinuxBluezBackend:
         await self._check_legacy_services()
         await self._register_default_agent()
         self._started = True
+        await self.router.start_monitor(self._schedule_emit)
         await self._read_objects()
         await self.set_pairing_window(False)
         self._route = await self.router.recover_owned(
@@ -199,6 +200,7 @@ class LinuxBluezBackend:
     async def close(self) -> None:
         self._closing = True
         self._callbacks = None
+        await self.router.stop_monitor()
         if self._agent_retry_task and not self._agent_retry_task.done():
             self._agent_retry_task.cancel()
             await asyncio.gather(self._agent_retry_task, return_exceptions=True)
@@ -244,6 +246,17 @@ class LinuxBluezBackend:
         await self._read_objects()
         devices = self._device_snapshot()
         digital_target = None
+        if self._route_error:
+            try:
+                await self.router.assert_exclusive_policy()
+                recovered = await self.router.recover_owned(
+                    set(self._sources.values()), set(self._source_monitor)
+                )
+                self._route = recovered
+                self._route_device = recovered.get("device") if recovered else None
+                self._route_error = None
+            except BackendUnavailable as exc:
+                self._route_error = str(exc)
         if self._route and self._route_device:
             try:
                 details = await self.router.route_details(self._route["module_id"])

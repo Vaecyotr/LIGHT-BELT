@@ -122,7 +122,7 @@ def test_candidate_superseded_while_in_flight_is_not_acknowledged_applied():
 def test_failed_output_send_never_reports_candidate_as_applied(monkeypatch):
     import json
     from pathlib import Path
-    from queue import Queue
+    from queue import Empty, Queue
     from threading import Thread
     import time
 
@@ -133,15 +133,13 @@ def test_failed_output_send_never_reports_candidate_as_applied(monkeypatch):
 
     commands, reports = Queue(), Queue()
     output = NullOutput()
-    safe_frames = []
+    attempted = []
 
-    def send_frame(frame):
-        if frame.metadata.get("SAFE_STATE"):
-            safe_frames.append(frame)
-            return
+    def send_all(_outputs, frame):
+        attempted.append(frame)
         raise OSError("injected DDP send failure")
 
-    output.send_frame = send_frame
+    monkeypatch.setattr("light_engine.managed.send_all", send_all)
     monkeypatch.setattr(
         Engine,
         "init_outputs",
@@ -175,6 +173,7 @@ def test_failed_output_send_never_reports_candidate_as_applied(monkeypatch):
                 "seek_generation": 0,
                 "mode": "auto",
                 "target": {"kind": "none"},
+                "mpv_socket": "unused-output-failure-test",
             }
         )
     )
@@ -182,19 +181,24 @@ def test_failed_output_send_never_reports_candidate_as_applied(monkeypatch):
         deadline = time.monotonic() + 10
         events = []
         while time.monotonic() < deadline:
-            event = reports.get(timeout=max(0.1, deadline - time.monotonic()))
+            try:
+                event = reports.get(timeout=min(0.1, deadline - time.monotonic()))
+            except Empty:
+                if not thread.is_alive():
+                    break
+                continue
             events.append(event)
             if event.get("role_phase") == "fault":
                 break
-        assert events[-1].get("role_phase") == "fault", events
+        assert events and events[-1].get("role_phase") == "fault", (events, errors)
         assert not any(event.get("role_phase") == "applied" for event in events)
         assert "injected DDP send failure" in events[-1].get("reason", "")
     finally:
         commands.put(None)
         thread.join(10)
     assert not thread.is_alive()
-    assert not errors
-    assert safe_frames
+    assert errors and "injected DDP send failure" in str(errors[0])
+    assert attempted
 
 
 def test_managed_sender_switches_real_effects_without_intermediate_safety_frame(

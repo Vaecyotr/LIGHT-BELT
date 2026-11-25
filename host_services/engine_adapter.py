@@ -350,17 +350,24 @@ def _push_wled_off(*, explicit=False) -> None:
     if _preferences and not explicit:
         return
     from . import wled_brightness
-    hosts_devices = [d for d in _devices if d.get("host") and d.get("enabled", True) and d.get("device_type") == WLED_DEVICE_TYPE]
+    hosts_devices = _enabled_wled_devices()
     if explicit and _preferences and _real_adapter is not None:
-        global _power_error
+        global _power_error, _confirmed_off_hosts
         try:
             wled_brightness.apply_managed(hosts_devices, None, WLED_HTTP_TIMEOUT_S)
             _power_error = None
+            _confirmed_off_hosts = frozenset(d["host"] for d in hosts_devices)
         except RuntimeError as exc:
+            _confirmed_off_hosts = None
             _power_error = str(exc)
             raise
     elif hosts_devices:
         wled_brightness.apply_off(hosts_devices, WLED_HTTP_TIMEOUT_S)
+
+
+def _enabled_wled_devices():
+    return [d for d in _devices if d.get("host") and d.get("enabled", True)
+            and d.get("device_type") == WLED_DEVICE_TYPE]
 
 
 import urllib.request
@@ -417,6 +424,8 @@ _preferences = None
 _audio_system = None
 _route_gate = False
 _power_error = None
+_lighting_error = None
+_confirmed_off_hosts = None
 
 # Accumulated manual-target state for real-adapter calls.
 # key = target_id (strip), value = one complete manual Show effect request.
@@ -598,8 +607,7 @@ def _serialized_session(fn):
     def wrapped(*args, **kwargs):
         with _session_lock:
             result = fn(*args, **kwargs)
-            if _preferences is not None:
-                _sync_lighting()
+            _reconcile_lighting()
             return result
     return wrapped
 
@@ -608,7 +616,23 @@ _apply_manual_targets = _serialized_session(_apply_manual_targets)
 brightness_scale_set = _serialized_session(brightness_scale_set)
 
 
+def _reconcile_lighting(*, playing=False, start_ms=None, wait=False):
+    global _lighting_error
+    if _preferences is None or _real_adapter is None:
+        return
+    with _session_lock:
+        try:
+            _sync_lighting(playing=playing, start_ms=start_ms, wait=wait)
+        except (OSError, RuntimeError) as exc:
+            if _lighting_error != str(exc):
+                _log.warning("Managed lighting could not reconcile: %s", exc)
+            _lighting_error = str(exc)
+        else:
+            _lighting_error = None
+
+
 def _sync_lighting(*, playing=False, start_ms=None, wait=False):
+    global _confirmed_off_hosts
     if _preferences is None or _real_adapter is None:
         return
     with _session_lock:
@@ -649,9 +673,19 @@ def _sync_lighting(*, playing=False, start_ms=None, wait=False):
         had_sender = adapter.sender is not None
         if role != "none" and _power_error:
             _push_wled_off(explicit=True)
-        adapter.configure(spec, wait=wait and role=="show")
-        if role == "none" and had_sender and intent != "off":
-            _push_wled_off(explicit=True)
+        if intent == "off":
+            hosts = frozenset(d["host"] for d in _enabled_wled_devices())
+            try:
+                adapter.configure(spec)
+            finally:
+                if had_sender or hosts != _confirmed_off_hosts:
+                    _push_wled_off(explicit=True)
+        else:
+            adapter.configure(spec, wait=wait and role=="show")
+            if role == "none" and had_sender:
+                _push_wled_off(explicit=True)
+            elif role != "none":
+                _confirmed_off_hosts = None
 
 
 def gate_program(muted):
@@ -678,18 +712,18 @@ def control_mode(mode):
 
 
 def control_intent(intent, token):
+    global _confirmed_off_hosts
     with _session_lock:
+        if intent == "off":
+            _confirmed_off_hosts = None
         try:
             _preferences.set_intent(intent, token)
         except OSError:
             if intent=="off":
                 _preferences.emergency_off()
-                _sync_lighting()
-                _push_wled_off(explicit=True)
+                _reconcile_lighting()
             raise
         _sync_lighting()
-        if intent=="off":
-            _push_wled_off(explicit=True)
 
 
 def control_snapshot():
@@ -708,8 +742,9 @@ def control_snapshot():
                 "bluetooth":facts.get("bluetooth",{"available":False,"devices":[]}),
                 "lighting":{"intent":prefs.data["intent"],"intent_token":prefs.token,
                             "effective_role":status.get("effective_role","none"),
-                            "phase":"fault" if _power_error else status.get("role_phase","idle"),
-                            "brightness":_state["brightness_scale"], "reason":_power_error or status.get("reason")},
+                            "phase":"fault" if (_power_error or _lighting_error) else status.get("role_phase","idle"),
+                            "brightness":_state["brightness_scale"],
+                            "reason":_power_error or _lighting_error or status.get("reason")},
                 "analysis":dict(status.get("audio") or {"phase":"waiting","effective":None},
                                 mode=prefs.data["mode"])}
 

@@ -52,12 +52,17 @@ class ManagedAdapter(RealEngineAdapter):
                 ).start()
             if spec != self.command:
                 self.number += 1
-                self.status = dict(self.status, role_phase="preparing")
+                self.status = {"role_phase": "preparing",
+                               "effective_role": self.status["effective_role"]}
                 payload = dict(spec, n=self.number, mpv_socket=self._mpv_socket)
-                self.sender.stdin.write(
-                    (json.dumps(payload, allow_nan=False) + "\n").encode()
-                )
-                self.sender.stdin.flush()
+                try:
+                    self.sender.stdin.write(
+                        (json.dumps(payload, allow_nan=False) + "\n").encode()
+                    )
+                    self.sender.stdin.flush()
+                except OSError as exc:
+                    self.status.update(role_phase="fault", reason=str(exc))
+                    raise
                 self.command = spec
             if wait:
                 if not self.changed.wait_for(
@@ -74,6 +79,8 @@ class ManagedAdapter(RealEngineAdapter):
                 msg = json.loads(line)
                 with self.changed:
                     if process is self.sender and msg.get("n") == self.number:
+                        if "reason" not in msg:
+                            self.status.pop("reason", None)
                         self.status.update(msg)
                         self.changed.notify_all()
         finally:
@@ -108,7 +115,7 @@ class ManagedAdapter(RealEngineAdapter):
         from . import engine_adapter as host
 
         self._active_show = show
-        host._sync_lighting(playing=True, start_ms=start_ms, wait=True)
+        host._reconcile_lighting(playing=True, start_ms=start_ms, wait=True)
         if show.get("aux_triggers"):
             self._start_aux_poll(show["aux_triggers"], start_ms or 0)
 
@@ -141,7 +148,7 @@ class ManagedAdapter(RealEngineAdapter):
             self.last_recovery = time.monotonic()
             host._push_wled_off(explicit=True)
             self.command = None
-            host._sync_lighting()
+            host._reconcile_lighting()
         return None
 
     def shutdown(self):

@@ -15,12 +15,90 @@ class PulseAudioRouter:
     """Create and verify one owned Bluetooth loopback on the selected sink."""
 
     def __init__(
-        self, *, runner=None, route_property: str = "light_belt.route_owner"
+        self, *, runner=None, subscriber=None,
+        route_property: str = "light_belt.route_owner"
     ) -> None:
         self._runner = runner or self._run
+        self._subscriber = subscriber
         self.route_property = route_property
         self._module_id: str | None = None
         self._route: dict[str, Any] | None = None
+        self._watch_task: asyncio.Task | None = None
+        self._watch_process = None
+        self._watch_callback = None
+
+    async def start_monitor(self, callback) -> None:
+        self._watch_callback = callback
+        if self._watch_task is None or self._watch_task.done():
+            self._watch_task = asyncio.create_task(self._monitor_loop())
+
+    async def stop_monitor(self) -> None:
+        task, self._watch_task = self._watch_task, None
+        process, self._watch_process = self._watch_process, None
+        if process is not None and process.returncode is None:
+            process.terminate()
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        if process is not None and process.returncode is None:
+            try:
+                await asyncio.wait_for(process.wait(), timeout=1)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+
+    async def _monitor_loop(self) -> None:
+        delay = 0.2
+        while self._watch_callback is not None:
+            try:
+                if self._subscriber is not None:
+                    stream = self._subscriber()
+                    if hasattr(stream, "__await__"):
+                        stream = await stream
+                    async for _event in stream:
+                        delay = 0.2
+                        result = self._watch_callback()
+                        if hasattr(result, "__await__"):
+                            await result
+                else:
+                    process = await asyncio.create_subprocess_exec(
+                        "pactl", "subscribe", stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL,
+                        env={**os.environ, "LC_ALL": "C"},
+                    )
+                    self._watch_process = process
+                    if process.stdout is None:
+                        raise BackendUnavailable("pactl subscribe has no stdout")
+                    while True:
+                        line = await asyncio.wait_for(process.stdout.readline(), 30)
+                        if not line:
+                            break
+                        delay = 0.2
+                        result = self._watch_callback()
+                        if hasattr(result, "__await__"):
+                            await result
+                    await process.wait()
+                    self._watch_process = None
+                    # A subscription ending can mean PA restarted; reconcile.
+                    if self._watch_callback is not None:
+                        result = self._watch_callback()
+                        if hasattr(result, "__await__"):
+                            await result
+                await asyncio.sleep(delay)
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                await asyncio.sleep(delay)
+                delay = min(2.0, delay * 2)
+            finally:
+                process, self._watch_process = self._watch_process, None
+                if process is not None and process.returncode is None:
+                    process.terminate()
+                    try:
+                        await asyncio.wait_for(process.wait(), 1)
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        await process.wait()
 
     async def _run(self, *args: str) -> str:
         process = await asyncio.create_subprocess_exec(

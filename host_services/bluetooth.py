@@ -111,6 +111,8 @@ class AudioSystem:
         self._pending: dict[str, str] = {}
         self._selected: str | None = None
         self._route: dict[str, Any] | None = None
+        self._route_recovery_hold = False
+        self._route_recovery_device: str | None = None
         self._add_timer: asyncio.Task | None = None
         self._scan_timer: asyncio.Task | None = None
         self._release_timer = None
@@ -136,7 +138,7 @@ class AudioSystem:
             except Exception as exc:
                 self._snapshot["speaker"] = {
                     "status": "fault",
-                    "device": None,
+                    "device": self._route_recovery_device or (self._route or {}).get("device"),
                     "reason": str(exc),
                 }
                 self._snapshot["digital_target"] = None
@@ -190,20 +192,36 @@ class AudioSystem:
     async def _refresh(self) -> dict[str, Any]:
         facts = await self.backend.snapshot()
         if facts.get("route_error"):
+            if self._route is not None:
+                self._route_recovery_device = self._route.get("device")
+                self._route_recovery_hold = True
+                await self._gate_program(True)
             raise BackendUnavailable(
                 f"speaker route ownership is uncertain: {facts['route_error']}"
             )
         if "speaker_route" in facts and self._route is not None:
             actual = facts["speaker_route"]
             if actual is None:
+                lost_device = self._route.get("device")
+                self._route_recovery_device = lost_device
+                self._route_recovery_hold = True
+                await self._gate_program(True)
                 self._route = None
+                self._selected = lost_device
                 self._snapshot["speaker"] = {
-                    "device": None,
-                    "status": "idle",
+                    "device": lost_device,
+                    "status": "waiting",
                     "route": None,
                 }
             elif actual.get("module_id") != self._route.get("module_id"):
-                raise BackendUnavailable("Bluetooth route identity changed")
+                if (
+                    self._route_recovery_hold
+                    and actual.get("verified")
+                    and actual.get("device") == self._route_recovery_device
+                ):
+                    self._route = dict(actual)
+                else:
+                    raise BackendUnavailable("Bluetooth route identity changed")
         devices = list(facts.get("devices", []))
         connected = sum(bool(device.get("connected")) for device in devices)
         facts["connected_count"] = connected
@@ -247,6 +265,14 @@ class AudioSystem:
                 "controller exceeded simultaneous connection limit"
             )
         self._admitted, self._admission_known = connected, True
+        if self._route_recovery_hold:
+            recovering = next((d for d in devices if d["id"] == self._route_recovery_device), None)
+            if (recovering is None or not recovering.get("connected")
+                    or recovering.get("player_status") in {"paused", "stopped"}):
+                if self._selected == self._route_recovery_device:
+                    self._selected = None
+                self._route_recovery_hold = False
+                self._route_recovery_device = None
         if self._selected not in connected:
             self._selected = None
         winner = (self._route or {}).get("device")
@@ -280,8 +306,24 @@ class AudioSystem:
         self._release_deadline = None
         if self._route is not None and target_id == self._route.get("device"):
             self._selected = None
+            self._route_recovery_hold = False
+            self._route_recovery_device = None
+            self._snapshot["speaker"] = {
+                "device": target_id, "status": "routed", "route": self._route,
+            }
             return
         if target_id is None:
+            if (
+                self._route_recovery_hold
+                and self._route_recovery_device in connected
+            ):
+                await self._gate_program(True)
+                self._snapshot["speaker"] = {
+                    "device": self._route_recovery_device,
+                    "status": "waiting",
+                    "route": None,
+                }
+                return
             if self._route is not None:
                 await self._gate_program(True)
                 await self._close_route_locked()
@@ -302,6 +344,8 @@ class AudioSystem:
             route["device"] = target_id
             self._route = route
             self._selected = None
+            self._route_recovery_hold = False
+            self._route_recovery_device = None
             self._snapshot["speaker"] = {
                 "device": target_id,
                 "status": "routed",
@@ -375,6 +419,9 @@ class AudioSystem:
                 await self._gate_program(True)
                 await self._close_route_locked()
                 self._selected = None
+                if self._route_recovery_device == device_id:
+                    self._route_recovery_hold = False
+                    self._route_recovery_device = None
             await self.backend.disconnect(device_id)
             facts = await self._refresh()
             await self._reconcile_locked(facts)
@@ -475,6 +522,9 @@ class AudioSystem:
                     "speaker target must be an accepted connected device"
                 )
             self._selected = device_id
+            if device_id != self._route_recovery_device:
+                self._route_recovery_hold = False
+                self._route_recovery_device = None
             await self._reconcile_locked(facts, immediate=True)
             result = self.snapshot()["speaker"]
         await self.notify()

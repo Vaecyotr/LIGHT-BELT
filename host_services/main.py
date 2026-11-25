@@ -151,6 +151,9 @@ async def _poll_devices():
     while True:
         try:
             await _run_in_thread(engine_adapter._probe_devices)
+            prefs = engine_adapter._preferences
+            if prefs is not None and prefs.data["intent"] == "off":
+                await _run_in_thread(engine_adapter._reconcile_lighting)
         except Exception:
             _log.exception("Unable to collect device status")
         await asyncio.sleep(STATE_PUBLISH_INTERVAL_SECONDS)
@@ -174,12 +177,12 @@ async def _start_runtime():
             backend.terminal_generation = ControlTerminal(control_dir()).generation
         system = AudioSystem(backend,
                              gate_mpv=lambda value: asyncio.to_thread(engine_adapter.gate_program,value),
-                             notify=lambda: asyncio.to_thread(engine_adapter._sync_lighting))
+                             notify=lambda: asyncio.to_thread(engine_adapter._reconcile_lighting))
         engine_adapter._audio_system = system
         await system.start()
     await _run_in_thread(engine_adapter.startup)
     if control.origin():
-        await _run_in_thread(engine_adapter._sync_lighting)
+        await _run_in_thread(engine_adapter._reconcile_lighting)
     if engine_adapter.ENGINE_ADAPTER == "real" and engine_adapter._real_adapter is not None:
         app.state.device_probe_task = asyncio.create_task(_poll_devices())
     ws.bind_event_loop(asyncio.get_running_loop())
@@ -204,6 +207,8 @@ async def _stop_runtime():
         finally:
             engine_adapter._preferences = engine_adapter._audio_system = None
             engine_adapter._route_gate = False
+            engine_adapter._lighting_error = None
+            engine_adapter._power_error = engine_adapter._confirmed_off_hosts = None
 
 
 from fastapi.staticfiles import StaticFiles

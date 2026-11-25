@@ -145,6 +145,82 @@ def test_unknown_route_owner_keeps_gate_closed_until_route_is_verified_or_remove
     asyncio.run(run())
 
 
+def test_pa_route_loss_holds_gate_and_recreates_route_after_pa_recovers():
+    async def run():
+        route = {"device": "a", "module_id": "42", "verified": True}
+        facts = {
+            "available": True,
+            "devices": [{
+                "id": "a", "paired": True, "connected": True,
+                "activity": "transmitting", "source_available": True,
+            }],
+            "speaker_route": dict(route),
+            "digital_target": {"kind": "phone_pcm", "source_id": "a"},
+            "challenges": [],
+        }
+
+        class RestartingAudioBackend(Backend):
+            async def snapshot(self):
+                return {**facts, "devices": facts["devices"]}
+
+            async def set_speaker_route(self, device_id):
+                self.calls.append(("open", device_id))
+                fresh = {"device": device_id, "module_id": "99", "verified": True}
+                facts["speaker_route"] = fresh
+                facts["digital_target"] = {"kind": "phone_pcm", "source_id": device_id}
+                return fresh
+
+            async def close_speaker_route(self):
+                self.calls.append(("close",))
+                facts["speaker_route"] = None
+
+        gates = []
+        backend = RestartingAudioBackend()
+        system = AudioSystem(backend, gate_mpv=lambda muted: _record(gates, muted))
+        await system.start()
+        assert system.snapshot()["speaker"]["status"] == "routed"
+
+        facts["route_error"] = "PulseAudio restarted"
+        with pytest.raises(BackendUnavailable):
+            await system._on_backend_event()
+        assert gates[-1] is True
+
+        facts.pop("route_error")
+        facts["speaker_route"] = None
+        facts["devices"] = [{**facts["devices"][0], "source_available": False}]
+        await system._on_backend_event()
+        assert system.snapshot()["speaker"]["status"] == "waiting"
+        assert gates[-1] is True
+
+        facts["devices"] = [{**facts["devices"][0], "source_available": True}]
+        await system._on_backend_event()
+        assert system.snapshot()["speaker"]["status"] == "routed"
+        assert system.snapshot()["speaker"]["route"]["module_id"] == "99"
+        assert gates[-1] is True
+
+        facts["route_error"] = "PulseAudio restarted again"
+        with pytest.raises(BackendUnavailable):
+            await system._on_backend_event()
+        facts.pop("route_error")
+        facts["speaker_route"] = {**facts["speaker_route"], "module_id": "100"}
+        await system._on_backend_event()
+        assert system.snapshot()["speaker"]["route"]["module_id"] == "100"
+        assert gates[-1] is True
+
+        facts["speaker_route"] = None
+        facts["devices"] = [{
+            **facts["devices"][0],
+            "source_available": False,
+            "player_status": "paused",
+        }]
+        await system._on_backend_event()
+        assert system.snapshot()["speaker"]["status"] == "idle"
+        assert gates[-1] is False
+        await system.close()
+
+    asyncio.run(run())
+
+
 async def _gate(_muted):
     return None
 

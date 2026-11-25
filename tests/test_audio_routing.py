@@ -177,6 +177,29 @@ def test_pulse_router_rejects_wrong_readback_and_unloads_partial_module():
     asyncio.run(_pulse_router_rejects_wrong_readback_and_unloads_partial_module())
 
 
+def test_pulse_subscribe_events_trigger_reconciliation_and_monitor_closes_cleanly():
+    asyncio.run(_pulse_subscribe_events_trigger_reconciliation_and_monitor_closes_cleanly())
+
+
+async def _pulse_subscribe_events_trigger_reconciliation_and_monitor_closes_cleanly():
+    events = asyncio.Queue()
+    seen = asyncio.Event()
+
+    async def subscription():
+        while True:
+            yield await events.get()
+
+    def changed():
+        seen.set()
+
+    router = PulseAudioRouter(subscriber=subscription)
+    await router.start_monitor(changed)
+    await events.put("sink-input changed")
+    await asyncio.wait_for(seen.wait(), 0.5)
+    await router.stop_monitor()
+    assert router._watch_task is None
+
+
 async def _pulse_router_rejects_wrong_readback_and_unloads_partial_module():
     calls = []
 
