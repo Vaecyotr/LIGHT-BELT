@@ -19,9 +19,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from .config import HOST, PORT, ENABLE_TLS, TLS_CERTFILE, TLS_KEYFILE, MPV_DISPLAY, MPV_XAUTHORITY
 from .config import STATE_PUBLISH_INTERVAL_SECONDS
-from .config import validate_security_configuration
-
-validate_security_configuration()
 
 _log = logging.getLogger(__name__)
 
@@ -41,6 +38,7 @@ app.state.ready = False
 app.state.device_probe_task = None
 app.state.lighting_update_task = None
 app.state.lighting_audio_task = None
+app.state.media_health_task = None
 
 
 @app.exception_handler(HTTPException)
@@ -116,17 +114,14 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
     )
 
 # ── 注册路由，相当于 @ComponentScan ──
-from .routers import status, auth, state, shows, capabilities
+from .routers import status, state, shows, capabilities
 from .routers import playback, lights, effects, audio, scenes, brightness
 from . import ws
 from .routers import control
 
-app.add_middleware(control.TerminalBoundary)
 app.include_router(control.router)
-app.include_router(control.controls)
 
 app.include_router(status.router)
-app.include_router(auth.router)
 app.include_router(state.router)
 app.include_router(shows.router)
 app.include_router(capabilities.router)
@@ -161,6 +156,42 @@ async def _poll_devices():
         await asyncio.sleep(STATE_PUBLISH_INTERVAL_SECONDS)
 
 
+def _update_readiness() -> None:
+    from . import engine_adapter
+
+    if engine_adapter.ENGINE_ADAPTER != "real":
+        app.state.ready = True
+        return
+    system = engine_adapter._audio_system
+    facts = system.snapshot() if system else {}
+    bluetooth = facts.get("bluetooth", {})
+    adapter = engine_adapter._real_adapter
+    tasks = (app.state.device_probe_task, app.state.media_health_task,
+             app.state.lighting_audio_task, app.state.lighting_update_task,
+             ws._state_publisher_task)
+    app.state.ready = bool(
+        adapter is not None
+        and bluetooth.get("available") and bluetooth.get("powered")
+        and not bluetooth.get("route_error")
+        and facts.get("audio_output_available")
+        and facts.get("speaker", {}).get("status") != "fault"
+        and getattr(adapter, "status", {}).get("role_phase") != "fault"
+        and all(task is not None and not task.done() for task in tasks)
+    )
+
+
+async def _poll_media_health():
+    from . import engine_adapter
+
+    while True:
+        try:
+            await _run_in_thread(engine_adapter.observe_media)
+        except Exception:
+            _log.exception("Media observation failed")
+        _update_readiness()
+        await asyncio.sleep(STATE_PUBLISH_INTERVAL_SECONDS)
+
+
 async def _watch_lighting_updates(update):
     from . import engine_adapter
     while True:
@@ -186,46 +217,46 @@ async def _watch_lighting_audio(audio_update, lighting_update):
 
 async def _start_runtime():
     from . import engine_adapter
-    lighting_update = None
-    if control.origin():
-        from .control_terminal import ControlPreferences, ControlTerminal, control_dir
-        from .bluetooth import AudioSystem, create_backend
-        prefs = ControlPreferences(control_dir())
-        engine_adapter._preferences = prefs
-        engine_adapter._state.update(volume=prefs.data["volume"], muted=prefs.data["muted"],
-                                     brightness_scale=prefs.data["brightness"])
-        engine_adapter._manual_targets.update(prefs.data["targets"])
-        real = engine_adapter.ENGINE_ADAPTER == "real"
-        verified = os.getenv("LIGHT_BELT_AUDIO_VALIDATED") == "H2,H3,H4"
-        backend = create_backend(allow_real=real,h2_h3_verified=verified,
-                                 isolated_test_image=os.getenv("LIGHT_BELT_AUDIO_TEST_IMAGE")=="isolated",
-                                 program_pid=engine_adapter.program_mpv_pid)
-        if real:
-            backend.terminal_generation = ControlTerminal(control_dir()).generation
-        lighting_update = asyncio.Event()
-        audio_update = asyncio.Event()
+    from .bluetooth import AudioSystem, create_backend
+    from .control_preferences import ControlPreferences, control_dir
 
-        async def notify_lighting():
-            audio_update.set()
-
-        system = AudioSystem(backend,
-                             gate_mpv=lambda value: asyncio.to_thread(engine_adapter.gate_program,value),
-                             notify=notify_lighting)
-        engine_adapter._audio_system = system
-        await system.start()
+    real = engine_adapter.ENGINE_ADAPTER == "real"
+    directory = control_dir() if real or "LIGHT_BELT_CONTROL_DIR" in os.environ else None
+    prefs = ControlPreferences(directory)
+    engine_adapter._preferences = prefs
+    engine_adapter._route_gate = real
     await _run_in_thread(engine_adapter.startup)
-    if lighting_update is not None:
-        app.state.lighting_audio_task = asyncio.create_task(
-            _watch_lighting_audio(audio_update, lighting_update)
-        )
-        await _run_in_thread(engine_adapter._reconcile_lighting)
-        app.state.lighting_update_task = asyncio.create_task(
-            _watch_lighting_updates(lighting_update)
-        )
-    if engine_adapter.ENGINE_ADAPTER == "real" and engine_adapter._real_adapter is not None:
-        app.state.device_probe_task = asyncio.create_task(_poll_devices())
     ws.bind_event_loop(asyncio.get_running_loop())
-    app.state.ready = engine_adapter.ENGINE_ADAPTER != "real" or engine_adapter._real_adapter is not None
+    if real and engine_adapter._real_adapter is None:
+        return
+
+    lighting_update = asyncio.Event()
+    audio_update = asyncio.Event()
+
+    async def notify_lighting():
+        audio_update.set()
+
+    backend = create_backend(allow_real=real, program_pid=engine_adapter.program_mpv_pid)
+    system = AudioSystem(
+        backend,
+        gate_mpv=lambda value: asyncio.to_thread(engine_adapter.gate_program, value),
+        notify=notify_lighting,
+    )
+    engine_adapter._audio_system = system
+    await system.start()
+    await _run_in_thread(engine_adapter._reconcile_lighting)
+    app.state.lighting_audio_task = asyncio.create_task(
+        _watch_lighting_audio(audio_update, lighting_update)
+    )
+    app.state.lighting_update_task = asyncio.create_task(_watch_lighting_updates(lighting_update))
+    if real:
+        app.state.device_probe_task = asyncio.create_task(_poll_devices())
+        app.state.media_health_task = asyncio.create_task(_poll_media_health())
+        for task in (app.state.device_probe_task, app.state.media_health_task,
+                     app.state.lighting_audio_task, app.state.lighting_update_task,
+                     ws._state_publisher_task):
+            task.add_done_callback(lambda _task: _update_readiness())
+    _update_readiness()
 
 
 async def _stop_runtime():
@@ -233,10 +264,11 @@ async def _stop_runtime():
     app.state.ready = False
     await ws.close_event_loop()
     tasks = [task for task in (app.state.device_probe_task, app.state.lighting_update_task,
-                               app.state.lighting_audio_task)
+                               app.state.lighting_audio_task, app.state.media_health_task)
              if task is not None]
     app.state.device_probe_task = app.state.lighting_update_task = None
     app.state.lighting_audio_task = None
+    app.state.media_health_task = None
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
@@ -251,13 +283,9 @@ async def _stop_runtime():
             engine_adapter._route_gate = False
             engine_adapter._lighting_error = None
             engine_adapter._power_error = engine_adapter._confirmed_off_hosts = None
-
-
-from fastapi.staticfiles import StaticFiles
-
-_kiosk_dist = Path(__file__).resolve().parent.parent / "kiosk" / "dist"
-if _kiosk_dist.is_dir():
-    app.mount("/", StaticFiles(directory=str(_kiosk_dist), html=True), name="kiosk")
+            engine_adapter._off_request_submitted = False
+            engine_adapter._wled_writes = []
+            engine_adapter._brightness_error = None
 
 
 def run():
@@ -269,10 +297,6 @@ def run():
     if ENABLE_TLS:
         kwargs["ssl_certfile"] = TLS_CERTFILE
         kwargs["ssl_keyfile"] = TLS_KEYFILE
-    if control.origin():
-        kwargs["proxy_headers"] = False
-        if not ENABLE_TLS:
-            raise RuntimeError("The managed control listener requires TLS")
     uvicorn.run(app, **kwargs)
 
 

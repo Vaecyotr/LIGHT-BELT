@@ -4,7 +4,7 @@ import threading
 
 from starlette.websockets import WebSocket
 
-from host_services import auth_manager, ws
+from host_services import ws
 
 
 def test_background_error_is_dispatched_on_bound_loop_and_closed(monkeypatch):
@@ -57,7 +57,7 @@ def test_disconnect_without_heartbeat_releases_connection():
     async def run():
         messages = asyncio.Queue()
         await messages.put({'type': 'websocket.connect'})
-        ticket = auth_manager.create_ws_ticket(['error.event'])['ws_ticket']
+        ticket = ws.create_ws_ticket(['error.event'], 'host', secure=False)['ws_ticket']
         socket, sent = _websocket_boundary(messages)
         endpoint = asyncio.create_task(ws.ws_endpoint(socket, ticket=ticket))
         try:
@@ -78,7 +78,7 @@ def test_host_shutdown_closes_active_websocket_tasks():
     async def run():
         messages = asyncio.Queue()
         await messages.put({'type': 'websocket.connect'})
-        ticket = auth_manager.create_ws_ticket(['error.event'])['ws_ticket']
+        ticket = ws.create_ws_ticket(['error.event'], 'host', secure=False)['ws_ticket']
         socket, sent = _websocket_boundary(messages)
         endpoint = asyncio.create_task(ws.ws_endpoint(socket, ticket=ticket))
         try:

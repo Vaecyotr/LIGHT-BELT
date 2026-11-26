@@ -46,12 +46,12 @@ def test_wayland_startup_does_not_run_x11_dpms(monkeypatch):
     run.assert_not_called()
 
 
-def test_user_host_unit_uses_session_runtime_and_persistent_credentials():
+def test_user_host_unit_uses_session_runtime_and_optional_local_settings():
     text = Path("systemd/user/light-belt-host.service").read_text(encoding="utf-8")
     assert "WantedBy=default.target" in text
     assert "RuntimeDirectory=light-belt" in text
     assert "MPV_SOCKET_PATH=%t/light-belt/mpv.sock" in text
-    assert "EnvironmentFile=%h/.config/light-belt/host.env" in text
+    assert "EnvironmentFile=-%h/.config/light-belt/host.env" in text
     assert "DISPLAY=:0" not in text
     assert "XAUTHORITY=" not in text
 

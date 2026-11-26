@@ -107,33 +107,19 @@ def test_check_never_changes_input_only_card(server):
     assert server["writes"] == []
 
 
-def test_only_existing_policy_route_moves_and_check_detects_wrong_sink(server):
+def test_sink_initialization_leaves_existing_a2dp_streams_to_host(server):
     server["card"]["active_profile"] = DUPLEX
     server["default"] = SINK
     server["sources"] = [{"name": SOURCE, "state": "RUNNING"}]
     server["modules"] = (
-        '9\tmodule-bluetooth-policy\t\t\n'
         f'11\tmodule-loopback\tsource="{SOURCE}" source_dont_move="true" '
         'sink_input_properties="media.role=music"\t\n'
-        f'12\tmodule-loopback\tsource="{SOURCE}" sink=other_sink\t\n'
     )
-    server["sink-inputs"] = [{"index": 20, "owner_module": "11", "sink": 1},
-                             {"index": 21, "owner_module": None, "sink": 1},
-                             {"index": 22, "owner_module": "12", "sink": 1}]
-    assert audio.run(check=True, wait=3) == 1
+    server["sink-inputs"] = [{"index": 20, "owner_module": "11", "sink": 1}]
+
+    assert audio.run(wait=3) == audio.run(check=True, wait=3) == 0
     assert server["writes"] == []
-    assert audio.run(wait=3) == 0
-    assert server["writes"] == [("move-sink-input", "20", SINK)]
-    assert server["sink-inputs"][1]["sink"] == 1
-    assert server["sink-inputs"][2]["sink"] == 1
-
-
-def test_active_a2dp_without_route_fails_check(server, capsys):
-    server["card"]["active_profile"] = DUPLEX
-    server["default"] = SINK
-    server["sources"] = [{"name": SOURCE, "state": "RUNNING"}]
-    assert audio.run(check=True, wait=3) == 1
-    assert "no PulseAudio policy playback route" in capsys.readouterr().err
+    assert server["sink-inputs"][0]["sink"] == 1
 
 
 def test_explicit_existing_sink_does_not_change_card_profile(server, monkeypatch):
@@ -143,7 +129,7 @@ def test_explicit_existing_sink_does_not_change_card_profile(server, monkeypatch
     assert server["writes"] == [("set-default-sink", SINK)]
 
 
-def test_unplugged_port_keeps_preferred_sink_and_defers_playback_until_plugged(server, capsys, monkeypatch):
+def test_unplugged_port_keeps_preferred_sink_and_defers_playback_until_plugged(server, capsys):
     server["card"]["active_profile"] = DUPLEX
     port = {"name": "analog-output-headphones", "availability": "not available"}
     server["sink"].update(active_port=port["name"], ports=[port])
@@ -154,22 +140,14 @@ def test_unplugged_port_keeps_preferred_sink_and_defers_playback_until_plugged(s
     server["writes"].clear()
     assert audio.run(check=True, wait=3) == 0
     assert "NOT HARDWARE VERIFIED" in capsys.readouterr().out
-    monkeypatch.setattr(audio.sys, "argv", ["audio_output.py", "--check-playback"])
-    assert audio.main() == 1
-    assert "not available" in capsys.readouterr().err
-    assert server["writes"] == []
-
     # PulseAudio reevaluates the configured default when the jack becomes available.
     port["availability"] = "available"
     server["default"] = server["preferred"]
-    server["modules"] = (f'11\tmodule-loopback\tsource="{SOURCE}" source_dont_move="true" '
-                         'sink_input_properties="media.role=music"\t\n')
-    server["sink-inputs"] = [{"index": 20, "owner_module": "11", "sink": 7}]
-    assert audio.main() == 0
+    assert audio.run(check=True, wait=3) == 0
     assert server["writes"] == []
 
 
-def test_available_active_port_still_requires_correct_default_and_playback(server, capsys):
+def test_available_active_port_still_requires_correct_default(server, capsys):
     server["card"]["active_profile"] = DUPLEX
     server["sink"].update(active_port="speaker", ports=[
         {"name": "headphones", "availability": "not available"},
@@ -179,8 +157,6 @@ def test_available_active_port_still_requires_correct_default_and_playback(serve
     assert "default sink" in capsys.readouterr().err
     server["default"] = SINK
     assert audio.run(check=True, wait=3) == 0
-    assert audio.run(check=True, playback=True, wait=3) == 1
-    assert "no RUNNING A2DP source" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(("failure", "message"), [

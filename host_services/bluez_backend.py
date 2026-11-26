@@ -55,7 +55,7 @@ class LinuxBluezBackend:
         self._objects: dict[str, dict[str, dict[str, Any]]] = {}
         self._challenges: dict[str, dict[str, Any]] = {}
         self._challenge_waiters: dict[str, asyncio.Future] = {}
-        self.terminal_generation = None
+        self._add_window_generation = 0
         self._pair_tasks: dict[str, asyncio.Task] = {}
         self._pair_devices: dict[str, str] = {}
         self._pair_results: dict[str, dict[str, Any]] = {}
@@ -64,6 +64,7 @@ class LinuxBluezBackend:
         self._agent_registration_lock = asyncio.Lock()
         self._agent_retry_task: asyncio.Task | None = None
         self._owner = True
+        self._agent_registered = False
         self._started = False
         self._closing = False
         self._route_device: str | None = None
@@ -249,7 +250,9 @@ class LinuxBluezBackend:
             }
         await self._read_objects()
         devices = self._device_snapshot()
+        audio_output = await self._audio_output_observation()
         digital_target = None
+        digital_error = None
         if self._route_error:
             try:
                 await self.router.assert_exclusive_policy()
@@ -277,11 +280,18 @@ class LinuxBluezBackend:
                     route, self._route_device
                 )
         else:
-            sink = self.sink or (await self.router._runner("get-default-sink")).strip()
-            if sink.startswith("alsa_output.platform-rt5616"):
-                digital_target = await self._program_target(sink)
+            try:
+                sink = self.sink or (await self.router._runner("get-default-sink")).strip()
+                if sink.startswith("alsa_output.platform-rt5616"):
+                    digital_target = await self._program_target(sink)
+            except Exception as exc:
+                digital_error = str(exc)
         return {
-            "available": True,
+            "available": bool(self._owner and self._agent_registered),
+            "audio_output_available": audio_output["available"],
+            "audio_output": audio_output,
+            "audio_error": audio_output.get("reason"),
+            "digital_audio_error": digital_error,
             "powered": self._adapter_bool("Powered"),
             "discovering": self._adapter_bool("Discovering"),
             "pairable": self._adapter_bool("Pairable"),
@@ -296,9 +306,43 @@ class LinuxBluezBackend:
             "route_error": self._route_error,
         }
 
+    async def _audio_output_observation(self) -> dict[str, Any]:
+        """Observe the configured/default sink without making BlueZ unavailable."""
+        try:
+            sink = self.sink or (await self.router._runner("get-default-sink")).strip()
+            rows = json.loads(await self.router._runner("--format=json", "list", "sinks"))
+            selected = next((row for row in rows if row.get("name") == sink), None)
+            if selected is None:
+                return {"available": False, "sink": sink, "reason": "audio output sink is absent"}
+            state = str(selected.get("state", "")).upper()
+            active_port = selected.get("active_port")
+            port = next(
+                (item for item in selected.get("ports", []) if item.get("name") == active_port),
+                None,
+            )
+            port_availability = str((port or {}).get("availability", "unknown")).lower()
+            valid_state = state in {"IDLE", "RUNNING", "SUSPENDED"}
+            port_unavailable = port_availability in {"no", "not available"}
+            available = valid_state and not port_unavailable
+            if not valid_state:
+                reason = f"audio output sink state is {state or 'unknown'}"
+            elif port_unavailable:
+                reason = "active audio output port is unavailable"
+            else:
+                reason = None
+            return {
+                "available": available,
+                "sink": sink,
+                "index": int(selected["index"]),
+                "state": state or None,
+                "active_port": active_port,
+                "port_availability": port_availability,
+                "reason": reason,
+            }
+        except Exception as exc:
+            return {"available": False, "sink": None, "state": None, "reason": str(exc)}
+
     async def pair(self, device_id: str, operation_id: str) -> None:
-        if self._pair_window_previous is None:
-            raise BackendUnavailable("open the add-device window before pairing")
         path = self._device_path(device_id)
         if path is None:
             raise BackendUnavailable("unknown BlueZ device")
@@ -319,6 +363,9 @@ class LinuxBluezBackend:
         task = self._pair_tasks.get(operation_id)
         if task is None:
             raise BackendUnavailable("pairing operation is not pending")
+        self._invalidate_challenges(
+            lambda challenge: challenge.get("operation_id") == operation_id
+        )
         path = self._device_path(self._pair_devices.get(operation_id, ""))
         if path:
             try:
@@ -366,6 +413,12 @@ class LinuxBluezBackend:
 
     async def remove(self, device_id: str) -> None:
         path = self._require_device_path(device_id)
+        self._invalidate_challenges(lambda challenge: challenge.get("device_id") == device_id)
+        for operation_id, target in list(self._pair_devices.items()):
+            if target == device_id:
+                task = self._pair_tasks.get(operation_id)
+                if task is not None and not task.done():
+                    task.cancel()
         adapter = self._adapter_path()
         await self._call(BLUEZ, adapter, ADAPTER_IFACE, "RemoveDevice", "o", [path])
         await self._read_objects()
@@ -378,7 +431,7 @@ class LinuxBluezBackend:
     ) -> None:
         challenge = self._challenges.get(challenge_id)
         if challenge is None or challenge.get("device_id") != device_id:
-            raise BackendUnavailable("pairing challenge is unavailable")
+            raise BackendUnavailable("pairing challenge expired or unavailable")
         if challenge.get("expires_at", 0) <= time.monotonic():
             self._resolve_challenge(challenge_id, False, None)
             raise BackendUnavailable("pairing challenge expired")
@@ -402,6 +455,7 @@ class LinuxBluezBackend:
             BLUEZ, self._adapter_path(), "org.freedesktop.DBus.Properties"
         )
         if enabled and self._pair_window_previous is None:
+            self._add_window_generation += 1
             await self._read_objects()
             self._pair_window_previous = (
                 self._adapter_bool("Pairable"),
@@ -423,9 +477,12 @@ class LinuxBluezBackend:
         ):
             raise BackendUnavailable("BlueZ pairing-window properties did not settle")
         if not enabled:
+            self._add_window_generation += 1
             self._pair_window_previous = None
             self._incoming_reservations.clear()
-            self._cancel_challenges()
+            self._invalidate_challenges(
+                lambda challenge: challenge.get("operation_id") is None
+            )
         await self._emit()
 
     async def set_speaker_route(self, device_id: str) -> dict[str, Any] | None:
@@ -475,12 +532,9 @@ class LinuxBluezBackend:
         self._route_error = None
 
     async def _challenge(self, device_path: str, kind: str, value: str | None):
-        authorization = self.terminal_generation() if self.terminal_generation else None
-        if self.terminal_generation and not authorization:
-            raise self._dbus[2](
-                "org.bluez.Error.Rejected", "No authorized control screen"
-            )
         device_id = self._device_id(device_path)
+        operation_id = next((op for op, target in self._pair_devices.items() if target == device_id), None)
+        generation = self._add_window_generation
         props = self._objects.get(device_path, {}).get(DEVICE_IFACE, {})
         outgoing = device_id in self._pair_devices.values()
         if (
@@ -495,6 +549,7 @@ class LinuxBluezBackend:
             )
         if (
             not props.get("Paired", False)
+            and operation_id is None
             and device_id not in self._incoming_reservations
         ):
             occupied = {
@@ -517,6 +572,8 @@ class LinuxBluezBackend:
             "kind": kind,
             "value": value,
             "expires_at": time.monotonic() + self.challenge_timeout,
+            "operation_id": operation_id,
+            "add_window_generation": generation,
         }
         self._challenges[challenge_id] = challenge
         self._challenge_waiters[challenge_id] = future
@@ -534,9 +591,11 @@ class LinuxBluezBackend:
         self._challenges.pop(challenge_id, None)
         self._challenge_waiters.pop(challenge_id, None)
         await self._emit()
-        if not accepted or (
-            self.terminal_generation and self.terminal_generation() != authorization
-        ):
+        current_operation = next((op for op, target in self._pair_devices.items() if target == device_id), None)
+        if (not accepted
+                or (operation_id is None and generation != self._add_window_generation)
+                or current_operation != operation_id
+                or self._device_path(device_id) != device_path):
             self._incoming_reservations.discard(device_id)
             raise self._dbus[2](
                 "org.bluez.Error.Rejected", "Pairing rejected by local user"
@@ -574,13 +633,21 @@ class LinuxBluezBackend:
         future.set_result((accepted, value))
 
     def _cancel_challenges(self) -> None:
-        for future in self._challenge_waiters.values():
-            if not future.done():
+        self._invalidate_challenges(lambda _challenge: True)
+
+    def _invalidate_challenges(self, predicate) -> None:
+        for challenge_id, challenge in list(self._challenges.items()):
+            if not predicate(challenge):
+                continue
+            future = self._challenge_waiters.get(challenge_id)
+            if future is not None and not future.done():
                 future.set_result((False, None))
-        self._challenges.clear()
+            self._challenges.pop(challenge_id, None)
+            self._challenge_waiters.pop(challenge_id, None)
 
     def _agent_released(self) -> None:
         self._owner = False
+        self._agent_registered = False
         self._cancel_challenges()
         if self._started and not self._closing and (
             self._agent_retry_task is None or self._agent_retry_task.done()
@@ -602,6 +669,9 @@ class LinuxBluezBackend:
         if self._pair_tasks.get(operation_id) is not task:
             return
         self._pair_tasks.pop(operation_id, None)
+        self._invalidate_challenges(
+            lambda challenge: challenge.get("operation_id") == operation_id
+        )
         device = self._pair_devices.pop(operation_id, None)
         if task.cancelled():
             self._pair_results[operation_id] = {"state": "cancelled"}
@@ -683,6 +753,7 @@ class LinuxBluezBackend:
 
     async def _owner_changed(self, present: bool):
         self._owner = present
+        self._agent_registered = False
         if not present:
             self._objects.clear()
             self._cancel_challenges()
@@ -701,6 +772,7 @@ class LinuxBluezBackend:
             await manager.call_request_default_agent(AGENT_PATH)
             self._agent_manager = manager
             self._owner = True
+            self._agent_registered = True
 
     async def _retry_agent_registration(self):
         while self._started:

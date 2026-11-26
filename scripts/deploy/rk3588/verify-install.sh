@@ -31,7 +31,7 @@ printf '%s\n' '===== LIGHT-BELT RK3588 VERIFY ====='
 [[ "$(id -un)" == "$LB_USER" ]] && pass "user=$LB_USER" || fail "current user is $(id -un), expected $LB_USER"
 [[ -d "$LB_REPO" ]] && pass "repo=$LB_REPO" || fail "repo missing: $LB_REPO"
 
-for cmd in ssh avahi-resolve iw curl mpv git bluetoothctl pactl pacmd timeout; do
+for cmd in ssh avahi-resolve iw curl mpv git bluetoothctl pactl timeout; do
     check_cmd "$cmd"
 done
 
@@ -42,59 +42,49 @@ systemctl is-active avahi-daemon >/dev/null 2>&1 && pass "avahi active" || fail 
 bluetooth_ready=0
 for ((attempt=0; attempt<10; attempt++)); do
     controller="$(LC_ALL=C timeout 5 bluetoothctl show 2>/dev/null || true)"
-    if grep -q 'Powered: yes' <<<"$controller" && grep -q 'Pairable: yes' <<<"$controller" && grep -q 'Discoverable: yes' <<<"$controller"; then
+    if grep -q 'Powered: yes' <<<"$controller"; then
         bluetooth_ready=1
         break
     fi
     sleep 1
 done
 if (( bluetooth_ready )); then
-    pass "Bluetooth controller powered, pairable and discoverable"
+    pass "Bluetooth controller powered"
 else
-    fail "Bluetooth public pairing not ready; inspect bluetooth and bluetooth-public-mode journals"
+    fail "Bluetooth controller is not powered; inspect bluetooth.service"
 fi
 
 systemctl is-enabled bluetooth.service >/dev/null 2>&1 && pass "bluetooth enabled" || fail "bluetooth not enabled"
 systemctl is-active bluetooth.service >/dev/null 2>&1 && pass "bluetooth active" || fail "bluetooth not active"
 for unit in bluetooth-auto-agent.service bluetooth-public-mode.service; do
-    systemctl is-enabled "$unit" >/dev/null 2>&1 && pass "$unit enabled" || fail "$unit not enabled"
-    systemctl is-active "$unit" >/dev/null 2>&1 && pass "$unit active" || fail "$unit not active"
+    if systemctl is-enabled "$unit" >/dev/null 2>&1 || systemctl is-active "$unit" >/dev/null 2>&1; then
+        fail "$unit must be disabled; Host owns pairing behavior"
+    else
+        pass "$unit disabled"
+    fi
 done
 user_systemctl is-enabled light-belt-audio-default-sink.service >/dev/null 2>&1 && pass "RT5616 default-sink service enabled" || fail "RT5616 default-sink service not enabled"
 user_systemctl is-active light-belt-audio-default-sink.service >/dev/null 2>&1 && pass "RT5616 default-sink service active" || fail "RT5616 default-sink service not active"
 
-PRIORITY_UNIT="$LB_HOME/.config/systemd/user/light-belt-bluetooth-priority.service"
-PRIORITY_LINK="$LB_HOME/.config/systemd/user/default.target.wants/light-belt-bluetooth-priority.service"
-if user_systemctl is-enabled light-belt-bluetooth-priority.service >/dev/null 2>&1; then
-    pass "Bluetooth priority user service enabled"
-elif [[ -f "$PRIORITY_UNIT" && -L "$PRIORITY_LINK" ]]; then
-    warning "Bluetooth priority user unit is statically enabled; user manager unavailable, reboot/no-SSH lifecycle is NOT HARDWARE VERIFIED"
+if user_systemctl is-enabled light-belt-bluetooth-priority.service >/dev/null 2>&1 || user_systemctl is-active light-belt-bluetooth-priority.service >/dev/null 2>&1; then
+    fail "legacy Bluetooth priority service must be disabled; Host owns audio policy"
 else
-    fail "Bluetooth priority user service not enabled"
-fi
-if user_systemctl is-active light-belt-bluetooth-priority.service >/dev/null 2>&1; then
-    pass "Bluetooth priority user service active"
-else
-    fail "Bluetooth priority user service not active"
+    pass "legacy Bluetooth priority service disabled"
 fi
 
-if [[ -e "$LB_HOME/.local/bin/bluetooth-audio-loopback.sh" || \
-      -e "$LB_HOME/.config/systemd/user/bluetooth-audio-loopback.service" || \
-      -e "$LB_HOME/.config/systemd/user/default.target.wants/bluetooth-audio-loopback.service" ]]; then
-    fail "obsolete Bluetooth loopback helper/service still exists"
+if user_systemctl is-enabled bluetooth-audio-loopback.service >/dev/null 2>&1 || \
+   user_systemctl is-active bluetooth-audio-loopback.service >/dev/null 2>&1; then
+    fail "obsolete Bluetooth loopback service must be disabled"
 else
-    pass "obsolete Bluetooth loopback helper/service absent"
+    pass "obsolete Bluetooth loopback service disabled"
 fi
 
-if pactl info >/dev/null 2>&1; then
+if native_pulseaudio 2>/dev/null; then
     pass "PulseAudio reachable for $LB_USER"
     MODULES="$(pactl list short modules 2>/dev/null || true)"
-    [[ "$MODULES" == *'module-bluetooth-policy'* ]] && pass "module-bluetooth-policy present" || fail "module-bluetooth-policy missing"
+    bluetooth_policy_disables_autoplay "$MODULES" && pass "automatic A2DP loopback disabled" || fail "automatic A2DP loopback is not confirmed disabled"
     [[ "$MODULES" == *'module-bluetooth-discover'* ]] && pass "module-bluetooth-discover present" || fail "module-bluetooth-discover missing"
-    BAD_LOOPBACKS="$(printf '%s\n' "$MODULES" | awk '$2=="module-loopback" && $0 ~ /latency_msec=80/ {n++} END {print n+0}')"
-    ALL_LOOPBACKS="$(printf '%s\n' "$MODULES" | awk '$2=="module-loopback" {n++} END {print n+0}')"
-    (( BAD_LOOPBACKS == 0 )) && pass "no latency_msec=80 loopback" || fail "$BAD_LOOPBACKS obsolete latency_msec=80 loopback(s)"
-    (( ALL_LOOPBACKS <= 1 )) && pass "module-loopback count valid ($ALL_LOOPBACKS; idle zero is allowed)" || fail "multiple module-loopback instances ($ALL_LOOPBACKS)"
+    bluetooth_routes_exclusive "$MODULES" && pass "Bluetooth playback routes are exclusive" || fail "foreign or competing Bluetooth playback routes"
     if bash "$SCRIPT_DIR/set-default-audio-sink.sh" --check; then
         pass "RT5616 software output ready; physical playback requires hardware acceptance"
     else
@@ -126,10 +116,12 @@ if systemctl is-active --quiet light-belt-host.service || systemctl is-enabled -
     fail "Legacy system Host is still active or enabled"
 fi
 HOST_ENV="$LB_HOME/.config/light-belt/host.env"
-if [[ -f "$HOST_ENV" && ! -L "$HOST_ENV" && "$(stat -c '%a:%u' "$HOST_ENV")" == "600:$(id -u)" ]]; then
-    pass "Persistent Host credentials owned by $LB_USER with mode 0600"
+if [[ ! -e "$HOST_ENV" ]]; then
+    pass "optional Host environment file absent"
+elif [[ -f "$HOST_ENV" && ! -L "$HOST_ENV" && "$(stat -c '%a:%u' "$HOST_ENV")" == "600:$(id -u)" ]]; then
+    pass "Host environment file preserved with owner-only permissions"
 else
-    fail "Host credential file missing or incorrectly protected: $HOST_ENV"
+    fail "Host environment file is not a regular owner-only file: $HOST_ENV"
 fi
 if cmp -s "$LB_REPO/systemd/light-belt-host-session.desktop" "$LB_HOME/.config/autostart/light-belt-host-session.desktop"; then
     pass "GNOME Host login entry installed"
@@ -145,7 +137,7 @@ fi
 
 ready=0
 for ((attempt=0; attempt<30; attempt++)); do
-    STATUS="$(curl -fsS --max-time 1 http://127.0.0.1:8443/api/v1/status 2>/dev/null || true)"
+    STATUS="$(host_status_json 2>/dev/null || true)"
     if "$LB_REPO/.venv/bin/python" -c 'import json,sys; p=json.load(sys.stdin); d=p["data"]; sys.exit(0 if p.get("ok") is True and d.get("service")=="light-belt-host" and d.get("adapter")=="real" and d.get("ready") is True else 1)' <<<"$STATUS" 2>/dev/null; then
         ready=1
         break

@@ -162,6 +162,10 @@ def test_lifespan_owns_single_probe_and_waits_for_inflight_work(monkeypatch):
     monkeypatch.setattr(engine_adapter, "startup", lambda: events.append("startup"))
     monkeypatch.setattr(engine_adapter, "shutdown", lambda: events.append("shutdown"))
     monkeypatch.setattr(engine_adapter, "_probe_devices", probe)
+    monkeypatch.setattr(engine_adapter, "_reconcile_lighting", lambda: None)
+    from host_services.bluetooth import DisabledBackend
+    monkeypatch.setattr("host_services.bluetooth.create_backend", lambda **kwargs: DisabledBackend())
+    monkeypatch.setattr(engine_adapter, "observe_media", lambda: None)
 
     async def run():
         await host._start_runtime()
@@ -215,7 +219,6 @@ def test_audio_notification_returns_before_lighting_reconciliation(tmp_path, mon
         async def close(self):
             pass
 
-    monkeypatch.setenv("LIGHT_BELT_CONTROL_ORIGIN", "https://cabin.example")
     monkeypatch.setenv("LIGHT_BELT_CONTROL_DIR", str(tmp_path))
     monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "mock")
     monkeypatch.setattr(engine_adapter, "startup", lambda: None)
@@ -248,7 +251,6 @@ def test_runtime_startup_recovers_corrupt_preferences_and_keeps_host_available(
     tmp_path, monkeypatch
 ):
     (tmp_path / "preferences.json").write_text("{broken", encoding="utf-8")
-    monkeypatch.setenv("LIGHT_BELT_CONTROL_ORIGIN", "https://cabin.example")
     monkeypatch.setenv("LIGHT_BELT_CONTROL_DIR", str(tmp_path))
     monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "memory")
     monkeypatch.setattr(engine_adapter, "startup", lambda: None)
@@ -287,32 +289,30 @@ def test_runtime_startup_recovers_corrupt_preferences_and_keeps_host_available(
     asyncio.run(run())
 
 
-def test_runtime_startup_tolerates_corrupt_enrollment_database(tmp_path, monkeypatch):
+def test_runtime_startup_ignores_retired_enrollment_database(tmp_path, monkeypatch):
     (tmp_path / "terminal.sqlite").write_bytes(b"not a sqlite database")
-    monkeypatch.setenv("LIGHT_BELT_CONTROL_ORIGIN", "https://cabin.example")
     monkeypatch.setenv("LIGHT_BELT_CONTROL_DIR", str(tmp_path))
     monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
     monkeypatch.setattr(engine_adapter, "_real_adapter", object())
     monkeypatch.setattr(engine_adapter, "startup", lambda: None)
     monkeypatch.setattr(engine_adapter, "shutdown", lambda: None)
     monkeypatch.setattr(engine_adapter, "_reconcile_lighting", lambda: None)
-    monkeypatch.setattr(host.ws, "bind_event_loop", lambda _loop: None)
 
     class Backend:
-        terminal_generation = None
+        pass
 
     class AudioSystem:
         def __init__(self, backend, **_kwargs):
             self.backend = backend
 
         async def start(self):
-            assert self.backend.terminal_generation() is None
+            assert not hasattr(self.backend, "terminal_generation")
 
         async def close(self):
             pass
 
         def snapshot(self):
-            return {}
+            return {"bluetooth": {"available": True, "powered": True}, "audio_output_available": True}
 
     monkeypatch.setattr("host_services.bluetooth.create_backend", lambda **_kwargs: Backend())
     monkeypatch.setattr("host_services.bluetooth.AudioSystem", AudioSystem)
@@ -321,6 +321,10 @@ def test_runtime_startup_tolerates_corrupt_enrollment_database(tmp_path, monkeyp
         await host._start_runtime()
         try:
             assert host.app.state.ready is True
+            media_task = host.app.state.media_health_task
+            media_task.cancel()
+            await asyncio.gather(media_task, return_exceptions=True)
+            assert host.app.state.ready is False
         finally:
             await host._stop_runtime()
 

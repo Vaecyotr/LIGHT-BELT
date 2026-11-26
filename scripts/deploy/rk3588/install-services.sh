@@ -6,17 +6,31 @@ source "$SCRIPT_DIR/lib/session.sh"
 
 require_target_user
 require_repo
-require_legacy_audio_mode
 ensure_sudo
 
 uid="$(id -u)"
-gid="$(id -g)"
-sudo /usr/bin/python3 "$SCRIPT_DIR/host_environment.py" --home "$LB_HOME" --uid "$uid" --gid "$gid"
 
-log "安装公共 Bluetooth 系统服务和维护定时器定义"
-for name in bluetooth-auto-agent.service bluetooth-public-mode.service lb-update.service lb-update.timer; do
+log "停止已识别的旧配对策略，并安装维护定时器定义"
+disable_owned_unit() {
+    local scope="$1" unit="$2" expected="$3" actual
+    local -a ctl=(sudo systemctl)
+    [[ "$scope" != --user ]] || ctl=(systemctl --user)
+    if ! "${ctl[@]}" cat "$unit" >/dev/null 2>&1; then return 0; fi
+    actual="$("${ctl[@]}" cat "$unit" 2>/dev/null || true)"
+    if ! grep -E '^ExecStart=' <<<"$actual" | grep -Fq -- "$expected"; then
+        warn "保留来源不匹配的 $unit；请先检查其实际资源所有者。"
+        return 0
+    fi
+    "${ctl[@]}" disable --now "$unit" || die "无法停用已识别的旧服务 $unit"
+    "${ctl[@]}" daemon-reload
+}
+disable_owned_unit system bluetooth-auto-agent.service "$LB_REPO/scripts/deploy/rk3588/bluetooth-auto-agent.py"
+disable_owned_unit system bluetooth-public-mode.service "$LB_REPO/scripts/deploy/rk3588/bluetooth-public-mode.sh"
+disable_owned_unit --user light-belt-bluetooth-priority.service "$LB_REPO/scripts/deploy/rk3588/bluetooth_audio_priority.py"
+disable_owned_unit --user bluetooth-audio-loopback.service "$LB_HOME/.local/bin/bluetooth-audio-loopback.sh"
+for name in lb-update.service lb-update.timer; do
     unit="$LB_REPO/systemd/$name"
-    destination="/etc/systemd/system/$name"
+    destination="${LIGHT_BELT_SYSTEM_UNIT_DIR:-/etc/systemd/system}/$name"
     [[ -f "$unit" ]] || die "缺少 $unit"
     [[ ! -L "$destination" ]] || die "拒绝覆盖系统服务联接: $destination"
     if ! sudo cmp -s "$unit" "$destination"; then
@@ -33,29 +47,24 @@ for legacy in light-belt-host.service light-belt-audio-default-sink.service; do
         sudo systemctl disable --now "$legacy"
     fi
 done
-sudo systemctl enable --now bluetooth-auto-agent.service
-sudo systemctl enable --now bluetooth-public-mode.service
 
 sudo loginctl enable-linger "$LB_USER"
 sudo systemctl start "user@$uid.service"
 user_systemctl show-environment >/dev/null || die "pi 用户服务管理器不可达"
-if user_systemctl is-active --quiet pipewire-pulse.service; then
-    die "检测到 pipewire-pulse；现有音频配置已保留，请先确认原生 PulseAudio 部署方案"
-fi
+native_pulseaudio 2>/dev/null || die "Audio backend changed after preflight; refusing service changes"
 user_systemctl enable --now pulseaudio.socket
 user_systemctl start pulseaudio.service
 
 USER_UNIT_DIR="$LB_HOME/.config/systemd/user"
 mkdir -p "$USER_UNIT_DIR" "$LB_HOME/.config/autostart"
-for name in light-belt-host.service light-belt-audio-default-sink.service light-belt-bluetooth-priority.service; do
+for name in light-belt-host.service light-belt-audio-default-sink.service; do
     install_owned_file "$LB_REPO/systemd/user/$name" "$USER_UNIT_DIR/$name"
 done
 install_owned_file "$LB_REPO/systemd/light-belt-host-session.desktop" \
     "$LB_HOME/.config/autostart/light-belt-host-session.desktop"
 user_systemctl daemon-reload
-user_systemctl enable light-belt-host.service light-belt-audio-default-sink.service light-belt-bluetooth-priority.service
+user_systemctl enable light-belt-host.service light-belt-audio-default-sink.service
 user_systemctl restart light-belt-audio-default-sink.service
-user_systemctl restart light-belt-bluetooth-priority.service
 
 if [[ "${XDG_SESSION_TYPE:-}" == wayland && -n "${WAYLAND_DISPLAY:-}" ]]; then
     bash "$SCRIPT_DIR/start-host-session.sh"
@@ -66,4 +75,4 @@ else
     fi
 fi
 
-ok "Host 用户服务、GNOME 会话启动项、Bluetooth 与音频服务已安装"
+ok "Host 用户服务、GNOME 会话启动项、BlueZ 与 RT5616 默认音频服务已安装"

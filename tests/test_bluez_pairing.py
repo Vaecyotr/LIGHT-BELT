@@ -92,9 +92,10 @@ async def _same_pair_request_is_idempotent_and_does_not_double_reserve():
     ]
 
 
-def test_real_backend_factory_fails_closed_without_explicit_hardware_gate():
-    with pytest.raises(BackendUnavailable, match="H2/H3"):
-        create_backend(allow_real=True, h2_h3_verified=False)
+def test_backend_factory_no_longer_requires_hardware_gate_for_real_linux_backend(monkeypatch):
+    monkeypatch.setattr("host_services.bluetooth.sys.platform", "linux")
+    backend = create_backend(allow_real=True)
+    assert backend.__class__.__name__ == "LinuxBluezBackend"
     assert isinstance(create_backend(), DisabledBackend)
 
 

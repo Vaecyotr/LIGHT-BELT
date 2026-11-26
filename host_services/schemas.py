@@ -7,25 +7,11 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 # ────────────────── 枚举常量 ──────────────────
 
-VALID_CLIENT_TYPES = {"tablet", "phone", "debug"}
-
 VALID_WS_TYPES = {
     "session.connected", "runtime.state", "playback.progress",
     "device.status", "error.event", "heartbeat",
     "scene.applied",  # V1.1
 }
-
-# ────────────────── Auth ──────────────────
-
-class PairRequest(BaseModel):
-    pairing_code: str = Field(min_length=1)
-    client_id: str = Field(min_length=1)
-    client_name: str = Field(min_length=1)
-    client_type: str
-    app_version: str = Field(min_length=1)
-
-class RefreshRequest(BaseModel):
-    refresh_token: str = Field(min_length=1)
 
 class WsTicketRequest(BaseModel):
     subscribe: list[str] = Field(min_length=1)

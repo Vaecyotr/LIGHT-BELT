@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import WebSocket
 import pytest
 
-from host_services import auth_manager, engine_adapter, ws
+from host_services import engine_adapter, ws
 
 
 @asynccontextmanager
@@ -22,7 +22,7 @@ async def connected(subscribe, send_failure=None):
         await outgoing.put(message)
 
     socket = WebSocket({"type": "websocket", "path": "/ws"}, incoming.get, send)
-    ticket = auth_manager.create_ws_ticket(subscribe)["ws_ticket"]
+    ticket = ws.create_ws_ticket(subscribe, "host", secure=False)["ws_ticket"]
     task = asyncio.create_task(ws.ws_endpoint(socket, ticket))
     try:
         assert (await asyncio.wait_for(outgoing.get(), 1))["type"] == "websocket.accept"
@@ -86,19 +86,21 @@ def test_runtime_and_device_changes_reach_subscribers(state_source):
     asyncio.run(run())
 
 
-def test_progress_uses_live_position_and_initializes_late_subscribers(state_source, monkeypatch):
+def test_progress_uses_observed_position_and_initializes_late_subscribers(state_source, monkeypatch):
     class Player:
         position = 1.25
 
-        def get_idle_active(self):
-            return False
-
-        def get_position(self):
-            return self.position
+        def _send(self, command):
+            return {"error": "success", "data": {
+                "idle-active": False,
+                "track-list": [{"type": "video", "selected": True}],
+                "time-pos": self.position,
+            }[command[1]]}
 
     player = Player()
     monkeypatch.setattr(engine_adapter, "_mpv", player)
     engine_adapter._state.update(playback_state="playing", show_id="show-one", duration_ms=60000)
+    engine_adapter.observe_media()
     assert engine_adapter.get_playback_progress_snapshot()["position_ms"] == 1250
 
     async def run():
@@ -111,6 +113,7 @@ def test_progress_uses_live_position_and_initializes_late_subscribers(state_sour
                     "position_ms": 1250, "duration_ms": 60000,
                 }
                 player.position = 2.5
+                engine_adapter.observe_media()
                 await receive_event(first, "playback.progress", lambda data: data["position_ms"] == 2500)
                 async with connected(["playback.progress"]) as second:
                     progress = await receive_event(second, "playback.progress")

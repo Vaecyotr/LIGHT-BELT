@@ -59,6 +59,9 @@ def derive_capabilities_targets(layout: Layout) -> list[dict]:
 def derive_device_list(layout: Layout, device_type: str = WLED_DEVICE_TYPE) -> list[dict]:
     if not isinstance(device_type, str) or not device_type:
         raise ValueError("device_type must be a non-empty string")
+    targets = {}
+    for mapping in (*getattr(layout, "digital_segments", ()), *getattr(layout, "digital_outputs", ())):
+        targets.setdefault(mapping.node_id, set()).add(mapping.strip_id)
     devices = []
     for node in layout.digital_nodes:
         enabled = getattr(node, "enabled", True)
@@ -67,6 +70,7 @@ def derive_device_list(layout: Layout, device_type: str = WLED_DEVICE_TYPE) -> l
             "device_type": device_type,
             "enabled": enabled,
             "host": node.host,            # ← 新增
+            "_targets": sorted(targets.get(node.node_id, ())),
             "status": "offline",
             "last_output_ms": 0,
             "last_seen_ms": 0,

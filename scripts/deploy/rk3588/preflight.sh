@@ -18,4 +18,12 @@ done
 if user_systemctl is-active --quiet pipewire-pulse.service 2>/dev/null; then
     die "pipewire-pulse is active. Preserve the existing audio stack and confirm native PulseAudio before deployment."
 fi
+if ! command -v pactl >/dev/null 2>&1; then
+    die "pactl is unavailable; identify the pi audio stack and RT5616 sink before deployment."
+fi
+native_pulseaudio 2>/dev/null || \
+    die "pi audio server is not identifiable as native PulseAudio; deployment made no audio changes."
+if ! pactl list short sinks 2>/dev/null | awk '$2 ~ /^alsa_output\.platform-rt5616/ { found=1 } END { exit !found }'; then
+    die "RT5616 sink not found in the pi PulseAudio session; deployment made no audio changes."
+fi
 ok "Ubuntu 22.04 / aarch64 / pi preflight passed"

@@ -34,7 +34,7 @@ MAX_WALK_FILES = 50_000
 MAX_LICENSE_FILE_BYTES = 16 * 1024 * 1024
 HASH_INPUTS = (
     "pyproject.toml", "uv.lock", "host_services/requirements.txt",
-    "host_services/main.py", "kiosk/package.json", "kiosk/package-lock.json",
+    "host_services/main.py",
     "scripts/deploy/rk3588/setup-python.sh", "scripts/deploy/rk3588/setup-system.sh",
     "firmware/esp32_ws2811_node/platformio.ini",
     "firmware/stm32_rgbcct_node/platformio.ini",
@@ -69,10 +69,6 @@ def _reject_output_links(path: Path) -> None:
                     raise ValueError(f"output tree contains a symlink or junction: {child}")
                 if stat.S_ISDIR(info.st_mode):
                     stack.append(child)
-
-
-def _read_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _git(root: Path, *args: str, warnings: list[str] | None = None) -> str | None:
@@ -216,7 +212,7 @@ def _history_media(root: Path, warnings: list[str]) -> list[dict[str, Any]]:
     return items
 
 
-def _lock_inventory(root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _lock_inventory(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
     packages = []
@@ -227,23 +223,6 @@ def _lock_inventory(root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[st
             "dependencies": package.get("dependencies", []),
             "wheels": package.get("wheels", []), "sdist": package.get("sdist"),
         })
-    npm_lock = _read_json(root / "kiosk" / "package-lock.json")
-    npm_packages = []
-    for package_path, package in npm_lock.get("packages", {}).items():
-        if not package_path:
-            continue
-        npm_packages.append({
-            "name": package_path.removeprefix("node_modules/"),
-            "version": package.get("version"), "license": package.get("license"),
-            "integrity": package.get("integrity"), "resolved": package.get("resolved"),
-            "dev": package.get("dev", False), "optional": package.get("optional", False),
-            "os": package.get("os"), "cpu": package.get("cpu"),
-            "link": package.get("link", False),
-            "dependencies": package.get("dependencies", {}),
-            "optionalDependencies": package.get("optionalDependencies", {}),
-            "peerDependencies": package.get("peerDependencies", {}),
-            "peerDependenciesMeta": package.get("peerDependenciesMeta", {}),
-        })
     groups = pyproject.get("dependency-groups", {})
     uv_config = pyproject.get("tool", {}).get("uv", {})
     default_groups = uv_config.get("default-groups", ["dev"])
@@ -252,7 +231,6 @@ def _lock_inventory(root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[st
     dev_default = "--no-dev" not in sync_command and "dev" in default_groups
     return (
         {"version": lock.get("version"), "requires_python": lock.get("requires-python"), "packages": packages},
-        {"lockfile_version": npm_lock.get("lockfileVersion"), "packages": npm_packages},
         {
             "project": pyproject.get("project", {}), "dependency_groups": groups,
             "uv_default_groups": default_groups,
@@ -366,7 +344,7 @@ def generate(root: Path | str, output: Path | str, audit_date: str | None = None
     warnings: list[str] = []
     media = _media_files(root, warnings)
     history = _history_media(root, warnings)
-    uv, npm, project = _lock_inventory(root)
+    uv, project = _lock_inventory(root)
     installed = _distribution_inventory(root, output, warnings)
     git = _git_state(root, warnings)
     pyproject = root / "pyproject.toml"
@@ -386,13 +364,9 @@ def generate(root: Path | str, output: Path | str, audit_date: str | None = None
             "scope": "current local checkout and locally installed developer distributions",
             "target": "RK3588 production image and controller/media shipping scope not fully identified",
         },
-        "uv_lock": uv, "npm_lock": npm, "project_configuration": project,
+        "uv_lock": uv, "project_configuration": project,
         "system_packages": _system_packages(root),
         "installed_python": {"distributions": installed},
-        "kiosk_assets": [
-            {"path": p.relative_to(root).as_posix(), "size_bytes": p.stat().st_size, "sha256": _sha256(p)}
-            for p in _walk_files(root / "kiosk" / "dist", warnings)
-        ],
         "media_inventory": media,
         "git_history_media_objects": history,
         "git": git,
@@ -408,9 +382,6 @@ def generate(root: Path | str, output: Path | str, audit_date: str | None = None
     ]
     for item in installed:
         notices.append(f"- **{item['name']} {item['version']}** — {item['metadata_license'] or item['license_expression'] or 'unknown'}; local evidence: {item['license_status']}." )
-    notices += ["", "## Kiosk package-lock records", "", "All package-lock records are included, including build, optional, and platform-specific entries."]
-    for item in npm["packages"]:
-        notices.append(f"- **{item['name']} {item['version'] or 'unknown'}** — {item['license'] or 'unknown'}; dev={item['dev']}, optional={item['optional']}, integrity={item['integrity'] or 'not recorded'}." )
     notices += ["", "## System package requests", "", "APT package versions are not pinned; the list records installer requests only."]
     notices += [f"- {package}" for package in inventory["system_packages"]["requested_packages"]]
     notices += ["", f"- FFmpeg configuration: {inventory['system_packages']['ffmpeg_package_or_configuration']}", f"- Chromium: {inventory['system_packages']['chromium']}"]
@@ -423,9 +394,6 @@ def generate(root: Path | str, output: Path | str, audit_date: str | None = None
     if generator_source.is_relative_to(root):
         candidates.append(generator_source)
     candidates.extend(root / item["path"] for item in media)
-    dist = root / "kiosk" / "dist"
-    if dist.is_dir():
-        candidates.extend(_walk_files(dist, warnings))
     for distribution in installed:
         dist_info = Path(distribution["environment_path"])
         candidates.extend(p for p in (dist_info / "METADATA", dist_info / "RECORD") if p.is_file())

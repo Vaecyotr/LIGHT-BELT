@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request
 from ..schemas import LightsSetRequest
-from ..deps import require_auth
 from ..response import ok, error, invalid_argument, not_found
 from .. import engine_adapter
 
-router = APIRouter(prefix="/api/v1", tags=["Lights"],
-                   dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/v1", tags=["Lights"])
 
 
 @router.post("/lights/set")

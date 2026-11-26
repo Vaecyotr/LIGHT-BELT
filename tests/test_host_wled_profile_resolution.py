@@ -90,24 +90,30 @@ def test_real_mode_wled_resolver_timeout_fails_closed(monkeypatch) -> None:
 
 def test_disabled_devices_are_never_probed_or_sent_http_output(monkeypatch) -> None:
     disabled = {
-        "host": "wled-strip-32.local", "enabled": False, "status": "online",
+        "device_id": "node_1", "host": "wled-strip-32.local", "enabled": False, "status": "online",
         "connection_confirmed": True, "error_code": None, "last_output_ms": 17,
         "device_type": "wled_board",
     }
     enabled = {
-        "host": "192.168.31.50", "enabled": True, "last_output_ms": 0,
+        "device_id": "node_2", "host": "192.168.31.50", "enabled": True, "last_output_ms": 0,
         "device_type": "wled_board",
     }
     monkeypatch.setattr(engine_adapter, "_devices", [disabled, enabled])
     calls: list[object] = []
     monkeypatch.setattr(engine_adapter.urllib.request, "urlopen", lambda *args, **kwargs: calls.append(args) or None)
     monkeypatch.setattr(engine_adapter, "_now_ms", lambda: 99)
-    monkeypatch.setattr(wled_brightness, "apply_scale", lambda devices, *args: calls.append(("scale", devices)))
-    monkeypatch.setattr(wled_brightness, "apply_off", lambda devices, *args: calls.append(("off", devices)))
+    monkeypatch.setattr(wled_brightness, "apply_managed", lambda devices, scale, *args, **kwargs: calls.append((scale, devices)))
+    monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
+    monkeypatch.setattr(engine_adapter, "_real_adapter", SimpleNamespace(sender=object()))
 
     engine_adapter._probe_devices()
+    engine_adapter._record_ddp_submissions({
+        "submitted_ms": 99, "node_submissions": {
+            "1": {"host": disabled["host"], "submitted": True},
+            "2": {"host": enabled["host"], "submitted": True},
+        },
+    })
     disabled, enabled = engine_adapter._devices
-    engine_adapter._mark_devices_output()
     engine_adapter._push_brightness_scale()
     engine_adapter._push_wled_off()
 
@@ -121,7 +127,7 @@ def test_disabled_devices_are_never_probed_or_sent_http_output(monkeypatch) -> N
 
 def test_enabled_custom_udp_v3_device_skips_wled_http_but_records_output(monkeypatch) -> None:
     custom = {
-        "host": "192.0.2.31", "enabled": True, "device_type": "custom_esp32_udp_v3",
+        "device_id": "node_1", "host": "192.0.2.31", "enabled": True, "device_type": "custom_esp32_udp_v3",
         "status": "offline", "connection_confirmed": False, "error_code": None,
         "last_output_ms": 0,
     }
@@ -129,17 +135,21 @@ def test_enabled_custom_udp_v3_device_skips_wled_http_but_records_output(monkeyp
     calls: list[object] = []
     monkeypatch.setattr(engine_adapter.urllib.request, "urlopen", lambda *args, **kwargs: calls.append(args))
     monkeypatch.setattr(engine_adapter, "_now_ms", lambda: 123)
-    monkeypatch.setattr(wled_brightness, "apply_scale", lambda *args: calls.append(("scale", args)))
-    monkeypatch.setattr(wled_brightness, "apply_off", lambda *args: calls.append(("off", args)))
+    monkeypatch.setattr(wled_brightness, "apply_managed", lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
+    monkeypatch.setattr(engine_adapter, "_real_adapter", SimpleNamespace(sender=object()))
 
     engine_adapter._probe_devices()
     engine_adapter._push_brightness_scale()
     engine_adapter._push_wled_off()
-    engine_adapter._mark_devices_output()
+    engine_adapter._record_ddp_submissions({
+        "submitted_ms": 123,
+        "node_submissions": {"1": {"host": custom["host"], "submitted": True}},
+    })
 
     assert calls == []
     assert custom["status"] == "offline"
-    assert custom["last_output_ms"] == 123
+    assert engine_adapter._devices[0]["last_output_ms"] == 123
 
 
 def test_refresh_resolves_before_reloading_runtime_devices(monkeypatch) -> None:
@@ -186,7 +196,6 @@ def test_playback_refreshes_profile_before_starting_real_adapter(monkeypatch) ->
     )
     monkeypatch.setattr(engine_adapter, "_mpv", None)
     monkeypatch.setattr(engine_adapter, "_push_brightness_scale", lambda: None)
-    monkeypatch.setattr(engine_adapter, "_mark_devices_output", lambda: None)
 
     data, error = engine_adapter.playback_play("demo", None)
 
@@ -195,36 +204,32 @@ def test_playback_refreshes_profile_before_starting_real_adapter(monkeypatch) ->
     assert events.index(("refresh", "playback session resolve")) < events.index(("adapter", "playback_start"))
 
 
-def test_manual_command_refreshes_profile_before_real_adapter_call(monkeypatch) -> None:
-    """Manual output must resolve before handing a frame to the real adapter."""
-    events: list[tuple[str, str]] = []
-    adapter = SimpleNamespace(
-        on_manual_command=lambda _targets: events.append(("adapter", "manual_command")),
-    )
-    monkeypatch.setattr(engine_adapter, "_real_adapter", adapter)
-    monkeypatch.setattr(
-        engine_adapter,
-        "_refresh_wled_profile",
-        lambda *, reason: events.append(("refresh", reason)) or set(),
-    )
-    monkeypatch.setattr(
-        engine_adapter,
-        "_manual_targets",
-        {"strip_11": {"target_id": "strip_11", "effect_type": "static", "color": [1, 0, 0]}},
-    )
-    monkeypatch.setattr(engine_adapter, "_push_brightness_scale", lambda: None)
-    monkeypatch.setattr(engine_adapter, "_mark_devices_output", lambda: None)
+def test_manual_command_uses_profile_and_updates_the_managed_sender(monkeypatch) -> None:
+    from host_services.control_preferences import ControlPreferences
 
-    engine_adapter._apply_manual_targets()
+    commands = []
+    renderer = SimpleNamespace(
+        sender=None, seek_generation=0,
+        configure=lambda spec, *, wait: commands.append(spec),
+    )
+    monkeypatch.setattr(engine_adapter, "_preferences", ControlPreferences(None))
+    monkeypatch.setattr(engine_adapter, "_real_adapter", renderer)
+    monkeypatch.setattr(engine_adapter, "_push_brightness_scale", lambda **kwargs: None)
+    monkeypatch.setattr(engine_adapter, "_valid_target_ids", frozenset({"strip_11"}))
 
-    assert events.index(("refresh", "manual session resolve")) < events.index(("adapter", "manual_command"))
+    _, error = engine_adapter.lights_set("strip_11", 0.8, None, 0)
+
+    assert error is None
+    assert commands[-1]["role"] == "manual"
+    assert commands[-1]["targets"][0]["target_id"] == "strip_11"
+    assert commands[-1]["targets"][0]["color"] == [0.8] * 3
 
 
 def test_playback_reset_refreshes_profile_before_resuming_real_adapter(monkeypatch) -> None:
     """Resuming YAML playback restarts only after the next-session profile refresh."""
     events: list[tuple[str, str]] = []
     adapter = SimpleNamespace(
-        on_playback_resume_yaml=lambda: events.append(("adapter", "resume_yaml")) or True,
+        resume_aux=lambda show: events.append(("adapter", "resume_yaml")) or True,
     )
     monkeypatch.setattr(engine_adapter, "_real_adapter", adapter)
     monkeypatch.setattr(
@@ -247,7 +252,7 @@ def test_deferred_refresh_never_restarts_active_adapter(monkeypatch) -> None:
     events: list[str] = []
     adapter = SimpleNamespace(
         on_playback_start=lambda *_args: events.append("playback_start"),
-        on_playback_resume_yaml=lambda: events.append("resume_yaml"),
+        resume_aux=lambda show: events.append("resume_yaml"),
         on_manual_command=lambda *_args: events.append("manual_command"),
         on_playback_stop=lambda: events.append("playback_stop"),
     )

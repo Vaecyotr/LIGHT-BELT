@@ -2,32 +2,10 @@ import json
 
 import pytest
 
-from host_services.control_terminal import (
-    ControlTerminal,
+from host_services.control_preferences import (
     ControlPreferences,
     ControlConflict,
 )
-
-
-def test_authorization_survives_restart_and_replacement_revokes_old_screen(tmp_path):
-    terminal = ControlTerminal(tmp_path)
-    code = terminal.issue_code()
-    session = terminal.enroll(code)
-    assert ControlTerminal(tmp_path).authorized(session)
-    with pytest.raises(ValueError):
-        terminal.enroll(code)
-    replacement = terminal.enroll(terminal.issue_code())
-    assert not terminal.authorized(session)
-    assert terminal.authorized(replacement)
-
-
-def test_corrupt_enrollment_database_rejects_sessions_and_clears_generation(tmp_path):
-    terminal = ControlTerminal(tmp_path)
-    (tmp_path / "terminal.sqlite").write_bytes(b"not a sqlite database")
-
-    assert terminal.authorized("stale-session") is False
-    assert terminal.generation() is None
-    assert terminal.storage_error
 
 
 def test_preferences_normalize_device_and_reject_stale_restore(tmp_path):
@@ -76,12 +54,12 @@ def test_invalid_unrelated_field_preserves_known_intent_and_mute(tmp_path):
 
 def test_failed_save_keeps_applied_and_persisted_state_distinct(tmp_path, monkeypatch):
     prefs = ControlPreferences(tmp_path)
-    import host_services.control_terminal as terminal_module
+    import host_services.control_preferences as preferences
 
     def fail_replace(*args):
         raise OSError("read-only storage")
 
-    monkeypatch.setattr(terminal_module.os, "replace", fail_replace)
+    monkeypatch.setattr(preferences.os, "replace", fail_replace)
     with pytest.raises(OSError, match="read-only storage"):
         prefs.save(volume=0.8)
 

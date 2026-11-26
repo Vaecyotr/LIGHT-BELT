@@ -73,11 +73,9 @@ desktop.ini
 # Snapshot subdirectories from other workstations
 LIGHT-BELT-codex-one-esp-per-strip/
 
-# Kiosk frontend build outputs
+
+# Local development dependencies left in older checkouts
 kiosk/node_modules/
-# The Host serves this committed delivery bundle; keep new hashed assets and notices visible.
-!/kiosk/dist/
-!/kiosk/dist/**
 
 # Large local media fixtures: ignore by extension so YAML/README under assets/ stay tracked
 *.mp4

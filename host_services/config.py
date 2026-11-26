@@ -9,13 +9,6 @@ import os
 HOST = "0.0.0.0"
 PORT = 8443
 
-# ── 认证 ──
-JWT_SECRET = os.environ.get("LIGHT_BELT_JWT_SECRET", "light-belt-dev-secret-change-in-production")
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_SECONDS = 3600      # 1 小时
-REFRESH_TOKEN_EXPIRE_SECONDS = 86400    # 24 小时
-PAIRING_CODE = os.environ.get("LIGHT_BELT_PAIRING_CODE", "123456")
-
 # ── WebSocket ──
 WS_TICKET_EXPIRE_SECONDS = 60
 HEARTBEAT_INTERVAL_SECONDS = 5
@@ -40,15 +33,8 @@ _DEFAULT_PROFILE = str(WLED_RUNTIME_PROFILE)
 ENGINE_PROFILE_PATH: str = os.environ.get("ENGINE_PROFILE_PATH", _DEFAULT_PROFILE)
 # "mock" (default, in-memory) or "real" (subprocess light_engine)
 ENGINE_ADAPTER: str = os.environ.get("ENGINE_ADAPTER", "mock")
-
-
-def validate_security_configuration() -> None:
-    if ENGINE_ADAPTER != "real":
-        return
-    if JWT_SECRET == "light-belt-dev-secret-change-in-production" or len(JWT_SECRET.encode("utf-8")) < 32:
-        raise RuntimeError("Set LIGHT_BELT_JWT_SECRET to an independent secret of at least 32 bytes")
-    if not PAIRING_CODE.strip() or PAIRING_CODE == "123456":
-        raise RuntimeError("Set LIGHT_BELT_PAIRING_CODE to an independent pairing code")
+if ENGINE_ADAPTER not in {"mock", "real"}:
+    raise ValueError(f"Unsupported ENGINE_ADAPTER: {ENGINE_ADAPTER}")
 
 # ── TLS（生产部署用，本地默认关闭） ──
 ENABLE_TLS = os.environ.get("LIGHT_BELT_TLS") == "1"

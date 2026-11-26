@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request
 from ..schemas import PlayRequest, SeekRequest
-from ..deps import require_auth
 from ..response import ok, error
 from .. import engine_adapter
 
-router = APIRouter(prefix="/api/v1/playback", tags=["Playback"],
-                   dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/v1/playback", tags=["Playback"])
 
 
 @router.post("/play")
@@ -16,6 +14,8 @@ def play(body: PlayRequest, request: Request):
             code = 404
         elif err == "INVALID_ARGUMENT":
             code = 400
+        elif err == "ENGINE_UNAVAILABLE":
+            return error(request, err, "The managed lighting engine is unavailable", 503)
         elif err == "MPV_UNAVAILABLE":
             return error(request, err,
                          "mpv is not available; check that mpv is installed and "

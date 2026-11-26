@@ -163,13 +163,17 @@ class DdpOutput(LightOutput):
                     self._send_datagram(packet, (digital_frame.host, self.port))
                     self._health.packets_sent += 1
                 self._health.mark_success()
-                results[digital_frame.node_id] = {"sequence":frame.sequence,"submitted":True}
+                results[digital_frame.node_id] = {
+                    "sequence": frame.sequence, "host": digital_frame.host, "submitted": True,
+                }
             except Exception as exc:
                 frame_ok = False
                 self._health.packets_dropped += 1
                 self._health.last_error = f"DDP send error: {exc}"
-                results[digital_frame.node_id] = {"sequence":frame.sequence,
-                                                   "submitted":False,"reason":str(exc)}
+                results[digital_frame.node_id] = {
+                    "sequence": frame.sequence, "host": digital_frame.host,
+                    "submitted": False, "reason": str(exc),
+                }
                 if self.mode is OutputMode.PRODUCTION:
                     self._health.healthy = False
                     if safe_state:

@@ -8,10 +8,10 @@
   - 源码仓库：`https://github.com/zxlzzz/LIGHT-BELT`
   - 提交版本：`0380e4e1ecb926148d9afc07b7f95f6ad0aa4c6b` (`0380e4e`)
   - 提交日期：`2026-08-19`
-  - 说明：此提交为 Phase 32 之前的已知稳定集成状态（APP + Host + Show 播放均可正常配合工作）。当前 APP-facing V1 接口保持与该历史基线客户端的完全兼容。
+  - 说明：此提交为 Phase 32 之前的已知稳定集成状态（APP + Host + Show 播放均可正常配合工作）。历史基准保存于原提交。当前 V1 保留原业务接口，客户端应直接调用业务接口。
 - **APP 职责范围**：APP 是外包的播放与控制客户端，主要负责 Show 选择、播放/暂停/继续/停止、播放进度 Seek、总体灯光亮度（`brightness_scale`）、音量调节、静音控制与状态显示。
 - **内部高级功能边界**：APP 不负责指定单条灯带灯效、编辑灯效参数、动态参数调制、动态色彩源取样、连续虚拟路径、分支生命周期、运动时钟或相干场等高级编排。这些高级能力完全封装在 Show YAML 与 RK3588 引擎内部。
-- **API 稳定性**：公开接口保持 Host API V1 规范，不升级为 V2，内部 EffectRegistry 的扩展不会自动暴露给 APP，APP 亦无需任何修改。
+- **API 稳定性**：公开接口保持 Host API V1 规范，不升级为 V2，内部 EffectRegistry 的扩展不会自动暴露给 APP。
 
 ## 1. 快速接入
 
@@ -33,60 +33,22 @@ APP 首次接入建议步骤：
 2. 配置 `ws_url = wss://192.168.31.236:8443/ws`。
 3. 使用预生成证书指纹进行 APP 开发和 Mock；实际联调时校验 RK3588 Host Service 使用的证书指纹和 SAN。
 4. 调用 `GET /status` 确认 Host Service 在线。
-5. 直接调用节目、状态和控制 REST 接口。需要保留原有 token 客户端流程时，可调用 `POST /auth/pair` 和 `POST /auth/refresh`。
-6. REST 请求的 `Authorization` 可省略，Kiosk 直接访问。WebSocket 先申请一次性票据。
-7. 调用 `GET /capabilities` 获取 APP 可见目标、灯效与消息能力。
-8. 调用 `POST /session/ws-ticket` 获取 `ws_ticket`。
-9. 使用 `wss://192.168.31.236:8443/ws?ticket=<ws_ticket>` 建立 WebSocket。
+5. 调用 `GET /capabilities` 获取 APP 可见目标、灯效与消息能力。
+6. 调用 `POST /session/ws-ticket` 获取 `ws_ticket`。
+7. 使用 `wss://192.168.31.236:8443/ws?ticket=<ws_ticket>` 建立 WebSocket。
 
-## 2. 认证流程
+## 2. 连接与访问
 
-### 配对
+V1 业务 REST、WS 票据和[舱内控制接口](host-control-api.md)共用一个监听地址。客户端直接调用 REST。Host 接受旧客户端携带的 `Authorization` 请求头。控制端口仅供受控舱内网络访问。
 
-APP 调用 `POST /api/v1/auth/pair`，提交：
+旧 APP 若依赖 Pair 或 Refresh 完成冷启动或恢复使用，需要在真机上验证。现场记录脱敏后的请求路径、返回状态和 APP 后续行为，覆盖冷启动、恢复、播放和 WS 重连。
 
-- `pairing_code`: 当前配对码。
-- `client_id`: APP 生成并长期保存的客户端 ID。
-- `client_name`: 用户可识别的设备名称。
-- `client_type`: `tablet`、`phone` 或 `debug`。
-- `app_version`: APP 版本。
-
-服务端返回：
-
-- `access_token`: REST 访问令牌。
-- `refresh_token`: 刷新令牌。
-- `token_type`: 固定为 `Bearer`。
-- `expires_in`: access token 有效秒数。
-- `scope`: 当前 token 权限列表。
-
-### REST 鉴权
-
-文档中的 `123456` 为开发配对示例。真实模式要求独立配置配对码与JWT密钥。
-HTTPS地址和证书指纹描述目标接入合同，设备部署须另行配置TLS或可信加密通道。
-
-当前清理分支沿用 WT04 的直通 REST 行为。节目查询、控制和 `/session/ws-ticket` 可匿名访问。旧客户端可继续携带 Bearer，服务端保留配对、token 验证和刷新接口。WebSocket 握手须使用有效的一次性票据。
-
-```http
-Authorization: Bearer <access_token>
-```
-
-GET 查询及 WS ticket 签发要求 `state:read`。播放控制要求 `playback:write`，
-灯光与亮度控制要求 `lights:write`，灯效、音频和场景写入分别要求
-`effects:write`、`audio:write` 和 `scenes:write`。刷新保留原授权范围。
-
-`/status` 保留原必填字段，并提供可选的 `commit`、`source_clean`、`ready` 和
-`adapter`。构建身份在应用导入时捕获，运行中切换磁盘版本不会改变该实例的身份。
-OTA 要求完整提交身份一致、源码干净、真实适配器已就绪。设备离线单独呈现，
-不将所有节点在线作为服务版本健康的前提。
-
-### 刷新 token
-
-当 REST 返回 `TOKEN_EXPIRED` 时，APP 调用 `POST /api/v1/auth/refresh`，提交 `refresh_token`，获得新的 `access_token` 和 `refresh_token`。
+`/status` 提供 `commit`、`source_clean`、`ready` 和 `adapter`。更新验收使用运行实例的提交身份及就绪状态。灯带节点状态由状态接口单独报告。
 
 ### WebSocket ticket
 
 票据返回的 `ws_url` 跟随服务端识别的请求传输，HTTPS返回`wss`，HTTP返回`ws`。
-使用TLS终止代理时，应正确配置可信代理的转发信息。
+选择设备已配置的 HTTP 或 TLS 地址。
 
 WebSocket 连接前，APP 调用 `POST /api/v1/session/ws-ticket`：
 
@@ -113,7 +75,7 @@ wss://192.168.31.236:8443/ws?ticket=<ws_ticket>
 | Header | 必填 | 类型 | 说明 |
 |---|---:|---|---|
 | `Content-Type` | POST 请求必填 | string | 固定使用 `application/json`。 |
-| `Authorization` | 否 | string | 兼容旧客户端的 `Bearer <access_token>`。直通 REST 入口可省略。 |
+| `Authorization` | 否 | string | 旧客户端可继续发送此请求头。 |
 | `X-Request-Id` | 否 | string | APP 生成的请求 ID。服务端会在响应中返回同一个 `request_id`，便于日志关联。 |
 
 ## 4. 通用 REST 响应格式
@@ -159,7 +121,7 @@ wss://192.168.31.236:8443/ws?ticket=<ws_ticket>
 
 ### GET /api/v1/status
 
-用途：APP 在配对前检测 Host Service 是否在线。
+用途：检查 Host 在线、运行版本与就绪状态。
 
 | 项目 | 值 |
 |---|---|
@@ -200,144 +162,12 @@ Response 字段解释：
 | `api_version` | 是 | string | Host API 版本。 |
 | `version` | 是 | string | Host Service 版本。 |
 | `time_ms` | 是 | number | 服务端当前时间，Unix epoch 毫秒。 |
+| `ready` | 是 | boolean | 观测到必要 Host 任务、BlueZ 默认 Agent 和音频输出已就绪。合法空闲及等待图形会话可为 true。 |
+| `display` | 是 | object | `graphical_session` 和 `mpv_ipc` 分别报告图形会话和 IPC 观测。实际全屏和黑幕在设备上核对。 |
 
 可能的 `error.code`：
 
 - `INTERNAL_ERROR`
-
-### POST /api/v1/auth/pair
-
-用途：APP 使用配对码换取访问令牌。
-
-| 项目 | 值 |
-|---|---|
-| URL | `https://192.168.31.236:8443/api/v1/auth/pair` |
-| Method | `POST` |
-| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
-
-Request JSON 示例：
-
-```json
-{
-  "pairing_code": "123456",
-  "client_id": "tablet-main-room-001",
-  "client_name": "Main Room Tablet",
-  "client_type": "tablet",
-  "app_version": "1.0.0"
-}
-```
-
-Request 字段解释：
-
-| 字段 | 必填 | 类型 | 枚举/范围 | 说明 |
-|---|---:|---|---|---|
-| `pairing_code` | 是 | string | 非空字符串 | 当前配对码。 |
-| `client_id` | 是 | string | 非空字符串 | APP 生成并长期保存的客户端 ID。 |
-| `client_name` | 是 | string | 非空字符串 | 设备展示名称。 |
-| `client_type` | 是 | string | `tablet`, `phone`, `debug` | 客户端类型。 |
-| `app_version` | 是 | string | 非空字符串 | APP 版本号。 |
-
-Response JSON 示例：
-
-```json
-{
-  "ok": true,
-  "request_id": "req-pair-001",
-  "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIs...",
-    "refresh_token": "rt_7d4f3b8f...",
-    "token_type": "Bearer",
-    "expires_in": 3600,
-    "scope": [
-      "state:read",
-      "playback:write",
-      "lights:write",
-      "effects:write"
-    ]
-  }
-}
-```
-
-Response 字段解释：
-
-| 字段 | 必填 | 类型 | 说明 |
-|---|---:|---|---|
-| `access_token` | 是 | string | REST 访问令牌。 |
-| `refresh_token` | 是 | string | 刷新令牌。 |
-| `token_type` | 是 | string | 固定为 `Bearer`。 |
-| `expires_in` | 是 | number | access token 有效秒数。 |
-| `scope` | 是 | string[] | token 权限列表。 |
-
-可能的 `error.code`：
-
-- `INVALID_ARGUMENT`
-- `PAIRING_CODE_INVALID`
-- `CONFLICT`
-- `INTERNAL_ERROR`
-
-### POST /api/v1/auth/refresh
-
-用途：使用 refresh token 获取新的访问令牌。
-
-| 项目 | 值 |
-|---|---|
-| URL | `https://192.168.31.236:8443/api/v1/auth/refresh` |
-| Method | `POST` |
-| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
-
-Request JSON 示例：
-
-```json
-{
-  "refresh_token": "rt_7d4f3b8f..."
-}
-```
-
-Request 字段解释：
-
-| 字段 | 必填 | 类型 | 枚举/范围 | 说明 |
-|---|---:|---|---|---|
-| `refresh_token` | 是 | string | 非空字符串 | 配对或刷新时获得的刷新令牌。 |
-
-Response JSON 示例：
-
-```json
-{
-  "ok": true,
-  "request_id": "req-refresh-001",
-  "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIs...",
-    "refresh_token": "rt_90a2c1d5...",
-    "token_type": "Bearer",
-    "expires_in": 3600,
-    "scope": [
-      "state:read",
-      "playback:write",
-      "lights:write",
-      "effects:write"
-    ]
-  }
-}
-```
-
-Response 字段解释：
-
-| 字段 | 必填 | 类型 | 说明 |
-|---|---:|---|---|
-| `access_token` | 是 | string | 新的 REST 访问令牌。 |
-| `refresh_token` | 是 | string | 新的刷新令牌。 |
-| `token_type` | 是 | string | 固定为 `Bearer`。 |
-| `expires_in` | 是 | number | access token 有效秒数。 |
-| `scope` | 是 | string[] | token 权限列表。 |
-
-可能的 `error.code`：
-
-- `INVALID_ARGUMENT`
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
-- `INTERNAL_ERROR`
-
-> `/auth/register`、`/auth/login`、`/auth/logout`、`/auth/password`：预留，当前版本未实现。
 
 ### POST /api/v1/session/ws-ticket
 
@@ -347,7 +177,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/session/ws-ticket` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -396,9 +226,6 @@ Response 字段解释：
 可能的 `error.code`：
 
 - `INVALID_ARGUMENT`
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### GET /api/v1/state
@@ -409,7 +236,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/state` |
 | Method | `GET` |
-| Header | `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -466,20 +293,18 @@ Response 字段解释：
 | `position_ms` | 是 | number | 当前播放位置，单位毫秒。 |
 | `duration_ms` | 是 | number | 当前节目总时长，单位毫秒。 |
 | `brightness` | 是 | number | 当前亮度，范围 `0.0~1.0`。 |
-| `color_temperature` | 是 | number | 当前色温，范围 `2700~6500`。 |
+| `color_temperature` | 是 | number | V1 色温请求值，范围 `2700~6500`。RGB DDP 不执行色温调节。 |
 | `volume` | 是 | number | 当前音量，范围 `0.0~1.0`。 |
 | `muted` | 是 | boolean | 当前是否静音。 |
 | `scene_id` | 是 | string 或 null | 最近一次应用的场景 ID；手动调光/调效或播放节目后重置为 `null`。 |
-| `audio_available` | 是 | boolean | 音频输入是否可用。 |
-| `video_available` | 是 | boolean | 视频输入是否可用。 |
+| `audio_available` | 是 | boolean | 最近观测是否有选中的节目音轨或已核验的数字输入。 |
+| `video_available` | 是 | boolean | 最近观测是否有选中的节目视频轨。图形会话和 mpv IPC 状态见 `/status` 的 `display`。 |
 | `audio_link_enabled` | 是 | boolean | 音频联动是否启用。 |
 | `video_link_enabled` | 是 | boolean | 视频联动是否启用。 |
 | `devices` | 是 | object[] | 设备状态列表。 |
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### GET /api/v1/shows
@@ -490,7 +315,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/shows` |
 | Method | `GET` |
-| Header | `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -531,8 +356,6 @@ Response 字段解释：
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### GET /api/v1/capabilities
@@ -543,7 +366,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/capabilities` |
 | Method | `GET` |
-| Header | `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -616,8 +439,8 @@ Response JSON 示例：
       "seek": true,
       "lights": true,
       "effects": true,
-      "color_temperature": true,
-      "transitions": true,
+      "color_temperature": false,
+      "transitions": false,
       "websocket": true,
       "audio": true,
       "scenes": true,
@@ -640,12 +463,10 @@ Response 字段解释：
 | `effects[].params` | 是 | string[] | 固定 V1 通用参数名列表。 |
 | `effects[].effect_params` | 是 | string[] | 固定 V1 灯效专用参数名列表；不反映当前引擎 Registry。 |
 | `websocket.message_types` | 是 | string[] | 可订阅 WebSocket 消息类型；V1 固定为 `session.connected`、`runtime.state`、`playback.progress`、`device.status`、`error.event`、`heartbeat`、`scene.applied`。 |
-| `supports` | 是 | object | Host Service 功能能力。 |
+| `supports` | 是 | object | Host 可实际执行的功能。RGB DDP 的色温与 REST 过渡返回 false。对应请求字段继续接受，用于 V1 兼容。 |
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/playback/play
@@ -656,7 +477,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/play` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -701,9 +522,6 @@ Response 字段解释：
 可能的 `error.code`：
 
 - `INVALID_ARGUMENT`
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `TOKEN_EXPIRED`
 - `NOT_FOUND`
 - `CONFLICT`
 - `PLAYBACK_NOT_READY`
@@ -717,7 +535,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/pause` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -757,9 +575,6 @@ Response 字段解释：
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `TOKEN_EXPIRED`
 - `PLAYBACK_NOT_READY`
 - `INTERNAL_ERROR`
 
@@ -771,7 +586,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/resume` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -811,9 +626,6 @@ Response 字段解释：
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `TOKEN_EXPIRED`
 - `SHOW_NOT_LOADED`
 - `PLAYBACK_NOT_READY`
 - `INTERNAL_ERROR`
@@ -826,7 +638,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/stop` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -866,9 +678,6 @@ Response 字段解释：
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/playback/seek
@@ -879,7 +688,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/seek` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -922,9 +731,6 @@ Response 字段解释：
 可能的 `error.code`：
 
 - `INVALID_ARGUMENT`
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `TOKEN_EXPIRED`
 - `SHOW_NOT_LOADED`
 - `PLAYBACK_NOT_READY`
 - `INTERNAL_ERROR`
@@ -937,7 +743,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/state` |
 | Method | `GET` |
-| Header | `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `X-Request-Id` 可选 |
 
 Response JSON 示例：
 
@@ -978,8 +784,6 @@ Response 字段解释：
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/playback/reset
@@ -990,7 +794,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/playback/reset` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Response JSON 示例：
 
@@ -1020,8 +824,6 @@ Response 字段解释：
 
 - `PLAYBACK_NOT_READY`（当前没有正在播放或暂停的节目）
 - `NO_ACTIVE_SHOW`（实时模式下无法恢复节目引擎）
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/lights/set
@@ -1032,7 +834,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/lights/set` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1083,9 +885,6 @@ Response 字段解释：
 可能的 `error.code`：
 
 - `INVALID_ARGUMENT`
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `TOKEN_EXPIRED`
 - `NOT_FOUND`
 - `DEVICE_OFFLINE`
 - `INTERNAL_ERROR`
@@ -1098,7 +897,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/effects/set` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例一：为单条灯带设置追逐灯效。
 
@@ -1179,9 +978,6 @@ Response 字段解释：
 可能的 `error.code`：
 
 - `INVALID_ARGUMENT`
-- `UNAUTHORIZED`
-- `FORBIDDEN`
-- `TOKEN_EXPIRED`
 - `NOT_FOUND`
 - `DEVICE_OFFLINE`
 - `INTERNAL_ERROR`
@@ -1194,7 +990,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/audio` |
 | Method | `GET` |
-| Header | `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -1224,12 +1020,10 @@ Response 字段解释：
 |---|---:|---|---|
 | `volume` | 是 | number | 当前音量，范围 `0.0~1.0`。 |
 | `muted` | 是 | boolean | 当前是否静音。 |
-| `audio_output_available` | 是 | boolean | 音频输出是否可用。 |
+| `audio_output_available` | 是 | boolean | Host 观测到目标输出 sink 存在且可用。空闲时也可为 true。 |
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/audio/set
@@ -1240,7 +1034,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/audio/set` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1283,12 +1077,11 @@ Response 字段解释：
 | `muted` | 是 | boolean | 已接受的静音状态。 |
 | `transition_ms` | 是 | number | 已接受的过渡时间，单位毫秒。 |
 | `accepted` | 是 | boolean | 命令是否已接受。 |
+| `mpv_applied` | 是 | boolean | 本次 `mpv` IPC 写入是否成功。没有运行中的播放器时先保存偏好。 |
 
 可能的 `error.code`：
 
 - `INVALID_ARGUMENT`（`volume` 与 `muted` 均未提交时返回）
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### GET /api/v1/scenes
@@ -1299,7 +1092,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/scenes` |
 | Method | `GET` |
-| Header | `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `X-Request-Id` 可选 |
 
 Request JSON 示例：无请求体。
 
@@ -1340,8 +1133,6 @@ Response 字段解释：
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/scenes/save
@@ -1352,7 +1143,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/scenes/save` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1415,19 +1206,17 @@ Response 字段解释：
 
 - `INVALID_ARGUMENT`（`name` 为空，或 `audio` 与 `entries` 均未提交时返回）
 - `CONFLICT`（已达 32 条场景上限时返回 `SCENE_LIMIT_EXCEEDED`）
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/scenes/apply
 
-用途：应用已保存场景。自动停止当前播放节目。
+用途：应用已保存场景。处于 playing 时结束当前节目。paused 与 idle 保持当前播放状态。
 
 | 项目 | 值 |
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/scenes/apply` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1455,7 +1244,8 @@ Response JSON 示例：
     "scene_id": "reading-mode",
     "accepted": true,
     "partial": false,
-    "failed_targets": []
+    "failed_targets": [],
+    "applied_entries": []
   }
 }
 ```
@@ -1466,14 +1256,14 @@ Response 字段解释：
 |---|---:|---|---|
 | `scene_id` | 是 | string | 已应用的场景 ID。 |
 | `accepted` | 是 | boolean | 命令是否已接受。 |
-| `partial` | 是 | boolean | 是否部分目标应用失败。 |
-| `failed_targets` | 是 | string[] | 应用失败的 `target_id` 列表。 |
+| `partial` | 是 | boolean | 是否有目标或音频执行失败。 |
+| `failed_targets` | 是 | string[] | 未成功提交或无法执行的 `target_id` 列表。 |
+| `applied_entries` | 是 | object[] | 已完成本机提交的场景条目。 |
+| `audio_error` | 否 | string | 含灯光条目的场景中，音量或静音执行失败的错误码。 |
 
 可能的 `error.code`：
 
 - `NOT_FOUND`（场景 ID 不存在）
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/scenes/delete
@@ -1484,7 +1274,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/scenes/delete` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1523,8 +1313,6 @@ Response 字段解释：
 可能的 `error.code`：
 
 - `NOT_FOUND`（场景 ID 不存在）
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### GET /api/v1/brightness
@@ -1535,7 +1323,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/brightness` |
 | Method | `GET` |
-| Header | `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `X-Request-Id` 可选 |
 
 Response JSON 示例：
 
@@ -1557,8 +1345,6 @@ Response 字段解释：
 
 可能的 `error.code`：
 
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ### POST /api/v1/brightness/set
@@ -1569,7 +1355,7 @@ Response 字段解释：
 |---|---|
 | URL | `https://192.168.31.236:8443/api/v1/brightness/set` |
 | Method | `POST` |
-| Header | `Content-Type: application/json`, `Authorization` 和 `X-Request-Id` 可选 |
+| Header | `Content-Type: application/json`, `X-Request-Id` 可选 |
 
 Request JSON 示例：
 
@@ -1612,8 +1398,6 @@ Response 字段解释：
 可能的 `error.code`：
 
 - `INVALID_ARGUMENT`（`brightness_scale` 超出范围）
-- `UNAUTHORIZED`
-- `TOKEN_EXPIRED`
 - `INTERNAL_ERROR`
 
 ## 6. WebSocket 说明
@@ -1715,8 +1499,8 @@ data 字段解释：
 | `brightness` | 是 | number | 当前亮度。 |
 | `brightness_scale` | 是 | number | 当前亮度乘数。 |
 | `color_temperature` | 是 | number | 当前色温。 |
-| `audio_available` | 是 | boolean | 音频输入是否可用。 |
-| `video_available` | 是 | boolean | 视频输入是否可用。 |
+| `audio_available` | 是 | boolean | 最近观测是否有选中的节目音轨或已核验的数字输入。 |
+| `video_available` | 是 | boolean | 最近观测是否有选中的节目视频轨。图形会话和 mpv IPC 状态见 `/status` 的 `display`。 |
 | `audio_link_enabled` | 是 | boolean | 音频联动是否启用。 |
 | `video_link_enabled` | 是 | boolean | 视频联动是否启用。 |
 
@@ -1858,21 +1642,12 @@ data 字段解释：
 
 | 字段 | 类型 | 必填位置 | 说明 |
 |---|---|---|---|
-| `pairing_code` | string | `/auth/pair` request | 当前配对码。 |
 | `service` | string | `/status` response | 服务名称。 |
 | `host_id` | string | `/status` response | 主机 ID。 |
 | `api_version` | string | `/status` response | Host API 版本。 |
 | `version` | string | `/status` response | Host Service 版本。 |
 | `time_ms` | number | `/status` response | 服务端当前时间，Unix epoch 毫秒。 |
-| `client_id` | string | `/auth/pair` request | APP 生成并长期保存的客户端 ID。 |
-| `client_name` | string | `/auth/pair` request | 设备展示名称。 |
-| `client_type` | string | `/auth/pair` request | 客户端类型。 |
-| `app_version` | string | `/auth/pair` request | APP 版本号。 |
-| `access_token` | string | auth response | REST 访问令牌。 |
-| `refresh_token` | string | auth response, `/auth/refresh` request | 刷新令牌。 |
-| `token_type` | string | auth response | 固定为 `Bearer`。 |
-| `expires_in` | number | auth/session response | 有效秒数。 |
-| `scope` | string[] | auth response | 权限列表。 |
+| `expires_in` | number | session response | 有效秒数。 |
 | `ws_ticket` | string | `/session/ws-ticket` response | WebSocket 连接票据。 |
 | `session_id` | string | session response, WebSocket data | 会话 ID。 |
 | `subscribe` | string[] | `/session/ws-ticket` request, `session.connected` data | WebSocket 订阅消息类型。 |
@@ -1884,8 +1659,8 @@ data 字段解释：
 | `brightness` | number | state/lights | 亮度，范围 `0.0~1.0`。 |
 | `brightness_scale` | number | state/brightness | 亮度乘数，范围 `0.0~1.0`；独立于 `brightness`，每次播放时自动重置为 `0.5`。 |
 | `color_temperature` | number | state/lights | 色温，范围 `2700~6500`。 |
-| `audio_available` | boolean | state/runtime response | 音频输入是否可用。 |
-| `video_available` | boolean | state/runtime response | 视频输入是否可用。 |
+| `audio_available` | boolean | state/runtime response | 最近观测是否有选中的节目音轨或已核验的数字输入。 |
+| `video_available` | boolean | state/runtime response | 最近观测是否有选中的节目视频轨。图形会话和 mpv IPC 状态见 `/status` 的 `display`。 |
 | `audio_link_enabled` | boolean | state/runtime response | 音频联动是否启用。 |
 | `video_link_enabled` | boolean | state/runtime response | 视频联动是否启用。 |
 | `targets` | object[] | `/capabilities` response | APP 可见逻辑目标列表。 |
@@ -1894,7 +1669,7 @@ data 字段解释：
 | `effect_type` | string | effects request/response | 灯效类型。 |
 | `params` | object | effects request | 通用灯效参数。 |
 | `effect_params` | object | effects request | 灯效专用参数。 |
-| `supports` | object | `/capabilities` response | Host Service 功能能力。 |
+| `supports` | object | `/capabilities` response | Host 可实际执行的功能。RGB DDP 的色温与 REST 过渡返回 false。对应请求字段继续接受，用于 V1 兼容。 |
 | `transition_ms` | number | lights/effects request/response | 过渡时间，单位毫秒。 |
 | `device_id` | string | device state | APP 可理解的逻辑设备 ID。 |
 | `device_type` | string | device state | 对外设备类型。 |
@@ -1907,14 +1682,6 @@ data 字段解释：
 | `error_code` | string 或 null | device/error state | 错误码。 |
 
 ## 9. 枚举值表
-
-### client_type
-
-| 值 | 说明 |
-|---|---|
-| `tablet` | 平板客户端。 |
-| `phone` | 手机客户端。 |
-| `debug` | 调试客户端。 |
 
 ### system_state
 
@@ -1998,12 +1765,8 @@ data 字段解释：
 | error.code | 含义 | APP 建议处理方式 |
 |---|---|---|
 | `INVALID_ARGUMENT` | 请求字段缺失、类型错误或超出范围。 | 检查请求参数，修正后重试。 |
-| `UNAUTHORIZED` | 缺少 token 或 token 无效。 | 跳转认证流程或使用 refresh token。 |
-| `FORBIDDEN` | token 权限不足。 | 提示权限不足，重新配对或联系管理员。 |
 | `NOT_FOUND` | 请求的资源不存在。 | 刷新列表或检查 `show_id` / `target_id`。 |
 | `CONFLICT` | 当前状态与请求冲突。 | 先同步 `/state`，再按最新状态发起请求。 |
-| `TOKEN_EXPIRED` | access token 已过期。 | 调用 `/auth/refresh` 后重试原请求。 |
-| `PAIRING_CODE_INVALID` | 配对码无效。 | 提示用户重新输入配对码。 |
 | `WS_TICKET_INVALID` | WebSocket ticket 无效或过期。 | 重新调用 `/session/ws-ticket` 后重连。 |
 | `DEVICE_OFFLINE` | 目标设备离线。 | 在设备页提示离线，并等待 `device.status` 更新。 |
 | `SHOW_NOT_LOADED` | 当前没有已加载节目。 | 先调用 `/playback/play` 指定 `show_id`。 |

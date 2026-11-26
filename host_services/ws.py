@@ -7,9 +7,14 @@ import asyncio
 import json
 import logging
 import time
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from .auth_manager import consume_ws_ticket
-from .config import HEARTBEAT_INTERVAL_SECONDS, STATE_PUBLISH_INTERVAL_SECONDS, WS_SEND_TIMEOUT_SECONDS
+import uuid
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from .response import invalid_argument, ok
+from .schemas import VALID_WS_TYPES, WsTicketRequest
+from .config import (
+    HEARTBEAT_INTERVAL_SECONDS, STATE_PUBLISH_INTERVAL_SECONDS,
+    WS_SEND_TIMEOUT_SECONDS, WS_TICKET_EXPIRE_SECONDS,
+)
 from . import engine_adapter
 
 router = APIRouter()
@@ -18,10 +23,53 @@ _log = logging.getLogger(__name__)
 # Connections and all send operations belong to the bound ASGI loop.
 _connections: list[dict] = []
 _sequence = 0
+_ws_tickets: dict[str, dict] = {}
 _event_loop: asyncio.AbstractEventLoop | None = None
 _broadcast_tasks: set[asyncio.Task] = set()
 _connection_tasks: set[asyncio.Task] = set()
 _state_publisher_task: asyncio.Task | None = None
+
+
+def _now() -> float:
+    return time.monotonic()
+
+
+def create_ws_ticket(subscribe: list[str], host: str, *, secure: bool) -> dict:
+    now = _now()
+    for ticket, info in list(_ws_tickets.items()):
+        if now >= info["expires_at"]:
+            del _ws_tickets[ticket]
+    ticket = f"wst_{uuid.uuid4().hex}"
+    session_id = f"sess_{uuid.uuid4().hex[:8]}"
+    _ws_tickets[ticket] = {
+        "session_id": session_id,
+        "subscribe": list(subscribe),
+        "expires_at": now + WS_TICKET_EXPIRE_SECONDS,
+    }
+    scheme = "wss" if secure else "ws"
+    return {
+        "ws_ticket": ticket,
+        "session_id": session_id,
+        "expires_in": WS_TICKET_EXPIRE_SECONDS,
+        "ws_url": f"{scheme}://{host}/ws?ticket={ticket}",
+    }
+
+
+def consume_ws_ticket(ticket: str) -> dict | None:
+    info = _ws_tickets.pop(ticket, None)
+    if info is None or _now() >= info["expires_at"]:
+        return None
+    return info
+
+
+@router.post("/api/v1/session/ws-ticket", tags=["WebSocket"])
+async def ws_ticket(body: WsTicketRequest, request: Request):
+    for kind in body.subscribe:
+        if kind not in VALID_WS_TYPES:
+            return invalid_argument(request, f"Unknown message type: {kind}")
+    return ok(request, create_ws_ticket(
+        body.subscribe, request.url.netloc, secure=request.url.scheme == "https",
+    ))
 
 
 def bind_event_loop(loop: asyncio.AbstractEventLoop) -> None:
@@ -56,6 +104,7 @@ def publish_error(data: dict) -> None:
 async def close_event_loop() -> None:
     global _event_loop, _state_publisher_task
     _event_loop = None
+    _ws_tickets.clear()
     tasks = list(_broadcast_tasks)
     if _state_publisher_task is not None:
         tasks.append(_state_publisher_task)

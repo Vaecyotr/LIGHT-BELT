@@ -39,9 +39,23 @@ the actual Wayland session and restarts Host for its fullscreen startup window.
 The user runtime owns mpv IPC and per-device credentials persist under
 `~/.config/light-belt/host.env`. Deployment detects and disables the installed legacy system Host unit before
 activating the user service. Bootstrap always applies the independent update policy, leaves
-LIGHT-BELT automatic updates disabled, and configures Kiosk only with the
-explicit `--configure-kiosk` option. Device behavior remains
-**NOT HARDWARE VERIFIED**.
+LIGHT-BELT automatic updates disabled. The current product has no web Kiosk;
+older Kiosk setup and client instructions are historical only. Host business
+REST is anonymous on the controlled cabin LAN, with network isolation as the
+boundary. WebSocket subscriptions retain one-time tickets. Host starts one
+managed lighting sender and one DDP output path. BlueZ pairing is managed by
+the Host Agent and must be verified against real BlueZ callbacks and device
+properties; deployment string checks alone are not pairing evidence. Device
+behavior remains **NOT HARDWARE VERIFIED**.
+
+WLED state changes use `host_services/wled_brightness.py::apply_managed` as the
+single production HTTP write path. It records POST submission separately from
+per-node readback confirmation and propagates partial failures. Explicit off
+requires both `state.on == false` and `info.live == false`; brightness updates
+while off preserve power-off state. A zero brightness scale is represented by
+managed black frames and never by a `bri: 0` power command. An API response
+marked `accepted` is not proof of node submission, readback confirmation, or
+visible light output. All physical behavior remains **NOT HARDWARE VERIFIED**.
 
 ## Current Show authority
 

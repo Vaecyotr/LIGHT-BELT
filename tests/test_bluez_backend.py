@@ -52,6 +52,80 @@ def test_program_pcm_target_is_bound_to_current_mpv_process():
     asyncio.run(run())
 
 
+def test_audio_output_observation_reports_missing_sink_without_bluez_failure():
+    async def run():
+        async def pactl(*args):
+            if args == ("get-default-sink",):
+                return "rt5616"
+            if args == ("--format=json", "list", "sinks"):
+                return json.dumps([])
+            raise AssertionError(args)
+
+        backend = LinuxBluezBackend(bus=object(), router=PulseAudioRouter(runner=pactl))
+        result = await backend._audio_output_observation()
+        assert result == {
+            "available": False,
+            "sink": "rt5616",
+            "reason": "audio output sink is absent",
+        }
+
+    asyncio.run(run())
+
+
+def test_audio_output_observation_accepts_idle_suspended_sink_with_available_port():
+    async def run():
+        async def pactl(*args):
+            if args == ("get-default-sink",):
+                return "rt5616"
+            if args == ("--format=json", "list", "sinks"):
+                return json.dumps([{"name": "rt5616", "index": 8, "state": "SUSPENDED",
+                                    "active_port": "speaker", "ports": [
+                                        {"name": "speaker", "availability": "yes"}
+                                    ]}])
+            raise AssertionError(args)
+
+        backend = LinuxBluezBackend(bus=object(), router=PulseAudioRouter(runner=pactl))
+        result = await backend._audio_output_observation()
+        assert result["available"] is True
+        assert result["state"] == "SUSPENDED"
+
+    asyncio.run(run())
+
+
+def test_audio_output_observation_rejects_explicitly_unavailable_port_only():
+    async def run():
+        for availability, expected in (("no", False), ("not available", False), ("unknown", True)):
+            async def pactl(*args):
+                if args == ("get-default-sink",):
+                    return "rt5616"
+                if args == ("--format=json", "list", "sinks"):
+                    return json.dumps([{"name": "rt5616", "index": 8, "state": "IDLE",
+                                        "active_port": "speaker", "ports": [
+                                            {"name": "speaker", "availability": availability}
+                                        ]}])
+                raise AssertionError(args)
+
+            backend = LinuxBluezBackend(bus=object(), router=PulseAudioRouter(runner=pactl))
+            observation = await backend._audio_output_observation()
+            assert observation["available"] is expected
+            assert observation["port_availability"] == availability
+
+    asyncio.run(run())
+
+
+def test_audio_output_observation_preserves_pactl_error_as_readiness_reason():
+    async def run():
+        async def pactl(*args):
+            raise RuntimeError("pactl server unavailable")
+
+        backend = LinuxBluezBackend(bus=object(), router=PulseAudioRouter(runner=pactl))
+        result = await backend._audio_output_observation()
+        assert result["available"] is False
+        assert result["reason"] == "pactl server unavailable"
+
+    asyncio.run(run())
+
+
 def test_program_pcm_target_fails_closed_without_mpv_identity_when_required():
     async def run():
         router = PulseAudioRouter()

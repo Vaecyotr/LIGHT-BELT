@@ -6,7 +6,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from host_services import auth_manager, engine_adapter
+from host_services import engine_adapter
 from host_services.main import app
 
 
@@ -23,16 +23,15 @@ def scene_store(tmp_path, monkeypatch):
     monkeypatch.setattr(engine_adapter, "SCENE_FILE_PATH", str(path))
     monkeypatch.setattr(engine_adapter, "_scenes", original)
     monkeypatch.setitem(engine_adapter._state, "scene_id", "existing")
-    token, _ = auth_manager.create_access_token("scene-test", ["scenes:write"])
     with TestClient(app) as client:
-        yield client, {"Authorization": "Bearer " + token}, path
+        yield client, path
 
 
-def change_scene(client, headers, operation):
+def change_scene(client, operation):
     if operation == "delete":
-        return client.post("/api/v1/scenes/delete", headers=headers,
+        return client.post("/api/v1/scenes/delete",
                            json={"scene_id": "existing"})
-    return client.post("/api/v1/scenes/save", headers=headers, json={
+    return client.post("/api/v1/scenes/save", json={
         "scene_id": "existing" if operation == "overwrite" else "new",
         "name": "Changed", "audio": {"volume": 0.7},
     })
@@ -42,7 +41,7 @@ def change_scene(client, headers, operation):
 @pytest.mark.parametrize("failure", ["open", "replace"])
 def test_scene_write_failure_preserves_memory_and_disk(scene_store, monkeypatch,
                                                        operation, failure):
-    client, headers, path = scene_store
+    client, path = scene_store
     before_disk = path.read_bytes()
     before_memory = json.loads(json.dumps(engine_adapter._scenes))
     if failure == "open":
@@ -60,7 +59,7 @@ def test_scene_write_failure_preserves_memory_and_disk(scene_store, monkeypatch,
 
         monkeypatch.setattr(engine_adapter.os, "replace", reject_replace)
 
-    response = change_scene(client, headers, operation)
+    response = change_scene(client, operation)
 
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "INTERNAL_ERROR"
@@ -72,9 +71,9 @@ def test_scene_write_failure_preserves_memory_and_disk(scene_store, monkeypatch,
 
 @pytest.mark.parametrize("operation", ["create", "overwrite", "delete"])
 def test_scene_success_survives_reload(scene_store, operation):
-    client, headers, path = scene_store
+    client, path = scene_store
 
-    response = change_scene(client, headers, operation)
+    response = change_scene(client, operation)
 
     assert response.status_code == 200
     assert engine_adapter._load_scenes() == engine_adapter._scenes

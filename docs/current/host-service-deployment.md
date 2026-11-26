@@ -19,10 +19,7 @@
 
 当前目标路径为 `/home/pi/LIGHT-BELT`，用户为 `pi`，桌面为 GNOME Wayland。bootstrap 准备 `.venv`、独立更新策略和运行配置，将 Host 安装为用户服务并启用 linger。GNOME 登录项导入真实图形会话环境，Host 通过 `.venv/bin/python -m host_services` 启动，生产模式由 unit 选择 `ENGINE_ADAPTER=real`。
 
-设备凭据持久保存于 `~/.config/light-belt/host.env`，由 `pi` 拥有，权限为 `0600`。
-首次部署自动生成独立 `LIGHT_BELT_JWT_SECRET` 和 `LIGHT_BELT_PAIRING_CODE`。
-已有有效的旧 `/etc/light-belt/host.env` 会迁移，原文件保留。密钥至少 32 字节，
-配对码须替换开发默认值。重复部署保留有效凭据，真实模式缺少有效配置会拒绝启动。
+设备 Host 环境文件与 TLS 证书由设备本地管理并在迁移时保留。退役的 JWT 和配对码不再生成，也不作为真实后端启动条件。
 
 首次安装与后续更新共同使用部署目录中的依赖同步逻辑，按锁文件安装 Host 依赖，排除开发依赖。声明与锁文件不一致时失败，设备端不重新解析或改写锁文件。已有兼容 Python 环境复用；系统蓝牙工具的 Python 与系统库单独管理。
 
@@ -52,23 +49,16 @@ Host 从 `assets/<show_id>/` 自动发现节目，视频、音频或 YAML 均可
 
 以 `shows_loader.py` 的发现及覆盖行为为准。当前 `engine_adapter._load_shows()` 没有传入 `config.py` 中的 `SHOWS_MANIFEST_PATH`；不能承诺修改该声明就能改变加载位置。本轮不改变加载逻辑。媒体、生成配置和运行数据通常不进入 Git，必须在设备上独立准备。
 
-## 网页与接口检查
+## API 接口检查
 
-接口默认监听 `0.0.0.0:8443`；状态入口为 `/api/v1/status`，交互式接口说明为 `/docs`。网页由 `kiosk/dist/` 提供，只有该目录存在时才挂载。
+接口默认监听 `0.0.0.0:8443`；状态入口为 `/api/v1/status`，交互式接口说明为 `/docs`。
 
-检查部署时，除了状态接口，还要打开 `/`，核对 HTML 引用的 JS、CSS 和 `/THIRD_PARTY_NOTICES.txt`。API 正常不代表网页发布包完整。网页源码修改后的构建由 `kiosk/package.json` 和 npm 锁文件管理；Python 安装不会自动构建网页。
+检查部署时使用状态接口、API 文档、接口请求与验收工具。
 
-打开或刷新 Kiosk 页面后即可查看节目和操作播放、亮度与音量。Host 拒绝操作和
-网络错误会在页面显示。
-
-Host 的共用 REST 鉴权依赖直接放行，能连到监听地址的客户端均可读取状态、发送
-控制命令和申请 WebSocket 票据。配对和刷新接口仍供调用方使用，WebSocket 握手
-仍须提供有效的一次性票据。
+受控网络中的客户端可直接调用业务 REST 接口。WebSocket 仍使用一次性票据；蓝牙配对与播放权操作通过 Host 正式业务接口完成。
 
 ## TLS 配置
 
-当前默认 `ENABLE_TLS=False`。如显式启用 HTTPS，在设备上准备 `/etc/light-belt/cert.pem` 与 `/etc/light-belt/key.pem`，并核对 `host_services/config.py` 的 `TLS_CERTFILE`、`TLS_KEYFILE` 和 `ENABLE_TLS`。私钥留在设备受保护目录，不纳入仓库。
+需要 HTTPS 时，在设备 Host 环境中配置 TLS 开关和证书路径。升级保留现有证书与环境文件；私钥留在设备受保护目录，不纳入仓库。
 
-API文档中的HTTPS地址为目标接入合同。设备接入前需完成TLS或可信加密通道，
-避免在普通HTTP链路上传输Bearer和配对码。票据地址跟随ASGI请求协议选择WS/WSS，
-使用TLS终止代理时须正确配置可信代理边界。
+HTTP 配置下使用 WS，HTTPS 配置下使用 WSS。匿名业务接口只部署在受控舱内网，不应暴露给公网或不受信任网络。

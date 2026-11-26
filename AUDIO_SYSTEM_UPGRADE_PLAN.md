@@ -1,5 +1,31 @@
 # LIGHT-BELT 康养舱音频系统升级方案
 
+> **历史设计与证据记录。** 本文原定的 A–G 工作包、网页 Kiosk、终端登记、
+> 登录授权及生产音路迁移先决条件已由当前批准的架构决策取代；不得将下文
+> 第 3–8 节当作当前实现指令。历史审计、素材测量和旧分支测试结果仅描述其
+> 明示的代码与时间点，不证明当前工作树、设备或产品验收状态。当前软件
+> 任务范围以 [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
+> 为准，现场验收命令以 [`docs/current/rk3588-bootstrap.md`](docs/current/rk3588-bootstrap.md)
+> 为准。硬件状态为 **NOT HARDWARE VERIFIED**。
+
+## 当前架构摘要
+
+- Host 的业务 REST 在受控舱内 LAN 匿名提供；网络隔离限定访问范围。
+  WebSocket 仍通过一次性票据保护订阅。当前产品不包含网页 Kiosk、终端
+  登记或 APP Pair/JWT/Refresh 认证。
+- Host 使用统一的 managed 架构和唯一生产灯光 sender/DDP writer。节目、
+  独立音乐和手动效果在同一发送者内交接，不启动第二个生产输出所有者。
+- WLED 的亮度与电源写入统一走
+  `host_services/wled_brightness.py::apply_managed`。每节点分别记录命令
+  是否提交和设备读回是否确认；POST 失败、GET 错误、读回不符可区分，部分
+  失败向调用方传播。关灯确认要求 `state.on=false` 且 `info.live=false`。
+  关灯期间调亮度保持关灯；零亮度通过 managed 黑帧表达，不发送 `bri=0`
+  作为关机命令。API `accepted` 不代表节点提交、读回确认或实际显光。
+- 蓝牙配对由 Host 的真实 BlueZ Agent 管理。部署文本或配置中出现相关
+  字符串不构成配对证据；软件测试与实机回调/设备属性观察分开记录。
+- 所有真实设备输出、配对交互和声光时序均为 **NOT HARDWARE VERIFIED**，
+  直到取得对应目标设备证据。
+
 ## 1. 执行摘要
 
 **视频由 mpv 播放，手机通过蓝牙播放，Host 只在二者共用扬声器时选择声音。** 灯带有独立的输出所有者。用户可以看视频、听手机 A 的音乐，同时让灯光跟随 WLED 环境麦克风。视频暂停后，节目时间轴停在原处，手机及独立音乐灯效可以继续；视频退出也不结束手机播放。

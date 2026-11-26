@@ -15,7 +15,7 @@ STAGES = ["preflight.sh", "setup-python.sh", "setup-update-policy.sh", "setup-sy
           "verify-install.sh"]
 
 
-def run_bootstrap(tmp_path, *arguments, fail="", active=False, legacy=False):
+def run_bootstrap(tmp_path, *arguments, fail="", active=False, legacy=False, previous=False, timer=False):
     if BASH is None:
         pytest.fail("Deployment tests require runnable Git Bash")
     root = tmp_path / "LIGHT-BELT"
@@ -27,15 +27,37 @@ def run_bootstrap(tmp_path, *arguments, fail="", active=False, legacy=False):
     shutil.copy2(source / "bootstrap.sh", deploy / "bootstrap.sh")
     for path in (source / "lib").glob("*.sh"):
         shutil.copy2(path, deploy / "lib" / path.name)
+    for path, content in {
+        ".config/pulse/default.pa": "previous PA profile\n",
+        ".config/systemd/user/light-belt-host.service": "previous Host unit\n",
+        "system-units/lb-update.service": "previous updater unit\n",
+        "bluez.conf": "previous BlueZ config\n",
+        "LIGHT-BELT/config/runtime/wled-ddp-mdns.yaml": "previous runtime profile\n",
+    }.items():
+        fixture = tmp_path / path
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        fixture.write_text(content, encoding="utf-8", newline="\n")
     for name in STAGES:
         (deploy / name).write_text('''#!/usr/bin/env bash
 name="$(basename "$0")"
 printf 'stage %s %s\\n' "$name" "$*" >> "$CASE/events"
 [[ "$name" != "$FAIL_STAGE" || "${1:-}" == --check ]] || exit 9
 if [[ "$name" == install-services.sh ]]; then
+    printf 'new Host unit\n' > "$CASE/.config/systemd/user/light-belt-host.service"
+    printf 'new sink unit\n' > "$CASE/.config/systemd/user/light-belt-audio-default-sink.service"
+    printf 'new updater unit\n' > "$CASE/system-units/lb-update.service"
+    mkdir -p "$CASE/.config/autostart"
+    printf 'new login entry\n' > "$CASE/.config/autostart/light-belt-host-session.desktop"
     systemctl --user enable light-belt-host.service
     systemctl --user start light-belt-host.service
     systemctl disable light-belt-host.service
+fi
+if [[ "$name" == setup-bluetooth.sh ]]; then
+    printf 'new PA profile\n' > "$CASE/.config/pulse/default.pa"
+    printf 'new BlueZ config\n' > "$CASE/bluez.conf"
+fi
+if [[ "$name" == setup-runtime.sh ]]; then
+    printf 'new runtime profile\n' > "$CASE/LIGHT-BELT/config/runtime/wled-ddp-mdns.yaml"
 fi
 ''', encoding="utf-8", newline="\n")
     tools = tmp_path / "bin"
@@ -46,9 +68,21 @@ printf 'tool %s %s\\n' "$name" "$*" >> "$CASE/events"
 case "$name" in
 id) case "$1" in -un) echo pi;; *) echo 1000;; esac;;
 sudo) [[ "$1" != -v ]] || exit 0; exec "$@";;
+git) if [[ "$3" == rev-parse ]]; then printf '%s\\n' "$LIGHT_BELT_PREVIOUS_COMMIT"; fi;;
 systemctl)
  scope=system
  if [[ "${1:-}" == --user ]]; then scope=user; shift; fi
+ if [[ "${*: -1}" == lb-update.timer ]]; then
+    case "$1" in
+     is-active) [[ "$(cat "$CASE/active-timer")" == 1 ]];;
+     is-enabled) [[ "$(cat "$CASE/enabled-timer")" == 1 ]];;
+     cat) [[ "$TIMER" == 1 ]];;
+     start) echo 1 > "$CASE/active-timer";;
+     enable) echo 1 > "$CASE/enabled-timer";;
+     disable) echo 0 > "$CASE/enabled-timer"; echo 0 > "$CASE/active-timer";;
+    esac
+    exit
+ fi
  case "$1" in
  is-active) [[ "${*: -1}" == light-belt-host.service && "$(cat "$CASE/active-$scope")" == 1 ]];;
  is-enabled) [[ "${*: -1}" == light-belt-host.service && "$(cat "$CASE/enabled-$scope")" == 1 ]];;
@@ -60,19 +94,26 @@ systemctl)
  esac;;
 esac
 '''
-    for name in ["id", "sudo", "systemctl"]:
+    for name in ["id", "sudo", "systemctl", "git"]:
         path = tools / name
         path.write_text(fake, encoding="utf-8", newline="\n")
         path.chmod(0o755)
     for scope, value in [("user", active), ("system", legacy)]:
         (tmp_path / f"active-{scope}").write_text("1" if value else "0")
         (tmp_path / f"enabled-{scope}").write_text("1" if value else "0")
+    (tmp_path / "active-timer").write_text("1" if timer else "0")
+    (tmp_path / "enabled-timer").write_text("1" if timer else "0")
     env = {**os.environ, "CASE": posix(tmp_path), "FAIL_STAGE": fail,
            "LIGHT_BELT_HOME": posix(tmp_path), "LIGHT_BELT_REPO": posix(root),
+           "LIGHT_BELT_SYSTEM_UNIT_DIR": posix(tmp_path / "system-units"),
+           "LIGHT_BELT_BLUEZ_CONFIG": posix(tmp_path / "bluez.conf"),
+           "TIMER": "1" if timer else "0",
            "LEGACY": "1" if legacy else "0"}
+    if previous:
+        env.update(LIGHT_BELT_PREVIOUS_COMMIT="a" * 40, LIGHT_BELT_PREVIOUS_BRANCH="1108")
     command = f'export PATH="{posix(tools)}:$PATH"; bash "{posix(deploy / "bootstrap.sh")}" ' + " ".join(arguments)
     result = subprocess.run([BASH, "-c", command], env=env, capture_output=True,
-                            text=True, encoding="utf-8", errors="replace", timeout=15)
+                            text=True, encoding="utf-8", errors="replace", timeout=60)
     events = (tmp_path / "events").read_text(encoding="utf-8")
     return result, events, (tmp_path / "active-user").read_text().strip()
 
@@ -105,20 +146,31 @@ def test_failure_stops_deployment_and_restores_previously_running_host(tmp_path)
 
 
 def test_policy_failure_prevents_package_and_environment_changes(tmp_path):
-    result, events, _ = run_bootstrap(tmp_path, fail="setup-update-policy.sh")
+    result, events, _ = run_bootstrap(tmp_path, fail="setup-update-policy.sh", timer=True)
     assert result.returncode != 0
     assert "stage setup-system.sh " not in events
     assert "stage setup-python.sh \n" not in events
+    assert (tmp_path / "active-timer").read_text().strip() == "1"
+    assert (tmp_path / "enabled-timer").read_text().strip() == "1"
 
 
 def test_failed_migration_restores_only_the_previous_boot_service(tmp_path):
-    result, events, active = run_bootstrap(tmp_path, fail="verify-install.sh", legacy=True)
+    result, events, active = run_bootstrap(tmp_path, fail="verify-install.sh", legacy=True, previous=True, timer=True)
     assert result.returncode != 0
     assert active == "0"
     assert (tmp_path / "enabled-user").read_text().strip() == "0"
     assert (tmp_path / "active-system").read_text().strip() == "1"
     assert (tmp_path / "enabled-system").read_text().strip() == "1"
     assert events.rindex("tool systemctl --user disable light-belt-host.service") < events.rindex("tool systemctl start light-belt-host.service")
+    assert events.rindex("switch -- 1108") < events.rindex("stage setup-python.sh ") < events.rindex("tool systemctl start light-belt-host.service")
+    assert (tmp_path / ".config/pulse/default.pa").read_text() == "previous PA profile\n"
+    assert (tmp_path / ".config/systemd/user/light-belt-host.service").read_text() == "previous Host unit\n"
+    assert (tmp_path / "system-units/lb-update.service").read_text() == "previous updater unit\n"
+    assert (tmp_path / "bluez.conf").read_text() == "previous BlueZ config\n"
+    assert (tmp_path / "LIGHT-BELT/config/runtime/wled-ddp-mdns.yaml").read_text() == "previous runtime profile\n"
+    assert (tmp_path / "active-timer").read_text().strip() == "1"
+    assert not (tmp_path / ".config/autostart/light-belt-host-session.desktop").exists()
+    assert not (tmp_path / ".config/systemd/user/light-belt-audio-default-sink.service").exists()
 
 
 @pytest.mark.parametrize(("flag", "audio_result", "expected", "message"), [
@@ -142,10 +194,11 @@ def test_verifier_checks_audio_and_can_require_graphical_login(tmp_path, flag, a
         "bin/id": 'if [[ "$1" == -un ]]; then echo pi; else echo 1000; fi',
         "bin/stat": 'echo 600:1000',
         "bin/loginctl": 'echo yes',
-        "bin/systemctl": '''if [[ "$1" == --user ]]; then exit 0; fi
-case "${*: -1}" in light-belt-host.service|lb-update.timer) exit 1;; esac''',
-        "bin/bluetoothctl": "printf '%s\\n' 'Powered: yes' 'Pairable: yes' 'Discoverable: yes'",
-        "bin/pactl": "[[ $1 != list ]] || printf '%s\\n' module-bluetooth-policy module-bluetooth-discover",
+        "bin/systemctl": '''if [[ "$1" == --user ]]; then
+  [[ "${*: -1}" != light-belt-bluetooth-priority.service && "${*: -1}" != bluetooth-audio-loopback.service ]]; exit; fi
+case "${*: -1}" in light-belt-host.service|lb-update.timer|bluetooth-auto-agent.service|bluetooth-public-mode.service) exit 1;; esac''',
+        "bin/bluetoothctl": "printf '%s\\n' 'Powered: yes'",
+        "bin/pactl": '''if [[ "$1" == info ]]; then echo 'Server Name: pulseaudio'; elif [[ "$1" == list ]]; then printf '%s\\n' '1 module-bluetooth-policy a2dp_source=false' '2 module-bluetooth-discover'; fi''',
         "bin/pgrep": "exit 1",
         **{f"bin/{cmd}": "exit 0" for cmd in ("ssh", "avahi-resolve", "iw", "curl", "mpv", "git", "pacmd")},
     }
@@ -155,6 +208,7 @@ case "${*: -1}" in light-belt-host.service|lb-update.timer) exit 1;; esac''',
         ".config/light-belt/host.env": "",
         "systemd/light-belt-host-session.desktop": "Host login entry",
         ".config/autostart/light-belt-host-session.desktop": "Host login entry",
+        ".local/bin/bluetooth-audio-loopback.sh": "prior helper remains dormant",
     }
     for name, content in files.items():
         path = tmp_path / name
@@ -251,7 +305,20 @@ def test_service_installation_is_repeatable_and_keeps_manual_updates(tmp_path, l
         "fake-python": 'exit 0',
         "systemctl": '''printf '%s\\n' "$*" >> "$CASE/events"
 if [[ "$1" == --user ]]; then shift; fi
-case "$1" in is-active) exit 1;; cat) [[ "$LEGACY" == 1 ]];; *) exit 0;; esac''',
+case "$1" in
+  is-active) exit 1;;
+  cat) [[ "$LEGACY" == 1 ]] || exit 1
+      case "$2" in
+        bluetooth-auto-agent.service) echo "ExecStart=/usr/bin/python3 $LIGHT_BELT_REPO/scripts/deploy/rk3588/bluetooth-auto-agent.py";;
+        bluetooth-public-mode.service) echo "ExecStart=/bin/bash $LIGHT_BELT_REPO/scripts/deploy/rk3588/bluetooth-public-mode.sh";;
+        light-belt-bluetooth-priority.service) echo "ExecStart=/usr/bin/python3 $LIGHT_BELT_REPO/scripts/deploy/rk3588/bluetooth_audio_priority.py";;
+        bluetooth-audio-loopback.service) echo "ExecStart=/bin/bash $LIGHT_BELT_HOME/.local/bin/bluetooth-audio-loopback.sh";;
+        light-belt-host.service) echo 'Description=legacy Host';;
+        *) exit 1;;
+      esac;;
+  *) exit 0;;
+esac''',
+        "pactl": '''if [[ "$1" == info ]]; then echo 'Server Name: pulseaudio'; elif [[ "$1" == list ]]; then printf '%s\\n' '1 module-bluetooth-policy a2dp_source=false' '2 module-bluetooth-discover'; fi''',
     }
     for name, content in commands.items():
         path = tools / name
@@ -283,7 +350,11 @@ case "$1" in is-active) exit 1;; cat) [[ "$LEGACY" == 1 ]];; *) exit 0;; esac'''
     assert "--user restart light-belt-host.service" in events
     assert (tmp_path / ".config/autostart/light-belt-host-session.desktop").is_file()
     assert not (tmp_path / ".config/autostart/light-belt-kiosk-settings.desktop").exists()
-    assert (system_units / "bluetooth-auto-agent.service.light-belt.bak").read_text() == "original agent settings\n"
+    assert (system_units / "bluetooth-auto-agent.service").read_text() == "original agent settings\n"
+    if legacy:
+        assert "disable --now bluetooth-auto-agent.service" in events
+    else:
+        assert "disable --now bluetooth-auto-agent.service" not in events
     if legacy:
         assert "disable --now light-belt-host.service" in events
         assert (system_units / "light-belt-host.service").read_text() == "original system Host\n"

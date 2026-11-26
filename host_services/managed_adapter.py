@@ -1,16 +1,51 @@
 """Parent side of the single-sender Engine control channel."""
 
 import json
+import logging
+import sys
 import subprocess
 import threading
 import time
 
-from .real_engine_adapter import EnginePreparationError, RealEngineAdapter, _drain_stderr, _kill_proc
+_log = logging.getLogger(__name__)
 
 
-class ManagedAdapter(RealEngineAdapter):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class EnginePreparationError(RuntimeError):
+    """A managed Engine preparation fault already recorded in its status."""
+
+
+def _drain_stderr(proc: subprocess.Popen, label: str) -> None:
+    """Read proc.stderr line-by-line in a daemon thread and log each line as a warning."""
+    def _reader():
+        for raw in proc.stderr:
+            _log.warning("[%s] %s", label, raw.decode(errors="replace").rstrip())
+    threading.Thread(target=_reader, daemon=True, name=f"stderr-{label}").start()
+
+
+def _kill_proc(proc: subprocess.Popen | None, name: str = "engine") -> None:
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _log.warning("%s did not terminate; sending SIGKILL", name)
+            proc.kill()
+            proc.wait(timeout=3)
+    except Exception as exc:
+        raise RuntimeError(f"Unable to stop {name}: {exc}") from exc
+
+
+class ManagedAdapter:
+    def __init__(self, profile_path: str, mpv_socket_path: str,
+                 python_executable: str = sys.executable) -> None:
+        self._profile = profile_path
+        self._mpv_socket = mpv_socket_path
+        self._python = python_executable
+        self._aux_poll_thread: threading.Thread | None = None
+        self._aux_stop_event: threading.Event | None = None
+        self._aux_error: str | None = None
         self.sender = None
         self.changed = threading.Condition()
         self.number = 0
@@ -87,6 +122,9 @@ class ManagedAdapter(RealEngineAdapter):
         if self.status["role_phase"] != "fault":
             self.status = {"role_phase": "preparing",
                            "effective_role": self.status["effective_role"]}
+        else:
+            for field in ("node_submissions", "node_safe_submissions", "submitted_ms", "frame_seq"):
+                self.status.pop(field, None)
         payload = dict(spec, n=self.number, mpv_socket=self._mpv_socket)
         try:
             self.sender.stdin.write((json.dumps(payload, allow_nan=False) + "\n").encode())
@@ -113,6 +151,10 @@ class ManagedAdapter(RealEngineAdapter):
                         if "reason" not in msg:
                             self.status.pop("reason", None)
                         self.status.update(msg)
+                        if msg.get("node_submissions"):
+                            from .engine_adapter import _record_ddp_submissions
+
+                            _record_ddp_submissions(msg)
                         self.changed.notify_all()
         finally:
             with self.changed:
@@ -145,17 +187,24 @@ class ManagedAdapter(RealEngineAdapter):
     def on_playback_start(self, show, start_ms):
         from . import engine_adapter as host
 
-        self._active_show = show
-        host._reconcile_lighting(playing=True, start_ms=start_ms, wait=True)
+        host._sync_lighting(playing=True, start_ms=start_ms, wait=True)
         if show.get("aux_triggers"):
             self._start_aux_poll(show["aux_triggers"], start_ms or 0)
 
     def on_playback_stop(self):
+        owned_trigger = self._aux_poll_thread is not None
         self._stop_aux_poll()
-        self._active_show = None
+        if not owned_trigger:
+            return
         from . import starry_sky
 
-        starry_sky.ensure_off()
+        self._aux_error = None
+        try:
+            starry_sky.ensure_off()
+        except OSError as exc:
+            self._aux_error = str(exc)
+            _log.warning("Starry sky stop submission failed: %s", exc)
+        return self._aux_error
 
     def on_playback_seek_prepare(self):
         self._stop_aux_poll()
@@ -169,12 +218,60 @@ class ManagedAdapter(RealEngineAdapter):
                 wait=True,
             )
 
-    def on_playback_resume_yaml(self):
-        if self._active_show and self._active_show.get("aux_triggers"):
-            self._start_aux_poll(self._active_show["aux_triggers"], 0)
-        return self._active_show is not None
+    def resume_aux(self, show):
+        if show and show.get("aux_triggers"):
+            self._start_aux_poll(show["aux_triggers"], None)
+        return show is not None
 
-    def process_failure(self, position_ms=None):
+    def _start_aux_poll(self, triggers, start_ms):
+        self._stop_aux_poll()
+        actions = sorted(
+            ((item["at_ms"], item["action"] == "on") for item in triggers
+             if item.get("target") == "starry_sky" and item.get("action") in {"on", "off"}),
+            key=lambda entry: entry[0],
+        )
+        if not actions:
+            return
+        stop = self._aux_stop_event = threading.Event()
+        self._aux_poll_thread = threading.Thread(
+            target=self._aux_poll_loop, args=(actions, start_ms, stop),
+            daemon=True, name="aux-triggers-poll",
+        )
+        self._aux_poll_thread.start()
+
+    def _stop_aux_poll(self):
+        if self._aux_stop_event is not None:
+            self._aux_stop_event.set()
+            self._aux_poll_thread.join()
+            self._aux_poll_thread = self._aux_stop_event = None
+
+    def _aux_poll_loop(self, actions, start_ms, stop):
+        from . import engine_adapter as host, starry_sky
+
+        desired = None
+        position_ms = start_ms
+        while not stop.is_set():
+            mpv = host._mpv
+            if mpv is not None:
+                response = mpv._send(["get_property", "time-pos"])
+                if response.get("error") == "success" and isinstance(response.get("data"), (float, int)):
+                    position_ms = response["data"] * 1000
+            if position_ms is None:
+                stop.wait(1)
+                continue
+            wanted = starry_sky.action_at_position(actions, position_ms)
+            if wanted != desired and not stop.is_set():
+                desired = wanted
+                try:
+                    starry_sky.ensure_on() if wanted else starry_sky.ensure_off()
+                except OSError as exc:
+                    self._aux_error = str(exc)
+                    _log.warning("Starry sky trigger submission failed at %.0f ms: %s", position_ms, exc)
+                else:
+                    self._aux_error = None
+            stop.wait(1)
+
+    def recover_sender(self):
         # Keep repair in the existing Host watchdog and the playback session lock.
         if (
             self.sender
@@ -185,10 +282,12 @@ class ManagedAdapter(RealEngineAdapter):
             from . import engine_adapter as host
 
             self.last_recovery = time.monotonic()
-            host._push_wled_off(explicit=True)
+            try:
+                host._push_wled_off()
+            except RuntimeError as exc:
+                _log.warning("WLED state unconfirmed after sender exit: %s", exc)
             self.command = None
             host._reconcile_lighting()
-        return None
 
     def shutdown(self):
         with self.changed:

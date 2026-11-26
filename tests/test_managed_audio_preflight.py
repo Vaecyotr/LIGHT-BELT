@@ -10,6 +10,7 @@ from tests.test_update_transaction import BASH
 
 @pytest.mark.parametrize(("case", "expected"), [
     ("managed", 0), ("automatic", 1), ("duplicate", 1),
+    ("single-owned", 0), ("double-owned", 1),
     ("foreign-loopback", 1), ("wrong-sink", 1), ("pipewire", 1), ("old-agent", 1),
 ])
 def test_preflight_requires_exclusive_native_rt5616(case, expected):
@@ -32,6 +33,12 @@ pactl() {
             if [[ "$CASE" = automatic ]]; then printf '1\tmodule-bluetooth-policy\t\n'
             else printf '1\tmodule-bluetooth-policy\ta2dp_source=false\n'; fi
             if [[ "$CASE" = duplicate ]]; then printf '2\tmodule-bluetooth-policy\ta2dp_source=false\n'; fi
+            if [[ "$CASE" = single-owned || "$CASE" = double-owned ]]; then
+                printf '3\tmodule-loopback\tsource=bluez_source.one.a2dp_source sink_input_properties=light_belt.route_owner=one\n'
+            fi
+            if [[ "$CASE" = double-owned ]]; then
+                printf '4\tmodule-loopback\tsource=bluez_source.two.a2dp_source sink_input_properties=light_belt.route_owner=two\n'
+            fi
             if [[ "$CASE" = foreign-loopback ]]; then printf '3\tmodule-loopback\tsource=bluez_source.fixture.a2dp_source\n'; fi ;;
         'list short sources'|'list short sink-inputs') : ;;
         *) echo "Unexpected PA operation: $*" >&2; exit 90 ;;

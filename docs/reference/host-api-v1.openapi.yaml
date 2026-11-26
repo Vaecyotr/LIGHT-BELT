@@ -3,7 +3,7 @@ info:
   title: LIGHT-BELT Host API
   version: "1.0"
   description: |
-    当前清理分支提供直通 REST，Authorization 可省略。配对与刷新接口保留，WebSocket 握手使用一次性票据。
+    受控舱内网络内直接调用业务 REST。WebSocket 握手使用一次性票据。
 
     LIGHT-BELT APP 接入接口。APP 通过 HTTPS REST JSON 与 WSS WebSocket JSON 接入 RK3588 Host Service。
 
@@ -27,7 +27,7 @@ x-websocket-url: wss://192.168.31.236:8443/ws
 tags:
   - name: Status
     description: 服务在线检测
-  - name: Auth
+  - name: WebSocket
     description: 认证与 token
   - name: Session
     description: WebSocket 会话
@@ -74,92 +74,6 @@ paths:
                   time_ms: 1720000000000
         "500":
           $ref: "#/components/responses/ErrorResponse"
-  /auth/pair:
-    post:
-      tags: [Auth]
-      summary: 使用配对码换取访问令牌
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/XRequestId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PairRequest"
-            example:
-              pairing_code: "123456"
-              client_id: tablet-main-room-001
-              client_name: Main Room Tablet
-              client_type: tablet
-              app_version: 1.0.0
-      responses:
-        "200":
-          description: 配对成功
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthTokenResponse"
-              example:
-                ok: true
-                request_id: req-pair-001
-                data:
-                  access_token: eyJhbGciOiJIUzI1NiIs...
-                  refresh_token: rt_7d4f3b8f...
-                  token_type: Bearer
-                  expires_in: 3600
-                  scope:
-                    - state:read
-                    - playback:write
-                    - lights:write
-                    - effects:write
-        "400":
-          $ref: "#/components/responses/ErrorResponse"
-        "409":
-          $ref: "#/components/responses/ErrorResponse"
-        "500":
-          $ref: "#/components/responses/ErrorResponse"
-  /auth/refresh:
-    post:
-      tags: [Auth]
-      summary: 刷新访问令牌
-      security: []
-      parameters:
-        - $ref: "#/components/parameters/XRequestId"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RefreshRequest"
-            example:
-              refresh_token: rt_7d4f3b8f...
-      responses:
-        "200":
-          description: 刷新成功
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthTokenResponse"
-              example:
-                ok: true
-                request_id: req-refresh-001
-                data:
-                  access_token: eyJhbGciOiJIUzI1NiIs...
-                  refresh_token: rt_90a2c1d5...
-                  token_type: Bearer
-                  expires_in: 3600
-                  scope:
-                    - state:read
-                    - playback:write
-                    - lights:write
-                    - effects:write
-        "400":
-          $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "500":
-          $ref: "#/components/responses/ErrorResponse"
   /session/ws-ticket:
     post:
       tags: [Session]
@@ -195,10 +109,6 @@ paths:
                   expires_in: 60
                   ws_url: wss://192.168.31.236:8443/ws?ticket=wst_3f610c1a...
         "400":
-          $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "403":
           $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
@@ -239,8 +149,6 @@ paths:
                       last_seen_ms: 1720000000120
                       connection_confirmed: true
                       error_code: null
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /shows:
@@ -265,8 +173,6 @@ paths:
                       name: Teacher Demo
                       duration_ms: 300000
                       description: Main demonstration show
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /capabilities:
@@ -324,14 +230,12 @@ paths:
                     seek: true
                     lights: true
                     effects: true
-                    color_temperature: true
-                    transitions: true
+                    color_temperature: false
+                    transitions: false
                     websocket: true
                     audio: true
                     scenes: true
                     brightness_scale: true
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /playback/play:
@@ -365,10 +269,6 @@ paths:
                   position_ms: 0
                   duration_ms: 300000
         "400":
-          $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "403":
           $ref: "#/components/responses/ErrorResponse"
         "404":
           $ref: "#/components/responses/ErrorResponse"
@@ -404,10 +304,6 @@ paths:
                   show_id: teacher-demo-v1
                   position_ms: 126000
                   duration_ms: 300000
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "403":
-          $ref: "#/components/responses/ErrorResponse"
         "409":
           $ref: "#/components/responses/ErrorResponse"
         "500":
@@ -440,10 +336,6 @@ paths:
                   show_id: teacher-demo-v1
                   position_ms: 126000
                   duration_ms: 300000
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "403":
-          $ref: "#/components/responses/ErrorResponse"
         "409":
           $ref: "#/components/responses/ErrorResponse"
         "500":
@@ -476,10 +368,6 @@ paths:
                   show_id: null
                   position_ms: 0
                   duration_ms: 0
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "403":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /playback/seek:
@@ -512,10 +400,6 @@ paths:
                   position_ms: 90000
                   duration_ms: 300000
         "400":
-          $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "403":
           $ref: "#/components/responses/ErrorResponse"
         "409":
           $ref: "#/components/responses/ErrorResponse"
@@ -551,8 +435,6 @@ paths:
                     volume: 0.8
                     muted: false
                     available: true
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /playback/reset:
@@ -577,8 +459,6 @@ paths:
                   position_ms: 126000
                   duration_ms: 300000
                   reset: true
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "409":
           $ref: "#/components/responses/ErrorResponse"
         "500":
@@ -617,10 +497,6 @@ paths:
                   transition_ms: 800
                   accepted: true
         "400":
-          $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "403":
           $ref: "#/components/responses/ErrorResponse"
         "404":
           $ref: "#/components/responses/ErrorResponse"
@@ -683,10 +559,6 @@ paths:
                   accepted: true
         "400":
           $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
-        "403":
-          $ref: "#/components/responses/ErrorResponse"
         "404":
           $ref: "#/components/responses/ErrorResponse"
         "503":
@@ -714,8 +586,6 @@ paths:
                   volume: 0.8
                   muted: false
                   audio_output_available: true
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /audio/set:
@@ -752,8 +622,6 @@ paths:
                   accepted: true
         "400":
           $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /scenes:
@@ -779,8 +647,6 @@ paths:
                       name: 阅读模式
                       created_ms: 1720000000000
                       updated_ms: 1720000001000
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /scenes/save:
@@ -822,8 +688,6 @@ paths:
                   saved: true
         "400":
           $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "409":
           $ref: "#/components/responses/ErrorResponse"
         "500":
@@ -859,8 +723,6 @@ paths:
                   accepted: true
                   partial: false
                   failed_targets: []
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "404":
           $ref: "#/components/responses/ErrorResponse"
         "500":
@@ -893,8 +755,6 @@ paths:
                 data:
                   scene_id: reading-mode
                   deleted: true
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "404":
           $ref: "#/components/responses/ErrorResponse"
         "500":
@@ -917,8 +777,6 @@ paths:
                 request_id: req-bright-001
                 data:
                   brightness_scale: 0.5
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
   /brightness/set:
@@ -950,16 +808,9 @@ paths:
                   accepted: true
         "400":
           $ref: "#/components/responses/ErrorResponse"
-        "401":
-          $ref: "#/components/responses/ErrorResponse"
         "500":
           $ref: "#/components/responses/ErrorResponse"
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: access_token
   parameters:
     XRequestId:
       name: X-Request-Id
@@ -1024,22 +875,19 @@ components:
       type: string
       enum:
         - INVALID_ARGUMENT
-        - UNAUTHORIZED
-        - FORBIDDEN
         - NOT_FOUND
         - CONFLICT
-        - TOKEN_EXPIRED
-        - PAIRING_CODE_INVALID
         - WS_TICKET_INVALID
         - DEVICE_OFFLINE
         - SHOW_NOT_LOADED
         - PLAYBACK_NOT_READY
+        - CONTENT_NOT_READY
+        - MEDIA_NOT_READY
+        - SEEK_NOT_READY
+        - ENGINE_UNAVAILABLE
         - MPV_UNAVAILABLE
         - SCENE_LIMIT_EXCEEDED
         - INTERNAL_ERROR
-    ClientType:
-      type: string
-      enum: [tablet, phone, debug]
     SystemState:
       type: string
       enum: [idle, ready, running, error]
@@ -1123,10 +971,17 @@ components:
           description: Whether the source checkout was clean when the instance started.
         ready:
           type: boolean
-          description: Whether application startup and adapter configuration are ready.
+          description: Whether the required Host tasks, real audio controller and output are ready.
         adapter:
           type: string
           enum: [mock, real]
+        display:
+          type: object
+          properties:
+            graphical_session:
+              type: boolean
+            mpv_ipc:
+              type: boolean
     StatusResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessEnvelope"
@@ -1134,56 +989,6 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/StatusData"
-    PairRequest:
-      type: object
-      required: [pairing_code, client_id, client_name, client_type, app_version]
-      properties:
-        pairing_code:
-          type: string
-          minLength: 1
-        client_id:
-          type: string
-          minLength: 1
-        client_name:
-          type: string
-          minLength: 1
-        client_type:
-          $ref: "#/components/schemas/ClientType"
-        app_version:
-          type: string
-          minLength: 1
-    RefreshRequest:
-      type: object
-      required: [refresh_token]
-      properties:
-        refresh_token:
-          type: string
-          minLength: 1
-    TokenData:
-      type: object
-      required: [access_token, refresh_token, token_type, expires_in, scope]
-      properties:
-        access_token:
-          type: string
-        refresh_token:
-          type: string
-        token_type:
-          type: string
-          enum: [Bearer]
-        expires_in:
-          type: number
-          minimum: 0
-        scope:
-          type: array
-          items:
-            type: string
-    AuthTokenResponse:
-      allOf:
-        - $ref: "#/components/schemas/SuccessEnvelope"
-        - type: object
-          properties:
-            data:
-              $ref: "#/components/schemas/TokenData"
     WsTicketRequest:
       type: object
       required: [subscribe]
@@ -1481,6 +1286,15 @@ components:
         duration_ms:
           type: number
           minimum: 0
+        auxiliary_error:
+          type: object
+          description: Local starry-sky submission error during playback cleanup.
+          properties:
+            code:
+              type: string
+              enum: [STARRY_SKY_SUBMISSION_FAILED]
+            message:
+              type: string
     PlaybackResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessEnvelope"
@@ -1555,6 +1369,10 @@ components:
               minimum: 0
             accepted:
               type: boolean
+            output_error:
+              type: string
+              nullable: true
+              description: WLED submission or readback failure observed for an active output.
     BrightnessResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessEnvelope"
@@ -1682,6 +1500,9 @@ components:
           minimum: 0
         accepted:
           type: boolean
+        submitted:
+          type: boolean
+          description: Whether this starry-sky command sent a new UDP datagram locally.
     EffectsSetResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessEnvelope"
@@ -1876,6 +1697,9 @@ components:
           minimum: 0
         accepted:
           type: boolean
+        mpv_applied:
+          type: boolean
+          description: Whether the running mpv accepted the volume or mute command over IPC.
     AudioSetResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessEnvelope"
@@ -1990,7 +1814,7 @@ components:
           minimum: 0
     SceneApplyData:
       type: object
-      required: [scene_id, accepted, partial, failed_targets]
+      required: [scene_id, accepted, partial, failed_targets, applied_entries]
       properties:
         scene_id:
           type: string
@@ -2002,6 +1826,12 @@ components:
           type: array
           items:
             type: string
+        applied_entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SceneEntry"
+        audio_error:
+          type: string
     SceneApplyResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessEnvelope"

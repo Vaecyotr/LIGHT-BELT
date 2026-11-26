@@ -26,8 +26,6 @@ _HISTORICAL_BASELINE_FIXTURE = _ROOT / "tests" / "fixtures" / "app_v1" / "pre_ph
 
 _REST_PATHS = {
     "/api/v1/status",
-    "/api/v1/auth/pair",
-    "/api/v1/auth/refresh",
     "/api/v1/session/ws-ticket",
     "/api/v1/state",
     "/api/v1/shows",
@@ -196,8 +194,11 @@ def test_app_v1_facade_matches_pre_phase32_historical_baseline() -> None:
 
     assert list(APP_V1_EFFECTS) == baseline["app_visible_effects"]
     assert list(APP_V1_WS_MESSAGE_TYPES) == baseline["websocket_message_types"]
-    assert APP_V1_SUPPORTS == baseline["supports"]
-    assert _REST_PATHS == set(baseline["rest_paths"])
+    assert APP_V1_SUPPORTS == {**baseline["supports"], "color_temperature": False, "transitions": False}
+    assert set(baseline["rest_paths"]) - _REST_PATHS == {
+        "/api/v1/auth/pair", "/api/v1/auth/refresh",
+    }
+    assert _REST_PATHS <= set(baseline["rest_paths"])
     assert list(APP_V1_EFFECT_TYPES) == [
         e["effect_type"] for e in baseline["app_visible_effects"]
     ] + baseline["special_effect_types"]

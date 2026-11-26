@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request
 from ..schemas import BrightnessSetRequest
-from ..deps import require_auth
 from ..response import ok
 from .. import engine_adapter
 
-router = APIRouter(prefix="/api/v1/brightness", tags=["Brightness"],
-                   dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/v1/brightness", tags=["Brightness"])
 
 
 @router.get("")

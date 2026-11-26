@@ -1,129 +1,114 @@
-"""Push a brightness scale to WLED nodes via HTTP (fire-and-forget)."""
+"""Managed WLED brightness and power writes with per-node readback."""
 
 from __future__ import annotations
 
 import json
-import logging
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-
-_log = logging.getLogger(__name__)
+from typing import Any
+from urllib.request import Request
 
 
 class ManagedStateError(RuntimeError):
-    def __init__(self, message: str, *, submitted: bool):
+    """A managed write failed; ``attempts`` records each node's evidence."""
+
+    def __init__(self, message: str, *, attempts: list[dict[str, Any]]):
         super().__init__(message)
-        self.submitted = submitted
+        self.attempts = attempts
+        self.submitted = any(attempt["submitted"] for attempt in attempts)
+        self.confirmed = bool(attempts) and all(
+            attempt["confirmed"] for attempt in attempts
+        )
 
 
 def reports_off(snapshot: dict) -> bool:
     return (
-        snapshot["state"]["on"] is False and snapshot["info"]["live"] is False
+        snapshot["state"]["on"] is False
+        and snapshot["info"]["live"] is False
     )
 
 
-def _post_bri(host: str, bri: int, timeout: float) -> None:
+def _write_one(device: dict, scale: float | None, timeout: float,
+               keep_off: bool) -> dict[str, Any]:
+    host = device["host"]
+    attempt: dict[str, Any] = {
+        "device_id": device.get("id", device.get("device_id")),
+        "host": host,
+        "submitted": False,
+        "confirmed": False,
+        "post_error": None,
+        "readback_error": None,
+        "mismatch": None,
+    }
+    power_off = keep_off or scale is None
+    payload: dict[str, Any] = {"v": False}
+    if power_off:
+        payload["on"] = False
+    else:
+        payload["on"] = True
+    if scale is not None:
+        # WLED treats bri=0 as a possible power-off command. Managed zero is
+        # represented by black logical frames; retain a valid stored level.
+        payload["bri"] = max(1, min(255, round(255 * scale)))
+
+    url = f"http://{host}/json/state"
+    request = Request(url, data=json.dumps(payload).encode(),
+                      headers={"Content-Type": "application/json"}, method="POST")
     try:
-        payload = json.dumps({"on": True, "bri": bri, "v": False}).encode()
-        req = urllib.request.Request(
-            f"http://{host}/json/state",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        urllib.request.urlopen(req, timeout=timeout)
+        with urllib.request.urlopen(request, timeout=timeout):
+            pass
+        attempt["submitted"] = True
     except Exception as exc:
-        _log.debug("wled_brightness: %s: %s", host, exc)
+        attempt["post_error"] = str(exc)
+        return attempt
 
-
-def apply_scale(devices: list[dict], scale: float, timeout: float = 1.0) -> None:
-    """POST brightness to all WLED devices concurrently."""
-    bri = max(0, min(255, round(255 * scale)))
-    hosts = [d["host"] for d in devices if d.get("host")]
-    if not hosts:
-        return
-    with ThreadPoolExecutor(max_workers=len(hosts)) as ex:
-        futures = [ex.submit(_post_bri, h, bri, timeout) for h in hosts]
-        for f in futures:
-            try:
-                f.result()
-            except Exception:
-                pass
+    try:
+        readback_url = f"http://{host}/json/si" if power_off else url
+        with urllib.request.urlopen(readback_url, timeout=timeout) as response:
+            actual = json.load(response)
+        if power_off:
+            confirmed = reports_off(actual)
+            actual_state = actual.get("state", {})
+            if scale is not None:
+                confirmed = confirmed and actual_state.get("bri") == payload["bri"]
+        else:
+            confirmed = actual.get("on") is True
+            if scale is not None:
+                confirmed = confirmed and actual.get("bri") == payload["bri"]
+        if confirmed:
+            attempt["confirmed"] = True
+        else:
+            attempt["mismatch"] = "WLED readback does not match requested state"
+    except Exception as exc:
+        attempt["readback_error"] = str(exc)
+    return attempt
 
 
 def apply_managed(
-    devices: list[dict], scale: float | None, timeout: float, *, keep_off: bool = False,
-) -> None:
-    """Set the stored brightness or power off, confirming each enabled node."""
-    # WLED can infer on from a positive bri, so priming an off node specifies both.
-    power_off = keep_off or scale is None
-    wanted = {"on": False} if power_off else {}
-    if scale is not None:
-        wanted["bri"] = max(1, round(255 * scale))
-    def update(host):
-        url = f"http://{host}/json/state"
-        request = urllib.request.Request(url, data=json.dumps(wanted).encode(),
-                                         headers={"Content-Type":"application/json"})
-        with urllib.request.urlopen(request, timeout=timeout):
-            pass
-        try:
-            readback = f"http://{host}/json/si" if power_off else url
-            with urllib.request.urlopen(readback, timeout=timeout) as response:
-                actual = json.load(response)
-            confirmed = not power_off or reports_off(actual)
-            if scale is not None:
-                state = actual["state"] if power_off else actual
-                confirmed = confirmed and state.get("bri") == wanted["bri"]
-            if not confirmed:
-                raise ValueError("WLED state does not match the requested setting")
-        except (AttributeError, KeyError, TypeError, ValueError, OSError) as exc:
-            raise ManagedStateError(str(exc), submitted=True) from exc
+    devices: list[dict], scale: float | None, timeout: float,
+    *, keep_off: bool = False,
+) -> list[dict[str, Any]]:
+    """Apply and confirm managed brightness or power state on each WLED node.
 
-    hosts = [device["host"] for device in devices if device.get("host")]
-    failures = []
-    submitted = bool(hosts)
-    with ThreadPoolExecutor(max_workers=max(1,len(hosts))) as executor:
-        attempts = [(host,executor.submit(update,host)) for host in hosts]
-        for host, future in attempts:
-            try:
-                future.result()
-            except (RuntimeError, ValueError, OSError) as exc:
-                submitted = submitted and isinstance(exc, ManagedStateError) and exc.submitted
-                failures.append(f"{host}: {exc}")
-    if failures or not hosts:
-        raise ManagedStateError(
-            "; ".join(failures) or "no enabled WLED output", submitted=submitted,
-        )
-
-
-def apply_off(devices: list[dict], timeout: float = 1.0) -> None:
-    """把各节点本地状态关掉。
-
-    DDP 停流后 WLED 会在 if.live.timeout（当前 2.5s）后退出 realtime，
-    回落到节点自己的本地状态；出厂默认是「开 + 琥珀色 (255,160,0)」，
-    表现为节目结束后灯带全黄。停止播放时显式关掉即可。
+    ``scale=None`` explicitly powers nodes off. ``keep_off=True`` stores the
+    brightness while keeping nodes off. Returns per-node submission and
+    confirmation evidence, or raises :class:`ManagedStateError` on any failure.
     """
-    hosts = [d["host"] for d in devices if d.get("host")]
-    if not hosts:
-        return
-    payload = json.dumps({"on": False, "v": False}).encode()
-
-    def _off(host: str) -> None:
-        try:
-            req = urllib.request.Request(
-                f"http://{host}/json/state",
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            urllib.request.urlopen(req, timeout=timeout)
-        except Exception as exc:
-            _log.debug("wled_brightness: off %s: %s", host, exc)
-
-    with ThreadPoolExecutor(max_workers=len(hosts)) as ex:
-        futures = [ex.submit(_off, h) for h in hosts]
-        for f in futures:
-            try:
-                f.result()
-            except Exception:
-                pass
+    enabled = [device for device in devices if device.get("host")]
+    if not enabled:
+        raise ManagedStateError("no enabled WLED output", attempts=[])
+    with ThreadPoolExecutor(max_workers=len(enabled)) as executor:
+        futures = [executor.submit(_write_one, device, scale, timeout, keep_off)
+                   for device in enabled]
+        attempts = [future.result() for future in futures]
+    failures = []
+    for attempt in attempts:
+        if attempt["post_error"]:
+            failures.append(f"{attempt['host']}: POST failed: {attempt['post_error']}")
+        elif attempt["readback_error"]:
+            failures.append(f"{attempt['host']}: GET failed: {attempt['readback_error']}")
+        elif attempt["mismatch"]:
+            failures.append(f"{attempt['host']}: {attempt['mismatch']}")
+    if failures:
+        raise ManagedStateError("; ".join(failures), attempts=attempts)
+    return attempts

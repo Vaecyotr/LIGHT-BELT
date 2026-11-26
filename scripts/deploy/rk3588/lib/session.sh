@@ -15,6 +15,15 @@ wayland_session_active() {
     [[ -S "$display" ]]
 }
 
+host_status_json() {
+    if [[ -n "${1:-}" ]]; then
+        curl -fsS --max-time 3 "$1"
+        return
+    fi
+    curl -fsS --noproxy '*' --max-time 2 http://127.0.0.1:8443/api/v1/status 2>/dev/null ||
+        curl -kfsS --noproxy '*' --max-time 2 https://127.0.0.1:8443/api/v1/status
+}
+
 install_owned_file() {
     local source="$1" destination="$2" mode="${3:-0644}"
     [[ ! -L "$destination" ]] || die "Refusing to replace symlink: $destination"

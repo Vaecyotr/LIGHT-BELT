@@ -75,8 +75,8 @@ def test_ensure_on_failure_does_not_flip_state():
     mock_sock = _make_mock_socket()
     mock_sock.sendto.side_effect = OSError("network unreachable")
     with patch("host_services.starry_sky.socket.socket", return_value=mock_sock):
-        ss.ensure_on()
-    # State must NOT have changed to True on failure.
+        with pytest.raises(OSError, match="network unreachable"):
+            ss.ensure_on()
     assert ss.get_assumed_state() is False
 
 
@@ -85,7 +85,8 @@ def test_ensure_off_failure_does_not_flip_state():
     mock_sock = _make_mock_socket()
     mock_sock.sendto.side_effect = OSError("network unreachable")
     with patch("host_services.starry_sky.socket.socket", return_value=mock_sock):
-        ss.ensure_off()
+        with pytest.raises(OSError, match="network unreachable"):
+            ss.ensure_off()
     assert ss.get_assumed_state() is True
 
 
@@ -95,3 +96,29 @@ def test_reset_state_clears_on_flag():
     ss._assumed_on = True
     ss.reset_state()
     assert ss.get_assumed_state() is False
+
+
+def test_program_poll_uses_latest_action_at_seek_position(monkeypatch):
+    from types import SimpleNamespace
+    from host_services import engine_adapter
+    from host_services.managed_adapter import ManagedAdapter
+
+    positions = iter((0.25, 0.26, 0.35))
+    calls = []
+    player = SimpleNamespace(_send=lambda command: {"error": "success", "data": next(positions)})
+    monkeypatch.setattr(engine_adapter, "_mpv", player)
+    monkeypatch.setattr(ss, "ensure_on", lambda: calls.append(True))
+    monkeypatch.setattr(ss, "ensure_off", lambda: calls.append(False))
+
+    class Stop:
+        polls = 0
+
+        def is_set(self):
+            return self.polls == 3
+
+        def wait(self, seconds):
+            self.polls += 1
+
+    adapter = ManagedAdapter(profile_path="fixture", mpv_socket_path="fixture")
+    adapter._aux_poll_loop([(100, False), (200, True), (300, False)], 0, Stop())
+    assert calls == [True, False]

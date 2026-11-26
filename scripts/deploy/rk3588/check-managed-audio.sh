@@ -2,6 +2,8 @@
 # Read-only checks in the same login session as the cabin Host.
 set -Eeuo pipefail
 export LC_ALL=C
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/common.sh"
 failures=0
 check() {
     local label="$1"
@@ -29,25 +31,9 @@ done
 unit=light-belt-bluetooth-priority.service
 check "$unit inactive" inactive --user
 modules="$(pactl list short modules)"
-if ! awk '$2 == "module-bluetooth-policy" {
-              n++; if ($0 ~ /(^|[[:space:]])a2dp_source=(false|no|0)([[:space:]]|$)/) disabled++
-          } END { exit !(n == 1 && disabled == 1) }' <<<"$modules"; then
-    echo 'FAIL expected exactly one Bluetooth policy with automatic A2DP loopback disabled' >&2
-    failures=$((failures + 1))
-fi
-if ! awk '$2 == "module-loopback" && $0 ~ /bluez_source\./ {
-              if ($0 !~ /sink_input_properties=["\047]?light_belt\.route_owner=/) foreign++
-              else owned++
-          } END { exit !(foreign == 0 && owned <= 1) }' <<<"$modules"; then
-    echo 'FAIL found a competing Bluetooth loopback; inspect route ownership' >&2
-    failures=$((failures + 1))
-fi
-native_server() {
-    local info
-    info="$(pactl info)" || return 1
-    [[ "$info" != *PipeWire* ]] && grep -qi '^Server Name: pulseaudio' <<<"$info"
-}
-check "native PulseAudio" native_server
+check "automatic A2DP loopback disabled" bluetooth_policy_disables_autoplay "$modules"
+check "Bluetooth playback routes are exclusive" bluetooth_routes_exclusive "$modules"
+check "native PulseAudio" native_pulseaudio
 selected_output() {
     local selected expected
     selected="$(pactl get-default-sink)" || return 1
@@ -58,5 +44,5 @@ selected_output() {
 check "RT5616 is the selected default output" selected_output
 check "record targets" pactl list short sources
 check "speaker streams" pactl list short sink-inputs
-echo 'H2/H3/H4 require separate connection, sound isolation and touch-screen observations.'
+echo 'H2/H3/H4 require separate connection, sound isolation and formal API and APP observations.'
 (( failures == 0 ))

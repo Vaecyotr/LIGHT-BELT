@@ -3,9 +3,14 @@
 所有 router 通过这里返回，保证格式一致。
 """
 
+import uuid
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from .auth_manager import get_request_id
+
+
+def get_request_id(request: Request) -> str:
+    return request.headers.get("X-Request-Id") or f"req-{uuid.uuid4().hex[:8]}"
 
 
 def ok(request: Request, data: dict) -> JSONResponse:
@@ -29,14 +34,6 @@ def error(request: Request, code: str, message: str,
 
 
 # ── 常用错误快捷方法 ──
-
-def unauthorized(request: Request, expired: bool = False) -> JSONResponse:
-    if expired:
-        return error(request, "TOKEN_EXPIRED",
-                     "Access token has expired", status_code=401)
-    return error(request, "UNAUTHORIZED",
-                 "Missing or invalid token", status_code=401)
-
 
 def invalid_argument(request: Request, message: str,
                      details: dict | None = None) -> JSONResponse:

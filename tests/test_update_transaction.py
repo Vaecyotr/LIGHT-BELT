@@ -160,20 +160,25 @@ def posix(path: Path) -> str:
 
 FAKES = r'''#!/usr/bin/env bash
 set -eu
-name="$(basename "$0")"
+name="${0##*/}"
 printf '%s %s\n' "$name" "$*" >> "$CASE/events"
-head() { cat "$CASE/head"; }
+head() { IFS= read -r value < "$CASE/head"; printf '%s\n' "$value"; }
 case "$name" in
 id) echo pi;;
 git)
  case "$1" in
  status) [[ "$MODE" != status-fail ]] || exit 1; [[ "$MODE" != dirty ]] || echo ' M user.txt';;
+ branch) [[ "$2" == --show-current ]] && { echo cabin-unified; exit 0; }; exit 1;;
+ config) [[ "$2" == --get && "$3" == branch.cabin-unified.remote ]] && { echo origin; exit 0; }
+         [[ "$2" == --get && "$3" == branch.cabin-unified.merge ]] && { echo refs/heads/cabin-unified; exit 0; }; exit 1;;
  rev-parse) if [[ "${*: -1}" == origin/* || "${*: -1}" == FETCH_HEAD ]]; then
    if [[ "$MODE" == no-update ]]; then printf '%040d\n' 0 | tr 0 a; else printf '%040d\n' 0 | tr 0 b; fi
    else head; fi;;
  fetch) [[ "$MODE" != offline ]];;
  merge-base) exit 0;;
- merge) printf '%040d\n' 0 | tr 0 b > "$CASE/head";;
+ merge)
+   printf '%040d\n' 0 | tr 0 b > "$CASE/head"
+   if [[ "$MODE" == terminate ]]; then kill -TERM "$PPID"; fi;;
  reset) [[ "$MODE" != rollback-code-fail ]] || exit 1; printf '%040d\n' 0 | tr 0 a > "$CASE/head";;
  *) exit 0;;
  esac;;
@@ -206,12 +211,28 @@ systemctl)
  is-active) [[ "$2" != *.timer && "$(cat "$CASE/active")" == 1 ]];;
  is-enabled) exit 1;;
  stop) [[ "$MODE" != stop-fail ]] || exit 1; echo 0 > "$CASE/active";;
- start|restart) if [[ "$(head)" == b* && "$MODE" == start-fail ]]; then exit 1; fi; echo 1 > "$CASE/active";;
+ start|restart)
+   if [[ "$2" == light-belt-host.service ]]; then
+     if [[ "$(head)" == b* && "$MODE" == start-fail ]]; then exit 1; fi
+     echo 1 > "$CASE/active"
+   fi;;
  esac;;
 curl)
+ if [[ "$MODE" == tls && "${*: -1}" == http://* ]]; then exit 1; fi
  if [[ "$(head)" == b* && "$MODE" == *fail* ]]; then exit 1; fi
  if [[ "$MODE" == legacy-health ]]; then printf '{"commit":"%.12s"}\n' "$(head)"; exit 0; fi
  printf '{"ok":true,"data":{"service":"light-belt-host","adapter":"real","ready":true,"source_clean":true,"commit":"%s"}}\n' "$(head)";;
+pactl)
+ case "$*" in
+ info) if [[ "$MODE" == pipewire ]]; then echo 'Server Name: PulseAudio (on PipeWire)'; else echo 'Server Name: pulseaudio'; fi;;
+ 'list short modules')
+   if [[ "$MODE" != policy-fail ]] && grep -q 'a2dp_source=false' "$CASE/.config/pulse/default.pa"; then
+     printf '1\tmodule-bluetooth-policy\tauto_switch=2 a2dp_source=false\n'
+   else
+     printf '1\tmodule-bluetooth-policy\tauto_switch=2\n'
+   fi;;
+ *) exit 2;;
+ esac;;
 esac
 '''
 
@@ -230,6 +251,11 @@ def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh", e
         shutil.copyfile(source, repo / "scripts/deploy/rk3588/lib" / source.name)
     shutil.copyfile(ROOT / "scripts/maintenance/update.sh", repo / "scripts/maintenance/update.sh")
     shutil.copyfile(ROOT / "scripts/deploy/rk3588/setup-python.sh", repo / "scripts/deploy/rk3588/setup-python.sh")
+    shutil.copyfile(ROOT / "scripts/deploy/rk3588/setup-pulseaudio-policy.sh", repo / "scripts/deploy/rk3588/setup-pulseaudio-policy.sh")
+    shutil.copyfile(ROOT / "scripts/deploy/rk3588/pulseaudio_policy.py", repo / "scripts/deploy/rk3588/pulseaudio_policy.py")
+    pa_config = tmp_path / ".config/pulse/default.pa"
+    pa_config.parent.mkdir(parents=True)
+    pa_config.write_text("load-module module-bluetooth-policy auto_switch=2\n", encoding="utf-8")
     (repo / "host_services").mkdir()
     (repo / "host_services/__init__.py").touch()
     shutil.copyfile(ROOT / "host_services/runtime_health.py", repo / "host_services/runtime_health.py")
@@ -237,6 +263,10 @@ def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh", e
     (repo / "uv.lock").write_text("fixture lock\n")
     (repo / "systemd/disabled.timer").write_text("new timer\n")
     (repo / "systemd/user/session.service").write_text("new session unit\n")
+    (repo / "systemd/light-belt-host-session.desktop").write_text("new login hook\n")
+    desktop = tmp_path / ".config/autostart/light-belt-host-session.desktop"
+    desktop.parent.mkdir(parents=True)
+    desktop.write_text("previous login hook\n")
     venv_python = repo / ".venv/bin/python"
     venv_python.write_text(
         '#!/usr/bin/env bash\nexec ' + shlex.quote(sys.executable.replace('\\', '/')) + ' "$@"\n',
@@ -253,7 +283,7 @@ def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh", e
     (tmp_path / "recovery").mkdir()
     tools = tmp_path / "bin"
     tools.mkdir()
-    for name in ("git", "uv", "sudo", "systemctl", "curl", "flock", "id"):
+    for name in ("git", "uv", "sudo", "systemctl", "curl", "flock", "id", "pactl"):
         (tools / name).write_text(FAKES, encoding="utf-8", newline="\n")
     env = os.environ.copy()
     env.update(CASE=posix(tmp_path), MODE=mode, TMPDIR=posix(tmp_path / "recovery"), LIGHT_BELT_REPO=posix(repo),
@@ -264,14 +294,18 @@ def run_case(tmp_path: Path, mode: str, entry="scripts/maintenance/update.sh", e
                LIGHT_BELT_HEALTH_RETRIES="1", LIGHT_BELT_HEALTH_INTERVAL="0")
     if mode == "uv-absent":
         env["LIGHT_BELT_UV"] = posix(tmp_path / "missing-uv")
+    if mode == "explicit-update":
+        env["LIGHT_BELT_UPDATE_BRANCH"] = "mirror/approved-release"
     command = f'export PATH="{posix(tools)}:$PATH"; chmod +x "{posix(tools)}"/*; if [[ -f "{posix(repo)}/.venv/bin/python" ]]; then chmod +x "{posix(repo)}/.venv/bin/python"; fi; bash "{posix(repo)}/{entry}" {shlex.join(entry_args)}'
-    result = subprocess.run([BASH, "-c", command], env=env, capture_output=True, text=True, encoding="utf-8", timeout=25)
+    # The harness launches many MSYS processes on Windows. Health polling still
+    # uses one attempt and zero retry delay, and the event assertions fix order.
+    result = subprocess.run([BASH, "-c", command], env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
     events = (tmp_path / "events").read_text() if (tmp_path / "events").exists() else ""
-    log = (tmp_path / "update.log").read_text() if (tmp_path / "update.log").exists() else ""
+    log = (tmp_path / "update.log").read_text(encoding="utf-8", errors="replace") if (tmp_path / "update.log").exists() else ""
     return result, events, log
 
 
-@pytest.mark.parametrize("mode", ["no-update", "offline", "dirty", "status-fail", "lock-held", "stale-lock", "wrong-uv"])
+@pytest.mark.parametrize("mode", ["no-update", "offline", "dirty", "status-fail", "lock-held", "stale-lock", "wrong-uv", "pipewire"])
 def test_preflight_does_not_mutate_service_or_environment(tmp_path, mode):
     result, events, _ = run_case(tmp_path, mode)
     assert result.returncode == (0 if mode in ("no-update", "offline") else 1), result.stderr
@@ -289,6 +323,9 @@ def test_lock_only_update_syncs_stopped_host_and_preserves_disabled_units(tmp_pa
     assert "systemctl enable " not in events and "restart disabled.timer" not in events
     assert (tmp_path / "units/disabled.timer").read_text() == "new timer\n"
     assert (tmp_path / "user-units/session.service").read_text() == "new session unit\n"
+    assert (tmp_path / ".config/autostart/light-belt-host-session.desktop").read_text() == "new login hook\n"
+    assert "a2dp_source=false" in (tmp_path / ".config/pulse/default.pa").read_text()
+    assert "pulseaudio_policy.py" in events or "pulseaudio.service" in events
 
 
 def test_incompatible_running_health_rejects_update_before_mutation(tmp_path):
@@ -300,7 +337,31 @@ def test_incompatible_running_health_rejects_update_before_mutation(tmp_path):
     assert (tmp_path / 'head').read_text().strip() == OLD
 
 
-@pytest.mark.parametrize("mode", ["sync-fail", "start-fail", "health-fail", "stale-new-lock", "unit-copy-fail", "reload-fail"])
+def test_tls_loopback_health_and_default_upstream(tmp_path):
+    result, events, log = run_case(tmp_path, "tls")
+    assert result.returncode == 0, (result.stderr, log, events)
+    assert events.count("https://127.0.0.1:8443/api/v1/status") == 2
+    assert "git fetch -- origin refs/heads/cabin-unified" in events
+
+
+def test_explicit_update_source_overrides_tracking_branch(tmp_path):
+    result, events, log = run_case(tmp_path, "explicit-update")
+    assert result.returncode == 0, (result.stderr, log, events)
+    assert "git fetch -- mirror refs/heads/approved-release" in events
+    assert "git branch --show-current" not in events
+
+
+def test_interrupt_after_fast_forward_restores_running_release(tmp_path):
+    result, events, log = run_case(tmp_path, "terminate")
+    assert result.returncode == 143, (result.stderr, log, events)
+    assert "Update interrupted (status 143)" in log
+    assert "Rollback succeeded" in log
+    assert (tmp_path / "head").read_text().strip() == OLD
+    assert (tmp_path / "active").read_text().strip() == "1"
+    assert events.index("git reset --hard ") < events.index("uv sync ") < events.index("systemctl --user start ")
+
+
+@pytest.mark.parametrize("mode", ["sync-fail", "start-fail", "health-fail", "stale-new-lock", "unit-copy-fail", "reload-fail", "policy-fail"])
 def test_failure_restores_code_and_resynchronizes_old_lock_before_start(tmp_path, mode):
     result, events, log = run_case(tmp_path, mode)
     assert result.returncode == 1, (result.stderr, log, events)
@@ -311,6 +372,8 @@ def test_failure_restores_code_and_resynchronizes_old_lock_before_start(tmp_path
     assert (tmp_path / "active").read_text().strip() == "1"
     assert (tmp_path / "units/disabled.timer").read_text() == "previous timer\n"
     assert not (tmp_path / "user-units/session.service").exists()
+    assert (tmp_path / ".config/autostart/light-belt-host-session.desktop").read_text() == "previous login hook\n"
+    assert (tmp_path / ".config/pulse/default.pa").read_text() == "load-module module-bluetooth-policy auto_switch=2\n"
 
 
 @pytest.mark.parametrize("mode", ["rollback-env-fail", "rollback-code-fail"])

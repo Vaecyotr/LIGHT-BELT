@@ -43,8 +43,11 @@ class _RecordingAdapter:
     def __init__(self):
         self.commands: list[list[dict]] = []
 
-    def on_manual_command(self, states: list[dict]) -> None:
-        self.commands.append(states)
+    sender = None
+    seek_generation = 0
+
+    def configure(self, spec: dict, *, wait: bool) -> None:
+        self.commands.append(spec["targets"])
 
 
 def test_host_capabilities_use_the_frozen_app_projection() -> None:
@@ -160,9 +163,9 @@ def test_manual_command_preserves_common_controls_and_effect_params(
 ) -> None:
     recorder = _RecordingAdapter()
     monkeypatch.setattr(engine_adapter, "_real_adapter", recorder)
-    monkeypatch.setattr(engine_adapter, "_manual_targets", {})
-    monkeypatch.setattr(engine_adapter, "_push_brightness_scale", lambda: None)
-    monkeypatch.setattr(engine_adapter, "_mark_devices_output", lambda: None)
+    from host_services.control_preferences import ControlPreferences
+    monkeypatch.setattr(engine_adapter, "_preferences", ControlPreferences(None))
+    monkeypatch.setattr(engine_adapter, "_push_brightness_scale", lambda **kwargs: None)
     monkeypatch.setattr(
         engine_adapter,
         "_valid_target_ids",

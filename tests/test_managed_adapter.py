@@ -8,6 +8,30 @@ import yaml
 from host_services.managed_adapter import ManagedAdapter
 
 
+def test_dead_sender_reconciles_after_partial_wled_off_failure(monkeypatch):
+    from types import SimpleNamespace
+    from host_services import engine_adapter as host
+
+    adapter = ManagedAdapter(profile_path="test", mpv_socket_path="test")
+    adapter.sender = SimpleNamespace(poll=lambda: 1)
+    adapter.command = {"role": "manual"}
+    adapter.status["role_phase"] = "fault"
+    actions = []
+
+    def off():
+        actions.append("off")
+        raise RuntimeError("one node failed readback")
+
+    def reconcile():
+        assert adapter.command is None
+        actions.append("reconcile")
+
+    monkeypatch.setattr(host, "_push_wled_off", off)
+    monkeypatch.setattr(host, "_reconcile_lighting", reconcile)
+    adapter.recover_sender()
+    assert actions == ["off", "reconcile"]
+
+
 def test_lighting_audio_rebind_can_revoke_and_replace_source_during_session_lock(monkeypatch):
     import io
     import json
@@ -73,10 +97,10 @@ def test_program_audio_does_not_wait_for_managed_lighting_ready(tmp_path, monkey
     from unittest.mock import Mock
 
     from host_services import engine_adapter as host
-    from host_services.control_terminal import ControlPreferences
+    from host_services.control_preferences import ControlPreferences
 
     adapter = ManagedAdapter(profile_path="test", mpv_socket_path="test")
-    adapter._active_show = {"show_yaml": "show.yaml"}
+    monkeypatch.setattr(host, "_session_show", {"show_yaml": "show.yaml"})
     waiting, release = Event(), Event()
 
     def configure(spec, *, wait=False):
@@ -116,10 +140,10 @@ def test_managed_seek_holds_old_frame_and_commits_new_position_before_resume(
 ):
     from unittest.mock import Mock
     from host_services import engine_adapter as host
-    from host_services.control_terminal import ControlPreferences
+    from host_services.control_preferences import ControlPreferences
 
     adapter = ManagedAdapter(profile_path="test", mpv_socket_path="test")
-    adapter._active_show = {"show_yaml": "show.yaml"}
+    monkeypatch.setattr(host, "_session_show", {"show_yaml": "show.yaml"})
     adapter.command = {"role": "show", "seek_generation": 0}
     calls = []
     def configure(spec, *, wait=False):

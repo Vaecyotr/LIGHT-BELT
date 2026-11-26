@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request
 from ..schemas import EffectsSetRequest
-from ..deps import require_auth
-from ..response import ok, invalid_argument, not_found
+from ..response import ok, error, invalid_argument, not_found
 from .. import engine_adapter
 
-router = APIRouter(prefix="/api/v1", tags=["Effects"],
-                   dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/v1", tags=["Effects"])
 
 
 @router.post("/effects/set")
@@ -21,4 +19,6 @@ def effects_set(body: EffectsSetRequest, request: Request):
     if err == "INVALID_ARGUMENT":
         details = data.get("error_detail") if data else None
         return invalid_argument(request, "Effect validation failed", details)
+    if err == "DEVICE_OFFLINE":
+        return error(request, err, "Starry sky command could not be submitted", 503, data["error_detail"])
     return ok(request, data)

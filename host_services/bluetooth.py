@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import secrets
 import sys
 from typing import Any, Callable, Protocol
+
+_log = logging.getLogger(__name__)
 
 
 class BackendUnavailable(RuntimeError):
@@ -69,17 +72,11 @@ class LinuxBackend:
 def create_backend(
     *,
     allow_real: bool = False,
-    h2_h3_verified: bool = False,
-    isolated_test_image: bool = False,
     program_pid: Callable[[], int | None] | None = None,
 ) -> BluetoothBackend:
-    """Create a backend; hardware control requires explicit H2/H3 approval."""
+    """Create the production backend when explicitly enabled on Linux."""
     if not allow_real:
         return DisabledBackend()
-    if not (h2_h3_verified or isolated_test_image):
-        raise BackendUnavailable(
-            "H2/H3 verification is required before enabling real backend"
-        )
     if not sys.platform.startswith("linux"):
         raise BackendUnavailable("real Bluetooth backend requires Linux")
     if program_pid is None:
@@ -108,6 +105,8 @@ class AudioSystem:
         self._lock = asyncio.Lock()
         self._snapshot: dict[str, Any] = {
             "bluetooth": {"available": False, "devices": [], "challenges": []},
+            "audio_output_available": False,
+            "audio_output": {"available": False, "reason": "not observed"},
             "speaker": {"device": None, "status": "idle", "route": None},
             "digital_target": None,
         }
@@ -145,7 +144,10 @@ class AudioSystem:
                     "reason": str(exc),
                 }
                 self._snapshot["digital_target"] = None
-                await self._gate_program(True)
+                try:
+                    await self._gate_program(True)
+                except (OSError, RuntimeError) as gate_error:
+                    _log.warning("Unable to verify program mute during route recovery: %s", gate_error)
                 await self.notify()
 
     async def start(self) -> None:
@@ -166,7 +168,7 @@ class AudioSystem:
             self._snapshot["digital_target"] = facts.get("digital_target")
         await self._reconcile_locked(facts, immediate=True)
         self._started = True
-        if facts.get("available"):
+        if not isinstance(self.backend, DisabledBackend):
             self._sweep = asyncio.create_task(self._watch())
 
     async def close(self) -> None:
@@ -194,12 +196,26 @@ class AudioSystem:
 
     async def _refresh(self) -> dict[str, Any]:
         facts = await self.backend.snapshot()
+        operations = facts.get("operations", {})
+        for operation_id, result in operations.items():
+            if result.get("state") in {"succeeded", "failed", "cancelled"}:
+                self._pending.pop(operation_id, None)
+        facts.update(
+            connected_count=sum(bool(device.get("connected")) for device in facts.get("devices", [])),
+            limit=self.max_connections,
+            pending_count=len(self._pending),
+        )
+        self._snapshot.update(
+            bluetooth=facts,
+            audio_output_available=bool(facts.get("audio_output_available")),
+            audio_output=facts.get("audio_output", {"available": False}),
+        )
         if facts.get("route_error"):
+            await self._revoke_lighting_source()
             if self._route is not None:
                 self._route_recovery_device = self._route.get("device")
                 self._route_recovery_hold = True
-                await self._revoke_lighting_source()
-                await self._gate_program(True)
+            await self._gate_program(True)
             raise BackendUnavailable(
                 f"speaker route ownership is uncertain: {facts['route_error']}"
             )
@@ -228,16 +244,6 @@ class AudioSystem:
                 else:
                     await self._revoke_lighting_source()
                     raise BackendUnavailable("Bluetooth route identity changed")
-        devices = list(facts.get("devices", []))
-        connected = sum(bool(device.get("connected")) for device in devices)
-        facts["connected_count"] = connected
-        facts["limit"] = self.max_connections
-        facts["pending_count"] = len(self._pending)
-        operations = facts.get("operations", {})
-        for operation_id, result in operations.items():
-            if result.get("state") in {"succeeded", "failed", "cancelled"}:
-                self._pending.pop(operation_id, None)
-        self._snapshot["bluetooth"] = facts
         if self._route is None or facts.get("speaker_route"):
             self._snapshot["digital_target"] = facts.get("digital_target")
         return facts

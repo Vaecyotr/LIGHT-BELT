@@ -30,7 +30,6 @@ def test_copied_notices_are_not_excluded_by_environment_ignore_rules(tmp_path):
 
 def make_root(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
-    (root / "kiosk").mkdir(parents=True)
     (root / "assets" / "demo").mkdir(parents=True)
     (root / "tests" / "fixtures" / "audio").mkdir(parents=True)
     (root / "artifacts" / "runs").mkdir(parents=True)
@@ -43,19 +42,6 @@ def make_root(tmp_path: Path) -> Path:
     )
     (root / "pyproject.toml").write_text(
         '[project]\nname="fixture"\n[dependency-groups]\ndev=["pytest>=8"]\n',
-        encoding="utf-8",
-    )
-    (root / "kiosk" / "package-lock.json").write_text(
-        json.dumps({
-            "packages": {
-                "": {"name": "fixture"},
-                "node_modules/example": {
-                    "version": "3.4.5", "license": "MIT",
-                    "integrity": "sha512-example", "dev": True,
-                    "optional": True, "os": ["linux"],
-                },
-            }
-        }),
         encoding="utf-8",
     )
     (root / "assets" / "demo" / "media.mp4").write_bytes(b"demo media")
@@ -105,10 +91,6 @@ def test_generator_preserves_versions_integrity_license_text_and_unknowns(tmp_pa
         ("numpy", "1.0"), ("numpy", "2.0")
     ]
     assert locked[1]["marker"] == ["python_full_version >= '3.12'"]
-    npm = inventory["npm_lock"]["packages"]
-    example = next(p for p in npm if p["name"] == "example")
-    assert example["integrity"] == "sha512-example"
-    assert example["dev"] is True and example["optional"] is True
     local = inventory["installed_python"]["distributions"]
     assert next(p for p in local if p["name"] == "example")["license_status"] == "license-file-found"
     assert next(p for p in local if p["name"] == "opaque")["license_status"] == "unknown"

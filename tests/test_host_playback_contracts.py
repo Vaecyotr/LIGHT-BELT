@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from host_services import engine_adapter as host
-from host_services.real_engine_adapter import RealEngineAdapter
 
 
 class ReplySocket:
@@ -81,28 +80,19 @@ def test_failed_reset_resume_does_not_report_playing(monkeypatch):
     assert host._state['playback_state'] == 'paused'
 
 
-def test_failed_termination_refuses_new_output_process():
-    adapter = RealEngineAdapter('profile', 'socket')
-    proc = MagicMock()
-    proc.poll.return_value = None
-    proc.terminate.side_effect = OSError('denied')
-    adapter._playback_proc = proc
-    with patch('host_services.real_engine_adapter.subprocess.Popen') as popen:
-        with pytest.raises(RuntimeError, match='playback engine'):
-            adapter.on_playback_start({'show_yaml': 'show.yaml'}, None)
-    popen.assert_not_called()
-
-
 def test_play_preserves_manual_ownership_if_old_engine_cannot_stop(monkeypatch):
     monkeypatch.setattr(host, '_find_show', lambda _: {'duration_ms': 1000, 'media_path': 'movie.mp4'})
     monkeypatch.setattr(host, '_refresh_wled_profile', lambda **_: None)
-    monkeypatch.setattr(host, '_manual_targets', {'strip': {'target_id': 'strip'}})
+    from host_services.control_preferences import ControlPreferences
+    prefs = ControlPreferences(None)
+    prefs.data.update(intent="manual", targets={"strip": {"target_id": "strip"}})
+    monkeypatch.setattr(host, "_preferences", prefs)
     real = MagicMock()
     real.on_playback_stop.side_effect = RuntimeError('cannot stop')
     monkeypatch.setattr(host, '_real_adapter', real)
     data, error = host.playback_play('show', None)
     assert data is None and error == 'ENGINE_UNAVAILABLE'
-    assert host._manual_targets == {'strip': {'target_id': 'strip'}}
+    assert prefs.data["targets"] == {'strip': {'target_id': 'strip'}}
 
 
 def test_stale_socket_is_not_removed_if_owned_mpv_cannot_stop(monkeypatch):
@@ -136,20 +126,6 @@ def test_missing_socket_does_not_start_second_mpv_when_old_process_will_not_stop
     with pytest.raises(host.MpvUnavailableError):
         host._ensure_mpv()
     popen.assert_not_called()
-
-
-def test_video_media_is_passed_to_engine_on_start_and_resume(monkeypatch):
-    adapter = RealEngineAdapter('profile', 'socket')
-    proc = MagicMock()
-    proc.poll.return_value = None
-    proc.stderr = iter([])
-    monkeypatch.setattr('host_services.real_engine_adapter.time.sleep', lambda _: None)
-    monkeypatch.setattr('host_services.real_engine_adapter._await_engine_ready', lambda *_args, **_kwargs: True)
-    with patch('host_services.real_engine_adapter.subprocess.Popen', return_value=proc) as popen:
-        adapter.on_playback_start({'show_yaml': 'show.yaml', 'media_path': 'movie.mp4'}, None)
-        assert '--video' in popen.call_args.args[0]
-        adapter.on_playback_resume_yaml()
-        assert '--video' in popen.call_args.args[0]
 
 
 def test_play_failure_does_not_report_playing(monkeypatch):
@@ -296,7 +272,7 @@ def test_shutdown_still_stops_owned_mpv_if_engine_cleanup_fails(monkeypatch):
     monkeypatch.setattr(host, '_watchdog_stop', threading.Event())
     monkeypatch.setattr(host, '_mpv_observer', None)
     real = MagicMock()
-    real.on_playback_stop.side_effect = RuntimeError('engine did not stop')
+    real.shutdown.side_effect = RuntimeError('engine did not stop')
     monkeypatch.setattr(host, '_real_adapter', real)
     proc = MagicMock()
     proc.poll.return_value = None
@@ -344,7 +320,6 @@ def test_real_start_waits_for_seek_before_starting_engine(monkeypatch):
     monkeypatch.setattr(host, '_validate_playback_content', lambda _: None)
     monkeypatch.setattr(host, '_refresh_wled_profile', lambda **_: None)
     monkeypatch.setattr(host, '_push_brightness_scale', lambda: None)
-    monkeypatch.setattr(host, '_mark_devices_output', lambda: None)
     calls = []
     real = MagicMock()
     real.on_playback_start.side_effect = lambda *_: calls.append('engine')
@@ -409,85 +384,6 @@ def test_observer_reads_fragmented_events_and_reports_async_error(monkeypatch):
     observer['thread'].join(2)
 
 
-def test_engine_health_distinguishes_early_exit_and_completed_show(monkeypatch):
-    adapter = RealEngineAdapter('profile', 'socket')
-    proc = MagicMock()
-    proc.poll.return_value = 0
-    adapter._playback_proc = proc
-    adapter._active_show = {'duration_ms': 305000}
-    adapter._playback_started_at = 100.0
-    monkeypatch.setattr('host_services.real_engine_adapter.time.monotonic', lambda: 110.0)
-    assert adapter.process_failure() is not None
-    monkeypatch.setattr('host_services.real_engine_adapter.time.monotonic', lambda: 405.0)
-    assert adapter.process_failure() is None
-    proc.poll.return_value = 1
-    assert adapter.process_failure() is not None
-
-
-def test_media_engine_completion_uses_current_position_after_seek_or_pause():
-    adapter = RealEngineAdapter('profile', 'socket')
-    adapter._playback_proc = MagicMock()
-    adapter._playback_proc.poll.return_value = 0
-    adapter._active_show = {'duration_ms': 305000, 'media_path': 'movie.mp4'}
-    adapter._playback_started_at = 100.0
-    assert adapter.process_failure(position_ms=304500) is None
-    assert adapter.process_failure(position_ms=200000) is not None
-    assert adapter.process_failure(position_ms=None) is None
-
-
-def test_manual_engine_exit_is_reported(monkeypatch):
-    adapter = RealEngineAdapter('profile', 'socket')
-    adapter._manual_proc = MagicMock()
-    adapter._manual_proc.poll.return_value = 0
-    assert 'manual' in adapter.process_failure()
-
-
-def test_immediate_engine_exit_is_reported(monkeypatch):
-    adapter = RealEngineAdapter('profile', 'socket')
-    proc = MagicMock()
-    proc.poll.return_value = 1
-    proc.returncode = 1
-    proc.stderr = iter([])
-    monkeypatch.setattr('host_services.real_engine_adapter.time.sleep', lambda _: None)
-    monkeypatch.setattr('host_services.real_engine_adapter._await_engine_ready', lambda *_args, **_kwargs: True)
-    with patch('host_services.real_engine_adapter.subprocess.Popen', return_value=proc):
-        with pytest.raises(RuntimeError, match='exited'):
-            adapter.on_playback_start({'show_yaml': 'show.yaml'}, None)
-
-
-def test_engine_readiness_requires_marker_and_continues_draining(monkeypatch):
-    from host_services import real_engine_adapter as real
-    proc = MagicMock()
-    drained = threading.Event()
-    def output():
-        yield b'initializing\n'
-        yield b'LIGHT_BELT_ENGINE_READY\n'
-        yield b'after-ready\n'
-        drained.set()
-    proc.stdout = output()
-    assert real._await_engine_ready(proc, timeout=1)
-    assert drained.wait(1)
-
-
-def test_engine_eof_before_ready_is_failure():
-    from host_services import real_engine_adapter as real
-    proc = MagicMock()
-    proc.stdout = iter([b'initializing\n'])
-    assert not real._await_engine_ready(proc, timeout=1)
-
-
-def test_engine_without_ready_marker_is_stopped_before_failure():
-    adapter = RealEngineAdapter('profile', 'socket')
-    proc = MagicMock()
-    proc.poll.return_value = None
-    proc.stdout = iter([b'no readiness marker\n'])
-    proc.stderr = iter([])
-    with patch('host_services.real_engine_adapter.subprocess.Popen', return_value=proc):
-        with pytest.raises(RuntimeError, match='before ready'):
-            adapter.on_playback_start({'show_yaml': 'show.yaml'}, None)
-    proc.terminate.assert_called_once()
-
-
 def test_real_play_does_not_report_ready_without_file_loaded(monkeypatch):
     monkeypatch.setattr(host, 'ENGINE_ADAPTER', 'real')
     monkeypatch.setitem(host._state, 'playback_state', 'stopped')
@@ -541,7 +437,7 @@ def test_seek_pauses_and_restarts_lighting_around_media_seek(monkeypatch):
     monkeypatch.setattr(host, '_ensure_mpv', lambda: mpv)
     real = MagicMock()
     real.on_playback_seek_prepare.side_effect = lambda: calls.append('stop-engine')
-    real.on_playback_resume_yaml.side_effect = lambda: calls.append('start-engine') or True
+    real.resume_aux.side_effect = lambda show: calls.append('start-engine') or True
     monkeypatch.setattr(host, '_real_adapter', real)
     data, error = host.playback_seek(1234)
     assert error is None and data['position_ms'] == 1234

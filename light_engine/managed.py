@@ -611,8 +611,12 @@ def serve(config, commands, report):
     worker = Thread(target=produce, daemon=True)
     worker.start()
     last_report = None
+    last_report_at = 0.0
+    sequence = None
+    ddp = None
     try:
         writer.init_outputs()
+        ddp = writer._outputs.get("ddp")
         while not stop.is_set():
             now = time.monotonic()
             item = handoff.sample(now)
@@ -651,7 +655,7 @@ def serve(config, commands, report):
                     source.get("silent"),
                     source.get("reason"),
                 )
-                if applied_current and identity != last_report:
+                if applied_current and (identity != last_report or now - last_report_at >= 1):
                     report(
                         {
                             "n": n,
@@ -659,9 +663,16 @@ def serve(config, commands, report):
                             "effective_role": role,
                             "audio": source,
                             "frame_seq": sequence,
+                            "submitted_ms": int(time.time() * 1000),
+                            "node_submissions": {
+                                node_id: result for node_id, result in
+                                getattr(ddp, "last_node_submission", {}).items()
+                                if result["sequence"] == sequence
+                            },
                         }
                     )
                     last_report = identity
+                    last_report_at = now
             stop.wait(max(0, period - (time.monotonic() - now)))
     except Exception as exc:
         failures.append(str(exc))
@@ -670,14 +681,18 @@ def serve(config, commands, report):
         writer._shutdown()
         worker.join(timeout=2)
     if failures:
-        ddp = writer._outputs.get("ddp")
         report(
             {
                 "n": command.get("n"),
                 "role_phase": "fault",
                 "effective_role": "none",
                 "reason": failures[0],
-                "node_submissions": getattr(ddp, "last_node_submission", {}),
+                "submitted_ms": int(time.time() * 1000),
+                "node_submissions": {
+                    node_id: result for node_id, result in
+                    getattr(ddp, "last_node_submission", {}).items()
+                    if result["sequence"] == sequence
+                },
                 "node_safe_submissions": getattr(ddp, "last_node_safe_submission", {}),
             }
         )
