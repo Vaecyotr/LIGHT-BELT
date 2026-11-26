@@ -8,6 +8,65 @@ import yaml
 from host_services.managed_adapter import ManagedAdapter
 
 
+def test_lighting_audio_rebind_can_revoke_and_replace_source_during_session_lock(monkeypatch):
+    import io
+    import json
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+
+    from host_services import engine_adapter as host
+
+    adapter = ManagedAdapter(profile_path="test", mpv_socket_path="test")
+    pipe = io.BytesIO()
+    adapter.sender = SimpleNamespace(stdin=pipe, poll=lambda: None)
+    route = {"speaker": {"status": "routed"}, "digital_target": {"kind": "phone_pcm", "source_id": "a"}}
+    monkeypatch.setattr(host, "_real_adapter", adapter)
+    monkeypatch.setattr(host, "_audio_system", SimpleNamespace(snapshot=lambda: route))
+    monkeypatch.setattr(host, "_route_gate", True)
+    adapter.configure({"role": "show", "mode": "auto", "target": route["digital_target"],
+                       "program_target": None, "video_generation": 7, "seek_generation": 3,
+                       "await_media": True})
+    with ThreadPoolExecutor() as workers, host._session_lock:
+        route.update(speaker={"status":"switching"}, digital_target=None)
+        workers.submit(host._refresh_lighting_audio).result(timeout=2)
+        route.update(speaker={"status":"routed"}, digital_target={"kind":"phone_pcm","source_id":"b"})
+        workers.submit(host._refresh_lighting_audio).result(timeout=2)
+
+    commands = [json.loads(line) for line in pipe.getvalue().splitlines()]
+    assert [cmd["target"] for cmd in commands] == [
+        {"kind":"phone_pcm","source_id":"a"}, {"kind":"none"}, {"kind":"phone_pcm","source_id":"b"}
+    ]
+    assert [cmd["n"] for cmd in commands] == [1, 2, 3]
+    assert all(cmd["video_generation"] == 7 and cmd["seek_generation"] == 3
+               and cmd["await_media"] for cmd in commands)
+
+
+def test_prepare_timeout_remains_visible_through_configuration_until_engine_ack(monkeypatch):
+    import io
+    from types import SimpleNamespace
+    import pytest
+
+    adapter = ManagedAdapter(profile_path="test", mpv_socket_path="test")
+    process = SimpleNamespace(stdin=io.BytesIO(), poll=lambda: None)
+    adapter.sender = process
+    monkeypatch.setattr(adapter.changed, "wait_for", lambda *args: False)
+    command = {"role":"music", "mode":"auto", "target":{"kind":"none"}}
+    with pytest.raises(RuntimeError, match="did not become ready"):
+        adapter.configure(command, wait=True)
+    adapter.configure(command)
+    adapter.configure(dict(command, brightness_zero=True))
+    assert adapter.status["role_phase"] == "fault"
+    assert "did not become ready" in adapter.status["reason"]
+    def reports():
+        yield b'{"n":1,"role_phase":"applied"}'
+        assert adapter.status["role_phase"] == "fault"
+        yield b'{"n":2,"role_phase":"applied","effective_role":"music"}'
+        assert adapter.status["effective_role"] == "music"
+        assert "reason" not in adapter.status
+    process.stdout = reports()
+    adapter._read(process)
+
+
 def test_program_audio_does_not_wait_for_managed_lighting_ready(tmp_path, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event

@@ -91,20 +91,27 @@ async def _route_switch_gates_program_then_closes_old_before_opening_new():
     backend = Backend()
     backend.speaker_active = {"a": True, "b": True}
     events = []
+    published = []
 
     async def gate(muted):
         events.append(("gate", muted))
 
-    system = AudioSystem(backend, gate_mpv=gate)
+    async def notify():
+        published.append((system.snapshot()["speaker"]["status"], backend.calls[:]))
+
+    system = AudioSystem(backend, gate_mpv=gate, notify=notify)
     await system.start()
     await system.set_speaker("a")
     backend.calls.clear()
     events.clear()
+    published.clear()
     await system.set_speaker("b")
 
     assert backend.calls == [("close",), ("open", "b")]
     assert events[0] == ("gate", True)
     assert events == [("gate", True)]
+    assert published[0] == ("switching", [])
+    assert published[-1] == ("routed", [("close",), ("open", "b")])
 
 
 def test_failed_route_open_keeps_program_gated_and_never_claims_routed():

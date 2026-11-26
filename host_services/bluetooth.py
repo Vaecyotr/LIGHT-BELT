@@ -198,6 +198,7 @@ class AudioSystem:
             if self._route is not None:
                 self._route_recovery_device = self._route.get("device")
                 self._route_recovery_hold = True
+                await self._revoke_lighting_source()
                 await self._gate_program(True)
             raise BackendUnavailable(
                 f"speaker route ownership is uncertain: {facts['route_error']}"
@@ -208,6 +209,7 @@ class AudioSystem:
                 lost_device = self._route.get("device")
                 self._route_recovery_device = lost_device
                 self._route_recovery_hold = True
+                await self._revoke_lighting_source()
                 await self._gate_program(True)
                 self._route = None
                 self._selected = lost_device
@@ -224,6 +226,7 @@ class AudioSystem:
                 ):
                     self._route = dict(actual)
                 else:
+                    await self._revoke_lighting_source()
                     raise BackendUnavailable("Bluetooth route identity changed")
         devices = list(facts.get("devices", []))
         connected = sum(bool(device.get("connected")) for device in devices)
@@ -328,6 +331,7 @@ class AudioSystem:
                 }
                 return
             if self._route is not None:
+                await self._revoke_lighting_source()
                 await self._gate_program(True)
                 await self._close_route_locked()
             await self._gate_program(False)
@@ -337,6 +341,7 @@ class AudioSystem:
                 "route": None,
             }
             return
+        await self._revoke_lighting_source()
         await self._gate_program(True, verify=True)
         await self._close_route_locked()
         try:
@@ -363,6 +368,7 @@ class AudioSystem:
                 "route": None,
             }
             self._snapshot["digital_target"] = None
+            await self.notify()
             raise BackendUnavailable(str(exc)) from exc
 
     def _occupied(self, facts):
@@ -413,7 +419,8 @@ class AudioSystem:
 
     async def disconnect(self, device_id: str) -> None:
         async with self._lock:
-            if self._selected == device_id:
+            if self._selected == device_id or (self._route or {}).get("device") == device_id:
+                await self._revoke_lighting_source()
                 await self._gate_program(True)
                 await self._close_route_locked()
                 self._selected = None
@@ -432,6 +439,7 @@ class AudioSystem:
             if device is None:
                 raise BackendUnavailable("unknown Bluetooth device")
             if (self._route or {}).get("device") == device_id:
+                await self._revoke_lighting_source()
                 await self._gate_program(True)
                 await self._close_route_locked()
             if device.get("connected"):
@@ -533,6 +541,11 @@ class AudioSystem:
             await self.backend.close_speaker_route()
             self._route = None
             self._snapshot["digital_target"] = None
+
+    async def _revoke_lighting_source(self):
+        self._snapshot["speaker"] = {"device": None, "status": "switching", "route": None}
+        self._snapshot["digital_target"] = None
+        await self.notify()
 
 
 def _device_active(device: dict[str, Any], facts: dict[str, Any]) -> bool:

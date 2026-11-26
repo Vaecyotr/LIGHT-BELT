@@ -653,9 +653,13 @@ def _reconcile_lighting(*, playing=False, start_ms=None, wait=False):
     global _lighting_error
     if _preferences is None or _real_adapter is None:
         return
+    from .real_engine_adapter import EnginePreparationError
     with _session_lock:
         try:
             _sync_lighting(playing=playing, start_ms=start_ms, wait=wait)
+        except EnginePreparationError as exc:
+            _log.warning("Managed lighting preparation failed: %s", exc)
+            _lighting_error = None
         except (OSError, RuntimeError) as exc:
             if _lighting_error != str(exc):
                 _log.warning("Managed lighting could not reconcile: %s", exc)
@@ -673,18 +677,19 @@ def _sync_lighting(*, playing=False, start_ms=None, wait=False):
         show = adapter._active_show
         facts = _audio_system.snapshot() if _audio_system else {}
         speaker = facts.get("speaker", {})
-        phone = speaker.get("status") == "routed"
+        phone = speaker.get("status") == "routed" or (
+            speaker.get("status") == "switching"
+            and getattr(adapter, "command", None)
+            and adapter.command["role"] == "music"
+        )
         playback = "playing" if playing else _state["playback_state"]
-        target = {"kind":"none"}
-        if phone or (show and playback == "playing" and not _route_gate):
-            target = facts.get("digital_target") or target
+        program_target = None
         media = (show or {}).get("media_path")
-        if not phone and not _route_gate and show and playback == "playing":
+        if show and playback == "playing":
             path = show.get("audio_path")
             if not path and media and Path(media).suffix.lower() in {".flac",".mp3",".wav"}:
                 path = media
-            if path:
-                target = {"kind":"file","path":path}
+            program_target = {"kind":"file","path":path} if path else {"kind":"program_pcm"}
         intent = _preferences.data["intent"]
         after_end = "music" if phone else "none"
         role = intent
@@ -701,8 +706,9 @@ def _sync_lighting(*, playing=False, start_ms=None, wait=False):
         spec = {"role":role,"role_on_video_end":after_end,"show":show,
                 "video_generation":_session_generation,"seek_generation":adapter.seek_generation,
                 "targets":list(_preferences.data["targets"].values()) if role=="manual" else [],
-                "mode":_preferences.data["mode"],"target":target,
+                "mode":_preferences.data["mode"],"program_target":program_target,
                 "mic_sender":os.environ.get("LIGHT_BELT_MIC_SENDER")}
+        spec["target"] = _lighting_audio_target(spec)
         if _state["brightness_scale"] == 0:
             spec["brightness_zero"] = True
         had_sender = adapter.sender is not None
@@ -723,6 +729,28 @@ def _sync_lighting(*, playing=False, start_ms=None, wait=False):
                 _push_wled_off(explicit=True)
             elif role != "none":
                 _confirmed_off_hosts = None
+
+
+def _lighting_audio_target(spec):
+    facts = _audio_system.snapshot() if _audio_system else {}
+    speaker = facts.get("speaker", {}).get("status")
+    digital = facts.get("digital_target") or {}
+    program = spec["program_target"]
+    if spec["mode"] == "auto":
+        if speaker == "routed" and digital.get("kind") == "phone_pcm":
+            return digital
+        if speaker not in ("routed", "switching", "fault") and not _route_gate and program:
+            if program["kind"] == "file":
+                return program
+            if digital.get("kind") == "program_pcm":
+                return digital
+    return {"kind": "none"}
+
+
+def _refresh_lighting_audio():
+    adapter = _real_adapter
+    if adapter is not None and hasattr(adapter, "refresh_audio"):
+        adapter.refresh_audio()
 
 
 def gate_program(muted):

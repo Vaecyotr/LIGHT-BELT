@@ -188,7 +188,14 @@ def test_lifespan_owns_single_probe_and_waits_for_inflight_work(monkeypatch):
 
 def test_audio_notification_returns_before_lighting_reconciliation(tmp_path, monkeypatch):
     started, release, next_snapshot = threading.Event(), threading.Event(), threading.Event()
+    refreshed_while_blocked = threading.Event()
     calls = []
+    audio_calls = []
+
+    def refresh_audio():
+        audio_calls.append(None)
+        if started.is_set() and not release.is_set():
+            refreshed_while_blocked.set()
 
     def reconcile():
         calls.append(len(calls))
@@ -214,6 +221,7 @@ def test_audio_notification_returns_before_lighting_reconciliation(tmp_path, mon
     monkeypatch.setattr(engine_adapter, "startup", lambda: None)
     monkeypatch.setattr(engine_adapter, "shutdown", lambda: None)
     monkeypatch.setattr(engine_adapter, "_reconcile_lighting", reconcile)
+    monkeypatch.setattr(engine_adapter, "_refresh_lighting_audio", refresh_audio)
     monkeypatch.setattr("host_services.bluetooth.AudioSystem", System)
 
     async def run():
@@ -224,12 +232,14 @@ def test_audio_notification_returns_before_lighting_reconciliation(tmp_path, mon
             assert await asyncio.to_thread(started.wait, 1)
             await system.notify()
             await system.notify()
+            assert await asyncio.to_thread(refreshed_while_blocked.wait, 1)
             release.set()
             assert await asyncio.to_thread(next_snapshot.wait, 1)
         finally:
             release.set()
             await host._stop_runtime()
         assert len(calls) == 3
+        assert len(audio_calls) >= 2
 
     asyncio.run(run())
 

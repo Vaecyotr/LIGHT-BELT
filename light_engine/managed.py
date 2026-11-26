@@ -20,6 +20,7 @@ from light_engine.show.loader import TargetCatalog, load_show, validate_show_dat
 
 
 PREPARE_TIMEOUT = 10.0
+FRAME_HOLD_TIMEOUT = 0.5
 
 
 class FrameHandoff:
@@ -65,6 +66,8 @@ class FrameHandoff:
             )
             if not current:
                 return False
+            if item is self.latest and now is not None and now - item[-1] > FRAME_HOLD_TIMEOUT:
+                return False
             frame = item[1]
             metadata = getattr(frame, "metadata", {})
             if (
@@ -107,19 +110,23 @@ class FrameHandoff:
                 return True
             return False
 
-    def refresh_active(self, number, role, frame, audio, now):
+    def refresh_active(self, number, role, frame, audio, now, *, request_number):
         with self.lock:
-            if self.committed is not None and (
+            if request_number == self.requested and self.committed is not None and (
                 self.committed[3], self.committed[0]
             ) == (number, role):
                 self.committed = (role, frame, audio, number, False, now)
 
     def sample(self, now, *, committed_only=False):
         with self.lock:
+            if (not committed_only and self.latest is not None
+                    and now - self.latest[-1] > FRAME_HOLD_TIMEOUT):
+                self.discarded = self.latest[3]
+                self.latest = None
             item = self.committed if committed_only else (
                 self.latest if self.latest is not None else self.committed
             )
-            if item is not None and now - item[-1] > 0.5:
+            if item is not None and now - item[-1] > FRAME_HOLD_TIMEOUT:
                 raise TimeoutError("lighting content exceeded the frame hold deadline")
             return item
 
@@ -575,7 +582,8 @@ def serve(config, commands, report):
                                 active_key != key or offered is not None
                             ):
                                 handoff.refresh_active(
-                                    applied_number, current.role, frame, status, now
+                                    applied_number, current.role, frame, status, now,
+                                    request_number=cfg["n"],
                                 )
                             elif handoff.publish(
                                 cfg["n"], current.role, frame, status, now,

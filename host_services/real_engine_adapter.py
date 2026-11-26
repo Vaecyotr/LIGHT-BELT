@@ -34,6 +34,10 @@ import yaml
 _log = logging.getLogger(__name__)
 
 
+class EnginePreparationError(RuntimeError):
+    """A managed Engine preparation fault already recorded in its status."""
+
+
 def _drain_stderr(proc: subprocess.Popen, label: str) -> None:
     """Read proc.stderr line-by-line in a daemon thread and log each line as a warning."""
     def _reader():

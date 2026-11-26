@@ -3,6 +3,22 @@ import pytest
 from light_engine.managed import FrameHandoff
 
 
+def test_age_expired_candidate_does_not_expire_a_recently_refreshed_active_role():
+    handoff = FrameHandoff()
+    handoff.request(1)
+    handoff.publish(1, "music", "active", {}, 0.0)
+    assert handoff.commit(handoff.sample(0.0))
+    handoff.request(2)
+    handoff.publish(2, "show", "expired candidate", {}, 0.1)
+    mapped_candidate = handoff.sample(0.5)
+    assert not handoff.claim(mapped_candidate, now=0.65)
+    handoff.refresh_active(1, "music", "latest active", {}, 0.55, request_number=2)
+    assert handoff.sample(0.65)[1] == "latest active"
+    assert handoff.disposition(2, "show") == "discarded"
+    with pytest.raises(TimeoutError):
+        handoff.sample(1.1)
+
+
 def test_zero_brightness_is_black_on_ddp_without_releasing_the_role(monkeypatch):
     import json
     from pathlib import Path
@@ -303,10 +319,12 @@ def test_active_role_can_refresh_without_acknowledging_pending_manual_role():
     first = handoff.sample(0)
     assert handoff.claim(first) and handoff.commit(first)
     handoff.request(2)
-    handoff.refresh_active(1, "music", "frame 2", {}, 0.4)
+    handoff.refresh_active(1, "music", "discarded audio projection", {}, 0.3, request_number=1)
+    assert handoff.sample(0.3)[1] == "frame 1"
+    handoff.refresh_active(1, "music", "frame 2", {}, 0.4, request_number=2)
     assert handoff.sample(0.7)[:4] == ("music", "frame 2", {}, 1)
     handoff.publish(2, "manual", "frame 3", {}, 0.71)
-    handoff.refresh_active(1, "music", "late frame", {}, 0.8)
+    handoff.refresh_active(1, "music", "late frame", {}, 0.8, request_number=2)
     assert handoff.sample(0.8)[:4] == ("manual", "frame 3", {}, 2)
 
 

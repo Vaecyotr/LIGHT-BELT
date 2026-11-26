@@ -5,7 +5,7 @@ import subprocess
 import threading
 import time
 
-from .real_engine_adapter import RealEngineAdapter, _drain_stderr, _kill_proc
+from .real_engine_adapter import EnginePreparationError, RealEngineAdapter, _drain_stderr, _kill_proc
 
 
 class ManagedAdapter(RealEngineAdapter):
@@ -14,6 +14,7 @@ class ManagedAdapter(RealEngineAdapter):
         self.sender = None
         self.changed = threading.Condition()
         self.number = 0
+        self._held_number = None
         self.last_recovery = 0.0
         self.seek_generation = 0
         self.command = None
@@ -30,9 +31,12 @@ class ManagedAdapter(RealEngineAdapter):
                     "fault",
                 ):
                     if wait and self.status["role_phase"] == "fault":
-                        raise RuntimeError(self.status.get("reason", "lighting failed"))
+                        raise EnginePreparationError(self.status.get("reason", "lighting failed"))
                     return
+                failure = self.status if self.status["role_phase"] == "fault" else None
                 self._close_sender()
+                if failure is not None:
+                    self.status = failure
             if self.sender is None:
                 self.sender = subprocess.Popen(
                     [
@@ -50,29 +54,47 @@ class ManagedAdapter(RealEngineAdapter):
                 threading.Thread(
                     target=self._read, args=(self.sender,), daemon=True
                 ).start()
-            if spec != self.command:
-                self.number += 1
-                self.status = {"role_phase": "preparing",
-                               "effective_role": self.status["effective_role"]}
-                payload = dict(spec, n=self.number, mpv_socket=self._mpv_socket)
-                try:
-                    self.sender.stdin.write(
-                        (json.dumps(payload, allow_nan=False) + "\n").encode()
-                    )
-                    self.sender.stdin.flush()
-                except OSError as exc:
-                    self.status.update(role_phase="fault", reason=str(exc))
-                    raise
-                self.command = spec
+            self._send_spec(spec)
             if wait:
                 ready_phase = "held" if spec.get("await_media") else "applied"
                 if not self.changed.wait_for(
-                    lambda: self.status["role_phase"] in (ready_phase, "fault", "idle"),
+                    lambda: (ready_phase == "held" and self._held_number == self.number)
+                    or (self.status.get("n") == self.number and
+                        self.status["role_phase"] in (ready_phase, "fault", "idle")),
                     10,
                 ):
-                    raise RuntimeError("lighting content did not become ready")
-                if self.status["role_phase"] == "fault":
-                    raise RuntimeError(self.status.get("reason", "lighting failed"))
+                    reason = "lighting content did not become ready"
+                    self.status.update(n=self.number, role_phase="fault", reason=reason)
+                    raise EnginePreparationError(reason)
+                if self.status["role_phase"] == "fault" and not (
+                    ready_phase == "held" and self._held_number == self.number
+                ):
+                    raise EnginePreparationError(self.status.get("reason", "lighting failed"))
+
+    def refresh_audio(self):
+        """Revise source eligibility without changing the current media operation."""
+        with self.changed:
+            if self.command and self.sender is not None and self.sender.poll() is None:
+                self._send_spec(self.command)
+
+    def _send_spec(self, spec):
+        if "program_target" in spec:
+            from .engine_adapter import _lighting_audio_target
+            spec = dict(spec, target=_lighting_audio_target(spec))
+        if spec == self.command:
+            return
+        self.number += 1
+        if self.status["role_phase"] != "fault":
+            self.status = {"role_phase": "preparing",
+                           "effective_role": self.status["effective_role"]}
+        payload = dict(spec, n=self.number, mpv_socket=self._mpv_socket)
+        try:
+            self.sender.stdin.write((json.dumps(payload, allow_nan=False) + "\n").encode())
+            self.sender.stdin.flush()
+        except OSError as exc:
+            self.status.update(n=self.number, role_phase="fault", reason=str(exc))
+            raise
+        self.command = spec
 
     def _read(self, process):
         try:
@@ -80,6 +102,14 @@ class ManagedAdapter(RealEngineAdapter):
                 msg = json.loads(line)
                 with self.changed:
                     if process is self.sender and msg.get("n") == self.number:
+                        if msg.get("role_phase") == "held":
+                            self._held_number = self.number
+                            self.changed.notify_all()
+                        elif msg.get("role_phase") == "fault":
+                            self._held_number = None
+                        if (self.status["role_phase"] == "fault"
+                                and msg.get("role_phase") not in ("applied", "fault", "idle")):
+                            continue
                         if "reason" not in msg:
                             self.status.pop("reason", None)
                         self.status.update(msg)
@@ -91,7 +121,7 @@ class ManagedAdapter(RealEngineAdapter):
                     "fault",
                 ):
                     self.status.update(
-                        role_phase="fault",
+                        n=self.number, role_phase="fault",
                         effective_role="none",
                         reason="lighting sender closed",
                     )

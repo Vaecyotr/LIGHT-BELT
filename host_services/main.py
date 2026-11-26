@@ -40,6 +40,7 @@ app.state.runtime_identity = capture_identity(Path(__file__).resolve().parent.pa
 app.state.ready = False
 app.state.device_probe_task = None
 app.state.lighting_update_task = None
+app.state.lighting_audio_task = None
 
 
 @app.exception_handler(HTTPException)
@@ -171,6 +172,18 @@ async def _watch_lighting_updates(update):
             _log.exception("Unable to reconcile lighting after an audio update")
 
 
+async def _watch_lighting_audio(audio_update, lighting_update):
+    from . import engine_adapter
+    while True:
+        await audio_update.wait()
+        audio_update.clear()
+        try:
+            await _run_in_thread(engine_adapter._refresh_lighting_audio)
+        except (OSError, RuntimeError):
+            _log.exception("Unable to publish the current lighting audio source")
+        lighting_update.set()
+
+
 async def _start_runtime():
     from . import engine_adapter
     lighting_update = None
@@ -190,9 +203,10 @@ async def _start_runtime():
         if real:
             backend.terminal_generation = ControlTerminal(control_dir()).generation
         lighting_update = asyncio.Event()
+        audio_update = asyncio.Event()
 
         async def notify_lighting():
-            lighting_update.set()
+            audio_update.set()
 
         system = AudioSystem(backend,
                              gate_mpv=lambda value: asyncio.to_thread(engine_adapter.gate_program,value),
@@ -201,6 +215,9 @@ async def _start_runtime():
         await system.start()
     await _run_in_thread(engine_adapter.startup)
     if lighting_update is not None:
+        app.state.lighting_audio_task = asyncio.create_task(
+            _watch_lighting_audio(audio_update, lighting_update)
+        )
         await _run_in_thread(engine_adapter._reconcile_lighting)
         app.state.lighting_update_task = asyncio.create_task(
             _watch_lighting_updates(lighting_update)
@@ -215,9 +232,11 @@ async def _stop_runtime():
     from . import engine_adapter
     app.state.ready = False
     await ws.close_event_loop()
-    tasks = [task for task in (app.state.device_probe_task, app.state.lighting_update_task)
+    tasks = [task for task in (app.state.device_probe_task, app.state.lighting_update_task,
+                               app.state.lighting_audio_task)
              if task is not None]
     app.state.device_probe_task = app.state.lighting_update_task = None
+    app.state.lighting_audio_task = None
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
