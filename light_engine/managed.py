@@ -28,6 +28,7 @@ class FrameHandoff:
         self.requested = 0
         self.latest = None
         self.committed = None
+        self.discarded = None
 
     def request(self, number):
         with self.lock:
@@ -35,10 +36,10 @@ class FrameHandoff:
             if self.latest is not None and self.latest[3] != number:
                 self.latest = None
 
-    def publish(self, number, role, frame, audio, now):
+    def publish(self, number, role, frame, audio, now, *, check_media=True):
         with self.lock:
             if number == self.requested and self.latest is None:
-                self.latest = (role, frame, audio, number, now)
+                self.latest = (role, frame, audio, number, check_media, now)
                 return True
             return False
 
@@ -50,15 +51,50 @@ class FrameHandoff:
                 return "committed"
             if number != self.requested:
                 return "superseded"
+            if self.discarded == number:
+                self.discarded = None
+                return "discarded"
             return "pending"
 
-    def claim(self, item):
+    def claim(self, item, *, now=None, period=None):
         """Claim a current candidate or the committed active role for one send."""
         with self.lock:
-            return item is self.latest and item[3] == self.requested or (
+            current = item is self.latest and item[3] == self.requested or (
                 self.committed is not None
                 and (item[3], item[0]) == (self.committed[3], self.committed[0])
             )
+            if not current:
+                return False
+            frame = item[1]
+            metadata = getattr(frame, "metadata", {})
+            if (
+                item is self.latest
+                and item[4]
+                and now is not None
+                and period is not None
+                and item[0] == "show"
+                and "managed_media_position" in metadata
+            ):
+                expected = metadata["managed_media_position"]
+                if not metadata["managed_media_paused"]:
+                    expected += now - metadata["managed_media_observed_at"]
+                if abs(expected - frame.timestamp) > period:
+                    return False
+            return True
+
+    def discard(self, item):
+        with self.lock:
+            if self.latest is item:
+                self.latest = None
+                self.discarded = item[3]
+                return True
+            return False
+
+    def cancel_candidate(self, number):
+        with self.lock:
+            if self.latest is not None and self.latest[3] == number:
+                self.latest = None
+                self.discarded = number
 
     def commit(self, item):
         """Commit only frames still current after the complete output send."""
@@ -76,11 +112,13 @@ class FrameHandoff:
             if self.committed is not None and (
                 self.committed[3], self.committed[0]
             ) == (number, role):
-                self.committed = (role, frame, audio, number, now)
+                self.committed = (role, frame, audio, number, False, now)
 
-    def sample(self, now):
+    def sample(self, now, *, committed_only=False):
         with self.lock:
-            item = self.latest if self.latest is not None else self.committed
+            item = self.committed if committed_only else (
+                self.latest if self.latest is not None else self.committed
+            )
             if item is not None and now - item[-1] > 0.5:
                 raise TimeoutError("lighting content exceeded the frame hold deadline")
             return item
@@ -168,7 +206,10 @@ class Content:
     def _read_media(self, command):
         if self.role == "show" or command["target"].get("kind") == "file":
             try:
-                return self.mpv.read_state()
+                state = self.mpv.read_state()
+                if state.observed_at is None:
+                    state = replace(state, observed_at=time.monotonic())
+                return state
             except MpvIPCError:
                 if self.role == "show" and self.mpv.get_property("idle-active"):
                     return MpvState(0.0, False, True)
@@ -208,18 +249,25 @@ class Content:
     def prepare(cls, config, command, layout, cancelled=None):
         deadline = time.monotonic() + PREPARE_TIMEOUT
         content = cls(config, command, layout)
+        return content.prepare_frame_media(command, deadline, cancelled or Event())
+
+    def prepare_frame_media(self, command, deadline, cancelled):
         try:
-            content.prepared_media = content._prepare_media(command, deadline, cancelled or Event())
-            return content
+            if cancelled.is_set():
+                raise RuntimeError("content preparation cancelled")
+            self.prepared_media = self._prepare_media(command, deadline, cancelled)
+            return self
         except BaseException:
-            content.close()
+            self.close()
             raise
 
     def render(self, audio, command):
         media = self.prepared_media
+        observed_at = media.observed_at if media is not None else None
         self.prepared_media = None
         if media is None:
             media = self._read_media(command)
+            observed_at = media.observed_at if media is not None else None
         if self.role == "show":
             if media.ended or media.position >= self.duration:
                 return None
@@ -235,6 +283,12 @@ class Content:
             and self.last_time == t
         ):
             self.frozen = self.paused
+            if "managed_media_position" in self.frame.metadata:
+                self.frame.metadata.update(
+                    managed_media_position=media.position,
+                    managed_media_paused=media.paused,
+                    managed_media_observed_at=observed_at,
+                )
             return self.frame
         if features is not None:
             features = copy(features)
@@ -283,6 +337,12 @@ class Content:
                     (max(r, 0.035), max(g, 0.018), max(b, 0.009))
                     for r, g, b in strip.pixels
                 ]
+        if self.role == "show" and media is not None:
+            self.frame.metadata.update(
+                managed_media_position=media.position,
+                managed_media_paused=media.paused,
+                managed_media_observed_at=observed_at,
+            )
         return self.frame
 
 
@@ -297,6 +357,13 @@ def serve(config, commands, report):
     failures = []
     terminal_status = {}
     period = 1 / writer._output_fps
+    zero_brightness = replace(writer._output_transform, global_brightness=0.0)
+
+    def map_frame(frame):
+        with lock:
+            dark = command.get("brightness_zero", False)
+        transform = zero_brightness if dark else writer._output_transform
+        return writer._physical_mapping.map(transform.apply_to_frame(frame))
 
     def receive():
         nonlocal command
@@ -375,6 +442,14 @@ def serve(config, commands, report):
                                 paused_frame = None
                         applied_number = number
                         offered = None
+                    elif result == "discarded":
+                        offered = None
+                        if ready is not None:
+                            pending = loader.submit(
+                                ready.prepare_frame_media, cfg,
+                                prepare_start + PREPARE_TIMEOUT, prepare_cancel,
+                            )
+                            ready = None
                     elif result == "superseded":
                         if ready:
                             ready.close()
@@ -425,9 +500,15 @@ def serve(config, commands, report):
                     )
                     abandoned = False
                     prepare_start = time.monotonic()
-                if pending and not abandoned and time.monotonic() - prepare_start > PREPARE_TIMEOUT:
+                preparing = pending is not None or ready is not None
+                if preparing and not abandoned and time.monotonic() - prepare_start > PREPARE_TIMEOUT:
                     abandoned = True
                     prepare_cancel.set()
+                    handoff.cancel_candidate(cfg["n"])
+                    if ready:
+                        ready.close()
+                        ready = None
+                    offered = None
                     if key == pending_key:
                         if active is None:
                             raise TimeoutError("content preparation timed out")
@@ -497,7 +578,8 @@ def serve(config, commands, report):
                                     applied_number, current.role, frame, status, now
                                 )
                             elif handoff.publish(
-                                cfg["n"], current.role, frame, status, now
+                                cfg["n"], current.role, frame, status, now,
+                                check_media=current is ready,
                             ):
                                 offered = (cfg["n"], key)
                 stop.wait(period)
@@ -527,13 +609,24 @@ def serve(config, commands, report):
             now = time.monotonic()
             item = handoff.sample(now)
             if item:
-                role, frame, source, n, _ = item
-                physical = writer._physical_mapping.map(
-                    writer._output_transform.apply_to_frame(frame)
-                )
-                if stop.is_set() or not handoff.claim(item):
-                    stop.wait(max(0, period - (time.monotonic() - now)))
+                role, frame, source, n, _, _ = item
+                physical = map_frame(frame)
+                if stop.is_set():
                     continue
+                if not handoff.claim(item, now=time.monotonic(), period=period):
+                    if not handoff.discard(item):
+                        stop.wait(max(0, period - (time.monotonic() - now)))
+                        continue
+                    fallback = handoff.sample(time.monotonic(), committed_only=True)
+                    if fallback is None or not handoff.claim(fallback):
+                        stop.wait(max(0, period - (time.monotonic() - now)))
+                        continue
+                    item = fallback
+                    role, frame, source, n, _, _ = item
+                    physical = map_frame(frame)
+                    if stop.is_set() or not handoff.claim(item):
+                        stop.wait(max(0, period - (time.monotonic() - now)))
+                        continue
                 if not any(node.enabled for node in physical.digital_frames):
                     raise RuntimeError("no enabled DDP node")
                 sequence = writer._advance_sequence()

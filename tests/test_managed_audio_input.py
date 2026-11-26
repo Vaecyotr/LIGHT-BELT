@@ -6,7 +6,7 @@ import pytest
 from scipy.io import wavfile
 
 from light_engine.analysis.managed_audio_input import ManagedAudioInput
-from light_engine.analysis.pulse_capture import PCMChunk
+from light_engine.analysis.pulse_capture import PCMChunk, ParecCapture
 from light_engine.config import Config
 from light_engine.models import AudioFeatures
 
@@ -315,6 +315,23 @@ def test_managed_wled_requires_valid_sender_and_monitor_requires_index():
     assert source.poll(0.0) == (None, None)
     assert "monitor_stream" in source.status()["reason"]
     assert capture_calls == []
+    source.close()
+
+
+def test_production_pcm_rejects_target_without_verified_pa_identity():
+    capture_calls = []
+
+    def capture_factory(**kwargs):
+        capture_calls.append(kwargs)
+        raise AssertionError("unverified production target reached capture")
+
+    source = ManagedAudioInput(Config(), capture_factory=ParecCapture)
+    source.configure(
+        "device",
+        {"kind": "phone_pcm", "device": "rt5616.monitor", "monitor_stream": 19},
+    )
+    assert source.poll(0.0) == (None, None)
+    assert "verified PulseAudio PCM target" in source.status()["reason"]
     source.close()
 
 

@@ -8,6 +8,50 @@ import yaml
 from host_services.managed_adapter import ManagedAdapter
 
 
+def test_program_audio_does_not_wait_for_managed_lighting_ready(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from unittest.mock import Mock
+
+    from host_services import engine_adapter as host
+    from host_services.control_terminal import ControlPreferences
+
+    adapter = ManagedAdapter(profile_path="test", mpv_socket_path="test")
+    adapter._active_show = {"show_yaml": "show.yaml"}
+    waiting, release = Event(), Event()
+
+    def configure(spec, *, wait=False):
+        if wait:
+            waiting.set()
+            assert release.wait(5)
+
+    adapter.configure = configure
+    mpv = Mock()
+    mpv._command.return_value = {"data": True}
+    monkeypatch.setattr(host, "_mpv", mpv)
+    monkeypatch.setattr(host, "_active_mpv", lambda: mpv)
+    monkeypatch.setattr(host, "_real_adapter", adapter)
+    monkeypatch.setattr(host, "_preferences", ControlPreferences(tmp_path))
+    monkeypatch.setattr(host, "_audio_system", None)
+    monkeypatch.setattr(host, "_power_error", None)
+    monkeypatch.setattr(host, "_lighting_error", None)
+    monkeypatch.setattr(host, "_route_gate", False)
+    monkeypatch.setattr(host, "_audio_pending", False)
+    monkeypatch.setattr(host, "_state", dict(host._state, playback_state="paused", muted=False))
+    with ThreadPoolExecutor() as pool:
+        resume = pool.submit(host.playback_resume)
+        try:
+            assert waiting.wait(2)
+            pool.submit(host.gate_program, True).result(timeout=1)
+            assert pool.submit(host.audio_set, 0.35, None, 0).result(timeout=1)[1] is None
+            mpv.resume.assert_not_called()
+            mpv.set_mute.assert_called_once_with(True)
+            mpv.set_volume.assert_called_once_with(0.35)
+        finally:
+            release.set()
+        assert resume.result(timeout=2)[1] is None
+
+
 def test_managed_seek_holds_old_frame_and_commits_new_position_before_resume(
     tmp_path, monkeypatch,
 ):

@@ -116,6 +116,23 @@ def test_ipc_deadline_applies_while_consuming_buffered_unrelated_events(monkeypa
     assert transport.closed
 
 
+def test_read_state_stamps_position_before_slower_pause_and_eof_queries(monkeypatch):
+    values = iter((2.5, 2.8, 2.9, 3.0))
+    calls = []
+    monkeypatch.setattr(mpv_adapter.time, "monotonic", lambda: 2.8)
+
+    class Adapter(MpvIPCAdapter):
+        def get_property(self, name):
+            calls.append(name)
+            return next(values)
+
+    adapter = Adapter("unused")
+    state = adapter.read_state()
+    assert calls == ["playback-time", "pause", "idle-active", "eof-reached"]
+    assert state.position == 2.5
+    assert state.observed_at == 2.8
+
+
 @pytest.mark.parametrize("reply", [b"", b"not-json\n", b"[]\n", b"null\n", b"\xff\n"])
 def test_ipc_eof_or_malformed_response_closes_connection(monkeypatch, reply):
     transport = ScriptedSocket(lambda _request_id: reply)

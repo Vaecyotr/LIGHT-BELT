@@ -163,3 +163,34 @@ def test_capture_closed_during_spawn_reaps_late_process(monkeypatch):
     assert not closer.is_alive()
     assert process.poll() is not None
     assert process.stdout.closed and process.stderr.closed
+
+
+def test_capture_revalidates_identity_after_first_pcm_read_before_publication():
+    calls, reads = [], []
+
+    class ObservedPcm(BytesIO):
+        def read(self, size):
+            reads.append(True)
+            return super().read(size)
+
+    process = _Process([])
+    process.stdout = ObservedPcm(
+        np.array([[16384, -16384]], dtype="<i2").tobytes()
+    )
+    proof = {"pa_sink_index": 2, "monitor_stream": 19}
+
+    def validate(_target):
+        calls.append(bool(reads))
+        return not reads
+
+    capture = ParecCapture(
+        device="rt5616.monitor", monitor_stream=19, target_proof=proof,
+        target_validator=validate, popen=lambda *_args, **_kwargs: process,
+    ).start()
+    capture._thread.join(timeout=1)
+    assert calls == [False, True]
+    assert reads == [True]
+    assert capture.status()["phase"] == "invalid"
+    assert process.stdout.closed and process.stderr.closed
+    assert capture.read_latest() is None
+    capture.close()

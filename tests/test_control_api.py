@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import pytest
 
 from host_services.control_terminal import ControlTerminal
 from host_services.main import app
@@ -164,6 +165,66 @@ def test_same_wled_address_is_rechecked_after_reboot(tmp_path, monkeypatch):
     host._reconcile_lighting()
     assert state["on"] is False
     assert writes == [{"on": False}, {"on": False}]
+
+
+@pytest.mark.parametrize(("scale", "playing"), [(0.25, True), (0.25, False), (0.0, True)])
+def test_restore_reapplies_brightness_saved_while_off_before_starting_ddp(
+    tmp_path, monkeypatch, scale, playing
+):
+    import io
+    import json
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from host_services import engine_adapter as host
+    from host_services.control_terminal import ControlPreferences
+
+    prefs = ControlPreferences(tmp_path)
+    prefs.set_intent("off", None)
+    device = {"host": "192.0.2.1", "device_type": host.WLED_DEVICE_TYPE}
+    player = Mock()
+    calls = []
+    renderer = SimpleNamespace(
+        _active_show={"show_yaml": "show.yaml", "media_path": "program.mp4"},
+        seek_generation=0, sender=None,
+        configure=lambda spec, **kwargs: calls.append(
+            ("configure", spec["role"], spec.get("brightness_zero", False))
+        ),
+    )
+    for name, value in {
+        "_preferences": prefs, "_real_adapter": renderer, "_audio_system": None,
+        "_devices": [device], "_confirmed_off_hosts": frozenset({device["host"]}),
+        "_power_error": None, "_mpv": player, "_route_gate": False,
+        "_state": dict(host._state, playback_state="playing" if playing else "stopped",
+                       position_ms=3200, volume=0.2),
+    }.items():
+        monkeypatch.setattr(host, name, value)
+    state = {"on": False, "bri": 127}
+
+    def fetch(request, **kwargs):
+        if not isinstance(request, str):
+            payload = json.loads(request.data)
+            state.update(payload)
+            calls.append(("post", payload))
+        return io.BytesIO(json.dumps({
+            **state, "state": state, "info": {"live": False}
+        }).encode())
+
+    monkeypatch.setattr(host.urllib.request, "urlopen", fetch)
+    assert host.brightness_scale_set(scale, 0)[1] is None
+    assert calls == [("configure", "none", scale == 0)]
+    calls.clear()
+    host.control_intent("follow", prefs.token)
+    if not playing:
+        assert calls == [("configure", "none", False)]
+        calls.clear()
+        host._state["playback_state"] = "playing"
+        host._reconcile_lighting()
+    expected = [("post", {"on": False, "bri": 64})] if scale else []
+    assert calls == expected + [("configure", "show", scale == 0)]
+    assert prefs.data["brightness"] == scale
+    assert host._state["position_ms"] == 3200 and host._state["volume"] == 0.2
+    assert prefs.data["mode"] == "auto"
+    assert not player.mock_calls
 
 
 def test_phone_gate_preserves_program_mute_and_volume_when_user_changes_them(

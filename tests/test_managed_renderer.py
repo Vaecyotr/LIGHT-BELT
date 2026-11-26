@@ -3,6 +3,59 @@ import pytest
 from light_engine.managed import FrameHandoff
 
 
+def test_zero_brightness_is_black_on_ddp_without_releasing_the_role(monkeypatch):
+    import json
+    from pathlib import Path
+    from queue import Queue
+    from threading import Thread
+
+    from light_engine.config import Config
+    from light_engine.engine import Engine
+    from light_engine.managed import serve
+    from light_engine.outputs import NullOutput
+
+    commands, reports = Queue(), Queue()
+    frames = []
+    output = NullOutput()
+    output.send_frame = frames.append
+
+    def init_outputs(engine):
+        engine._outputs = {"memory": output}
+        output.open()
+
+    monkeypatch.setattr(Engine, "init_outputs", init_outputs)
+    profile = Config(Path("config/profiles/rk3588-host-service.yaml").resolve())
+    thread = Thread(target=serve, args=(profile, iter(commands.get, None), reports.put))
+    thread.start()
+    spec = dict(
+        role="music", role_on_video_end="none", show=None, targets=[],
+        video_generation=1, seek_generation=0, target={"kind": "none"},
+        mode="auto", mpv_socket="unused",
+    )
+
+    def lit(frame):
+        return any(
+            any(channel for channel in pixel)
+            for node in frame.digital_frames for output in node.outputs for pixel in output.pixels
+        )
+
+    try:
+        commands.put(json.dumps(dict(spec, n=1, brightness_zero=True)))
+        dark = reports.get(timeout=5)
+        assert dark["effective_role"] == "music"
+        assert not lit(next(frame for frame in frames if frame.sequence == dark["frame_seq"]))
+        assert not any(frame.metadata.get("SAFE_STATE") for frame in frames)
+        commands.put(json.dumps(dict(spec, n=2)))
+        bright = reports.get(timeout=5)
+        assert bright["effective_role"] == "music"
+        assert lit(next(frame for frame in frames if frame.sequence == bright["frame_seq"]))
+    finally:
+        commands.put(None)
+        thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert [frame.sequence for frame in frames] == list(range(1, len(frames) + 1))
+
+
 def test_candidate_preparation_discards_video_decoded_for_old_position(monkeypatch):
     from pathlib import Path
     from types import SimpleNamespace
@@ -40,6 +93,140 @@ def test_candidate_preparation_discards_video_decoded_for_old_position(monkeypat
         assert content.prepared_media.position == 1.4
     finally:
         content.close()
+
+
+def test_handoff_claim_rejects_candidate_when_media_moves_after_render():
+    handoff = FrameHandoff()
+    handoff.request(4)
+    frame = type("Frame", (), {"timestamp": 12.0, "metadata": {
+        "managed_media_position": 12.0,
+        "managed_media_paused": False,
+        "managed_media_observed_at": 3.0,
+    }})()
+    handoff.publish(4, "show", frame, {}, 3.0)
+    item = handoff.sample(3.0)
+
+    assert not handoff.claim(item, now=3.05, period=1 / 30)
+    assert handoff.discard(item)
+    assert handoff.sample(3.05) is None
+
+
+def test_handoff_accepts_paused_candidate_after_wall_time_passes():
+    handoff = FrameHandoff()
+    handoff.request(4)
+    frame = type("Frame", (), {"timestamp": 12.0, "metadata": {
+        "managed_media_position": 12.0,
+        "managed_media_paused": True,
+        "managed_media_observed_at": 3.0,
+    }})()
+    handoff.publish(4, "show", frame, {}, 3.0)
+    item = handoff.sample(3.5)
+    assert handoff.claim(item, now=3.5, period=1 / 30)
+
+
+def test_stale_candidate_is_retried_while_committed_role_keeps_sending(monkeypatch):
+    import json
+    from pathlib import Path
+    from queue import Queue
+    from threading import Event, Thread
+    import time
+
+    from light_engine.config import Config
+    from light_engine.engine import Engine, RenderContext
+    from light_engine.mapping import PhysicalMapping
+    from light_engine.managed import serve
+    from light_engine.media.mpv_adapter import MpvIPCAdapter, MpvState
+    from light_engine.outputs import NullOutput
+
+    commands, reports = Queue(), Queue()
+    old_frames, show_frames, errors = [], [], []
+    candidate_mapped, allow_candidate = Event(), Event()
+    retry_started, release_retry, retry_keeps_rendering = Event(), Event(), Event()
+    retry_old_positions = set()
+    first_observation = []
+    output = NullOutput()
+
+    def send(frame):
+        if frame.metadata.get("managed_media_position") is not None:
+            show_frames.append(frame)
+        else:
+            old_frames.append(frame)
+            if retry_started.is_set() and not release_retry.is_set():
+                retry_old_positions.add(frame.timestamp)
+                if len(retry_old_positions) >= 3:
+                    retry_keeps_rendering.set()
+
+    output.send_frame = send
+    monkeypatch.setattr(
+        Engine, "init_outputs",
+        lambda engine: (setattr(engine, "_outputs", {"memory": output}), output.open()),
+    )
+    monkeypatch.setattr(RenderContext, "load_video", lambda self, path: None)
+    position = [1.0]
+    def read_state(self):
+        if position[0] == 1.5 and not retry_started.is_set():
+            retry_started.set()
+            assert release_retry.wait(3)
+        return MpvState(position[0], retry_started.is_set(), False)
+
+    monkeypatch.setattr(MpvIPCAdapter, "read_state", read_state)
+    map_physical = PhysicalMapping.map
+    def delay_candidate(mapping, frame):
+        if (frame.metadata.get("managed_media_position") == 1.0
+                and not candidate_mapped.is_set()):
+            first_observation.append(frame.metadata["managed_media_observed_at"])
+            candidate_mapped.set()
+            assert allow_candidate.wait(5)
+        return map_physical(mapping, frame)
+    monkeypatch.setattr(PhysicalMapping, "map", delay_candidate)
+
+    config = Config(Path("config/profiles/rk3588-host-service.yaml").resolve())
+    show = Path("assets/energy-wakeup/energy-wakeup.yaml").resolve()
+    base = {
+        "role_on_video_end": "none", "video_generation": 1, "seek_generation": 0,
+        "mode": "auto", "target": {"kind": "none"}, "mpv_socket": "position-commit",
+    }
+
+    def run():
+        try:
+            serve(config, iter(commands.get, None), reports.put)
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = Thread(target=run, daemon=True)
+    thread.start()
+    try:
+        commands.put(json.dumps(dict(base, n=1, role="music")))
+        assert reports.get(timeout=10)["effective_role"] == "music"
+        commands.put(json.dumps(dict(
+            base, n=2, role="show",
+            show={"show_yaml": str(show), "media_path": "show.mp4"},
+        )))
+        assert candidate_mapped.wait(5)
+        position[0] = 1.5
+        period = 1 / config.get("system.output_fps")
+        allow_candidate.wait(max(0, first_observation[0] + 2 * period - time.monotonic()))
+        assert len(old_frames) >= 1
+        assert not show_frames
+        allow_candidate.set()
+        assert retry_started.wait(3)
+        assert retry_keeps_rendering.wait(1.5)
+        release_retry.set()
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            event = reports.get(timeout=max(0.1, deadline-time.monotonic()))
+            if event.get("n") == 2 and event.get("effective_role") == "show":
+                frame = next(f for f in show_frames if f.sequence == event["frame_seq"])
+                assert frame.metadata["managed_media_position"] == 1.5
+                break
+        else:
+            pytest.fail("show candidate did not retry from the current media position")
+    finally:
+        allow_candidate.set()
+        release_retry.set()
+        commands.put(None)
+        thread.join(12)
+    assert not thread.is_alive() and not errors
 
 
 @pytest.mark.parametrize("failed", [1, 2, 3])
@@ -261,8 +448,8 @@ def test_old_content_lives_until_candidate_output_commits(monkeypatch, malformed
     original_render = Content.render
     original_close = Content.close
 
-    def publish(self, number, role, frame, audio, now):
-        result = original_publish(self, number, role, frame, audio, now)
+    def publish(self, number, role, frame, audio, now, **kwargs):
+        result = original_publish(self, number, role, frame, audio, now, **kwargs)
         if number == 2 and result:
             offered.set()
         return result
@@ -373,7 +560,8 @@ def test_managed_sender_switches_real_effects_without_intermediate_safety_frame(
 
     monkeypatch.setattr(Engine, "init_outputs", open_memory)
     position = [0.2]
-    paused = [False]
+    paused = [True]
+    position_clock = [time.monotonic()]
     show_renders = []
     render_show = ShowRuntime.render
 
@@ -387,11 +575,15 @@ def test_managed_sender_switches_real_effects_without_intermediate_safety_frame(
         return frame
 
     monkeypatch.setattr(ShowRuntime, "render", render)
+
     def read_media(self):
         if not media_requested.is_set():
             media_requested.set()
             assert release_media.wait(3)
-        return MpvState(position[0], paused[0], position[0] >= 1.1)
+        current = position[0]
+        if not paused[0]:
+            current += time.monotonic() - position_clock[0]
+        return MpvState(current, paused[0], current >= 1.1)
 
     monkeypatch.setattr(MpvIPCAdapter, "read_state", read_media)
     show = tmp_path / "short.yaml"
@@ -450,7 +642,6 @@ show:
             role_on_video_end="music",
             show={"show_yaml": str(show), "media_path": "soundtrack.flac"},
         )
-        paused[0] = True
         commands.put(json.dumps(config))
         assert media_requested.wait(3)
         assert active_keeps_rendering.wait(1.5)
@@ -478,13 +669,14 @@ show:
         while (event := reports.get(timeout=5))["n"] != 7:
             pass
         assert event["role_phase"] == "held", event
-        position[0] = 0.25
+        position[0], paused[0] = 0.25, True
+        position_clock[0] = time.monotonic()
         commands.put(json.dumps(dict(config, n=8, seek_generation=1)))
         event = await_role(8, "show")
         new_frame = next(f for f in frames if f.sequence == event["frame_seq"])
         assert new_frame.timestamp == 0.25
-        paused[0] = False
-        position[0] = 1.05
+        position[0], paused[0] = 1.05, False
+        position_clock[0] = time.monotonic()
         deadline = time.monotonic() + 10
         while True:
             event = reports.get(timeout=max(0.1, deadline - time.monotonic()))
@@ -492,7 +684,8 @@ show:
                 break
             assert time.monotonic() < deadline, event
         assert (event["n"], event["effective_role"]) == (8, "music")
-        position[0] = 0.3
+        position[0], paused[0] = 0.3, True
+        position_clock[0] = time.monotonic()
         commands.put(json.dumps(dict(config, n=9, seek_generation=2)))
         event = reports.get(timeout=10)
         assert (event["n"], event["effective_role"]) == (9, "show")
@@ -539,7 +732,7 @@ def test_energy_wakeup_tail_ready_and_eof_transfer_to_music(
         MpvIPCAdapter,
         "read_state",
         lambda self: MpvState(
-            media_position[0], False, media_position[0] >= 305.620998
+            media_position[0], True, media_position[0] >= 305.620998
         ),
     )
     project = Path(__file__).resolve().parents[1]

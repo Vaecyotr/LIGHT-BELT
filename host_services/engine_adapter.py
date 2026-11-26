@@ -329,16 +329,17 @@ def _live_position_ms() -> int:
         return _state["position_ms"]
 
 
-def _push_brightness_scale() -> None:
-    """Send current brightness_scale to all WLED nodes (fire-and-forget)."""
+def _push_brightness_scale(*, keep_off=False) -> None:
+    """Apply the saved scale to enabled WLED nodes."""
     if _preferences and _preferences.data["intent"] == "off":
         return
     from . import wled_brightness
     scale = _state["brightness_scale"]
-    hosts_devices = [d for d in _devices if d.get("host") and d.get("enabled", True) and d.get("device_type") == WLED_DEVICE_TYPE]
+    hosts_devices = _enabled_wled_devices()
     if hosts_devices:
         if _preferences:
-            wled_brightness.apply_managed(hosts_devices, scale, WLED_HTTP_TIMEOUT_S)
+            if scale > 0:
+                wled_brightness.apply_managed(hosts_devices, scale, WLED_HTTP_TIMEOUT_S, keep_off=keep_off)
         else:
             wled_brightness.apply_scale(hosts_devices, scale, WLED_HTTP_TIMEOUT_S)
 
@@ -588,7 +589,10 @@ def brightness_scale_set(brightness_scale: float, transition_ms: float) -> tuple
     if _preferences:
         _preferences.save(brightness=brightness_scale)
     _state["brightness_scale"] = brightness_scale
-    _push_brightness_scale()
+    if _preferences and _confirmed_off_hosts is not None:
+        _push_brightness_scale(keep_off=True)
+    else:
+        _push_brightness_scale()
     return {
         "brightness_scale": _state["brightness_scale"],
         "transition_ms": transition_ms,
@@ -623,6 +627,8 @@ def get_capabilities() -> dict:
 _mpv: MpvClient | None = None
 _mpv_proc: subprocess.Popen | None = None
 _audio_pending = True
+# Playback may wait for Engine readiness while PA arbitrates the speaker.
+_program_audio_lock = threading.Lock()
 _session_lock = threading.RLock()
 _session_generation = 0
 _mpv_observer = None
@@ -697,6 +703,8 @@ def _sync_lighting(*, playing=False, start_ms=None, wait=False):
                 "targets":list(_preferences.data["targets"].values()) if role=="manual" else [],
                 "mode":_preferences.data["mode"],"target":target,
                 "mic_sender":os.environ.get("LIGHT_BELT_MIC_SENDER")}
+        if _state["brightness_scale"] == 0:
+            spec["brightness_zero"] = True
         had_sender = adapter.sender is not None
         if role != "none" and _power_error:
             _push_wled_off(explicit=True)
@@ -708,6 +716,8 @@ def _sync_lighting(*, playing=False, start_ms=None, wait=False):
                 if had_sender or hosts != _confirmed_off_hosts:
                     _push_wled_off(explicit=True)
         else:
+            if role != "none" and not had_sender and _confirmed_off_hosts is not None:
+                _push_brightness_scale(keep_off=True)
             adapter.configure(spec, wait=wait and role=="show")
             if role == "none" and had_sender:
                 _push_wled_off(explicit=True)
@@ -717,9 +727,8 @@ def _sync_lighting(*, playing=False, start_ms=None, wait=False):
 
 def gate_program(muted):
     global _route_gate, _audio_pending
-    with _session_lock:
+    with _program_audio_lock:
         _route_gate = muted
-        effective = muted or _state["muted"]
         client = _mpv
         if client is None:
             _audio_pending = True
@@ -727,9 +736,14 @@ def gate_program(muted):
             if ENGINE_ADAPTER != "real" or not os.path.exists(MPV_SOCKET_PATH):
                 return
             client = MpvClient(MPV_SOCKET_PATH)
-        client.set_mute(effective)
-        if client._command(["get_property","mute"]).get("data") is not effective:
-            raise MpvUnavailableError("mpv mute did not match the requested output gate")
+        _apply_program_gate(client)
+
+
+def _apply_program_gate(client):
+    effective = _route_gate or _state["muted"]
+    client.set_mute(effective)
+    if client._command(["get_property", "mute"]).get("data") is not effective:
+        raise MpvUnavailableError("mpv mute did not match the requested output gate")
 
 
 def control_mode(mode):
@@ -1002,7 +1016,8 @@ def _ensure_mpv() -> MpvClient:
             except FileNotFoundError:
                 pass
             _mpv_proc = None
-            _mpv = None
+            with _program_audio_lock:
+                _mpv = None
         # Probe succeeded — mpv is alive; skip restart.
 
     if not os.path.exists(sock):
@@ -1011,7 +1026,8 @@ def _ensure_mpv() -> MpvClient:
             raise MpvUnavailableError("Waiting for the pi GNOME Wayland session environment")
         _stop_owned_mpv()
         _mpv_proc = None
-        _mpv = None
+        with _program_audio_lock:
+            _mpv = None
         try:
             os.makedirs(os.path.dirname(sock), exist_ok=True)
         except Exception as exc:
@@ -1056,18 +1072,19 @@ def _ensure_mpv() -> MpvClient:
         if not _wait_until(lambda: os.path.exists(sock)):
             _log.warning("mpv IPC socket %s not ready after timeout", sock)
 
-    if _mpv is None:
-        _mpv = MpvClient(sock)
-        _audio_pending = True
-    _mpv.peer_pid = peer_pid
-    if _audio_pending:
-        _mpv.set_volume(_state["volume"])
-        if _preferences is not None:
-            gate_program(_route_gate)
-        else:
-            _mpv.set_mute(_state["muted"] or _route_gate)
-        _audio_pending = False
-    return _mpv
+    with _program_audio_lock:
+        if _mpv is None:
+            _mpv = MpvClient(sock)
+            _audio_pending = True
+        _mpv.peer_pid = peer_pid
+        if _audio_pending:
+            _mpv.set_volume(_state["volume"])
+            if _preferences is not None:
+                _apply_program_gate(_mpv)
+            else:
+                _mpv.set_mute(_state["muted"] or _route_gate)
+            _audio_pending = False
+        return _mpv
 
 
 def program_mpv_pid():
@@ -1489,40 +1506,41 @@ def get_audio() -> dict:
     }
 
 
-@_serialized_session
 def audio_set(volume: float | None, muted: bool | None,
               transition_ms: float) -> tuple[dict | None, str | None]:
     global _audio_pending
     if volume is None and muted is None:
         return None, "INVALID_ARGUMENT"
-    if _preferences:
-        _preferences.save(volume=_state["volume"] if volume is None else volume,
-                          muted=_state["muted"] if muted is None else muted)
-    if volume is not None:
-        _state["volume"] = volume
-    if muted is not None:
-        _state["muted"] = muted
-    _state["scene_id"] = None
-    was_pending = _audio_pending
-    _audio_pending = True
-    if _mpv is not None:
-        try:
-            if volume is not None:
-                _mpv.set_volume(volume)
-            if muted is not None:
-                _mpv.set_mute(muted or _route_gate)
-            _audio_pending = was_pending
-        except Exception as exc:
-            _log.warning("audio_set: mpv IPC failed: %s", exc)
-            return None, "MPV_UNAVAILABLE"
-    else:
-        _log.warning("audio_set: mpv not running, state updated in memory only")
-    return {
-        "volume": _state["volume"],
-        "muted": _state["muted"],
-        "transition_ms": transition_ms,
-        "accepted": True,
-    }, None
+    with _program_audio_lock:
+        if _preferences:
+            _preferences.save(volume=_state["volume"] if volume is None else volume,
+                              muted=_state["muted"] if muted is None else muted)
+        if volume is not None:
+            _state["volume"] = volume
+        if muted is not None:
+            _state["muted"] = muted
+        _state["scene_id"] = None
+        was_pending = _audio_pending
+        _audio_pending = True
+        client = _mpv
+        if client is not None:
+            try:
+                if volume is not None:
+                    client.set_volume(volume)
+                if muted is not None:
+                    client.set_mute(muted or _route_gate)
+                _audio_pending = was_pending
+            except Exception as exc:
+                _log.warning("audio_set: mpv IPC failed: %s", exc)
+                return None, "MPV_UNAVAILABLE"
+        else:
+            _log.warning("audio_set: mpv not running, state updated in memory only")
+        return {
+            "volume": _state["volume"],
+            "muted": _state["muted"],
+            "transition_ms": transition_ms,
+            "accepted": True,
+        }, None
 
 
 # ══════════════════════════════════════════════
@@ -1789,7 +1807,8 @@ def _finalize_natural_end(expected_generation: int | None = None) -> None:
                 pass
             except Exception:
                 pass
-        _mpv = None
+        with _program_audio_lock:
+            _mpv = None
         _mpv_proc = None
 
 
@@ -1942,7 +1961,8 @@ def shutdown() -> None:
         except MpvUnavailableError as exc:
             errors.append(str(exc))
         else:
-            _mpv = None
+            with _program_audio_lock:
+                _mpv = None
             _mpv_proc = None
         if errors:
             raise RuntimeError("shutdown cleanup failed: " + "; ".join(errors))

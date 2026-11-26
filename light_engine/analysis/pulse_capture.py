@@ -179,7 +179,8 @@ class ParecCapture:
                 cancelled = self._stop.is_set()
                 if not cancelled:
                     self._process = process
-                    self._phase = "running"
+                    if self._target_proof is None:
+                        self._phase = "running"
             if cancelled:
                 self._close_process(process)
                 return
@@ -198,6 +199,7 @@ class ParecCapture:
         discontinuity = False
         partial = b""
         stream = process.stdout
+        bound = self._target_proof is None
         try:
             while not self._stop.is_set():
                 block = stream.read(byte_count)
@@ -213,7 +215,25 @@ class ParecCapture:
                 pcm = np.frombuffer(raw[:usable], dtype="<i2").astype(np.float32)
                 pcm /= 32768.0
                 pcm = pcm.reshape((-1, self.channels))
+                if not bound:
+                    if not self._target_validator(self._target_proof):
+                        with self._condition:
+                            owns_process = self._process is process
+                            if owns_process:
+                                self._process = None
+                                self._error = "PulseAudio capture target changed while binding"
+                                self._phase = "invalid"
+                        if owns_process:
+                            self._close_process(process)
+                        return
+                    with self._condition:
+                        if self._stop.is_set() or self._process is not process:
+                            return
+                        self._phase = "running"
+                    bound = True
                 with self._condition:
+                    if self._stop.is_set() or self._process is not process:
+                        return
                     if len(self._queue) == self.max_blocks:
                         self._dropped_blocks += 1
                         discontinuity = True
@@ -232,7 +252,11 @@ class ParecCapture:
             self._error = f"{type(exc).__name__}: {exc}"
             with self._condition:
                 self._condition.notify_all()
-        self._phase = "closed" if self._stop.is_set() else "fault"
+        with self._condition:
+            if self._stop.is_set():
+                self._phase = "closed"
+            elif self._phase not in {"invalid", "fault"}:
+                self._phase = "fault"
 
     def read_latest(self, timeout: float = 0.0) -> PCMChunk | None:
         deadline = time.monotonic() + timeout

@@ -128,6 +128,20 @@ class ManagedAudioInput:
                     self._config, managed_spectrum=True
                 )
             elif self._kind in {"phone_pcm", "program_pcm", "monitor"}:
+                if self._capture_factory is ParecCapture:
+                    required = {
+                        "pa_generation", "flow_generation", "pa_sink",
+                        "pa_sink_index", "pa_monitor_source", "pa_owner_module",
+                    }
+                    if self._kind == "program_pcm":
+                        required.discard("pa_owner_module")
+                        required.add("pa_owner_pid")
+                    missing = sorted(required.difference(self._target))
+                    if missing:
+                        raise ValueError(
+                            "verified PulseAudio PCM target is missing "
+                            + ", ".join(missing)
+                        )
                 if self._capture_cleanup is not None:
                     if not self._capture_cleanup.done():
                         self._last_quality = "warming"
@@ -274,10 +288,14 @@ class ManagedAudioInput:
             ):
                 chunk = self._capture.read_latest()
                 capture_status = self._capture.status()
+                capture_phase = capture_status.get("phase")
                 if (
                     chunk is None
-                    and not capture_status["running"]
-                    and capture_status.get("phase") not in {"validating", "starting"}
+                    and (
+                        capture_phase in {"invalid", "fault"}
+                        or (not capture_status["running"]
+                            and capture_phase not in {"validating", "starting"})
+                    )
                 ):
                     raise RuntimeError(
                         capture_status.get("error") or "parec exited"

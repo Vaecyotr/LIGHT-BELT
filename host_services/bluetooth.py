@@ -354,12 +354,7 @@ class AudioSystem:
                 "status": "routed",
                 "route": route,
             }
-            self._snapshot["digital_target"] = {
-                "kind": "phone_pcm",
-                "source_id": target_id,
-                "device": route.get("monitor_source"),
-                "monitor_stream": route.get("sink_input_index"),
-            }
+            self._snapshot["digital_target"] = route.get("digital_target")
         except Exception as exc:
             self._route = None
             self._snapshot["speaker"] = {

@@ -18,6 +18,7 @@ class MpvState:
     position: float
     paused: bool
     ended: bool
+    observed_at: float | None = None
 
 
 class MpvIPCAdapter:
@@ -45,6 +46,7 @@ class MpvIPCAdapter:
 
     def read_state(self) -> MpvState:
         position = self.get_property("playback-time")
+        observed_at = time.monotonic()
         paused = self.get_property("pause")
         idle = self.get_property("idle-active")
         eof = self.get_property("eof-reached")
@@ -52,6 +54,7 @@ class MpvIPCAdapter:
             position=float(position or 0.0),
             paused=bool(paused),
             ended=bool(idle) or bool(eof),
+            observed_at=observed_at,
         )
 
     def get_property(self, name: str) -> Any:

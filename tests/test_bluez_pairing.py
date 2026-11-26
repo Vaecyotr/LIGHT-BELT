@@ -221,6 +221,51 @@ def test_pa_route_loss_holds_gate_and_recreates_route_after_pa_recovers():
     asyncio.run(run())
 
 
+def test_first_phone_route_target_preserves_verified_pulse_identity():
+    async def run():
+        identity = {
+            "kind": "phone_pcm",
+            "source_id": "phone-a",
+            "device": "rt5616.monitor",
+            "monitor_stream": 19,
+            "pa_generation": 4,
+            "flow_generation": 7,
+            "pa_sink": "alsa_output.platform-rt5616",
+            "pa_sink_index": 2,
+            "pa_monitor_source": "rt5616.monitor",
+            "pa_source": "bluez_source.phone-a",
+            "pa_owner_module": 42,
+        }
+
+        class BackendWithIdentity(Backend):
+            async def snapshot(self):
+                return {
+                    "available": True,
+                    "devices": [{
+                        "id": "phone-a", "paired": True, "connected": True,
+                        "activity": "playing", "source_available": True,
+                    }],
+                    "speaker_route": None,
+                    "digital_target": identity,
+                    "challenges": [],
+                }
+
+            async def set_speaker_route(self, device_id):
+                return {
+                    "device": device_id,
+                    "verified": True,
+                    "digital_target": identity,
+                }
+
+        backend = BackendWithIdentity()
+        system = AudioSystem(backend, gate_mpv=lambda _muted: _record([], False))
+        await system.start()
+        target = system.snapshot()["digital_target"]
+        assert target == identity
+
+    asyncio.run(run())
+
+
 async def _gate(_muted):
     return None
 

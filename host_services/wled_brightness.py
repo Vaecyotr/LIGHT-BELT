@@ -51,9 +51,15 @@ def apply_scale(devices: list[dict], scale: float, timeout: float = 1.0) -> None
                 pass
 
 
-def apply_managed(devices: list[dict], scale: float | None, timeout: float) -> None:
+def apply_managed(
+    devices: list[dict], scale: float | None, timeout: float, *, keep_off: bool = False,
+) -> None:
     """Set the stored brightness or power off, confirming each enabled node."""
-    wanted = {"on": False} if scale is None else {"bri": round(255 * scale)}
+    # WLED can infer on from a positive bri, so priming an off node specifies both.
+    power_off = keep_off or scale is None
+    wanted = {"on": False} if power_off else {}
+    if scale is not None:
+        wanted["bri"] = max(1, round(255 * scale))
     def update(host):
         url = f"http://{host}/json/state"
         request = urllib.request.Request(url, data=json.dumps(wanted).encode(),
@@ -61,10 +67,13 @@ def apply_managed(devices: list[dict], scale: float | None, timeout: float) -> N
         with urllib.request.urlopen(request, timeout=timeout):
             pass
         try:
-            readback = f"http://{host}/json/si" if scale is None else url
+            readback = f"http://{host}/json/si" if power_off else url
             with urllib.request.urlopen(readback, timeout=timeout) as response:
                 actual = json.load(response)
-            confirmed = reports_off(actual) if scale is None else actual.get("bri") == wanted["bri"]
+            confirmed = not power_off or reports_off(actual)
+            if scale is not None:
+                state = actual["state"] if power_off else actual
+                confirmed = confirmed and state.get("bri") == wanted["bri"]
             if not confirmed:
                 raise ValueError("WLED state does not match the requested setting")
         except (AttributeError, KeyError, TypeError, ValueError, OSError) as exc:

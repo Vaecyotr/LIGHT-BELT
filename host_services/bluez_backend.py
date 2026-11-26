@@ -271,21 +271,11 @@ class LinuxBluezBackend:
                 self._route = None
                 self._route_device = None
             else:
-                digital_target = {
-                    "kind": "phone_pcm",
-                    "source_id": self._route_device,
-                    "device": self._source_monitor.get(self._route["sink"]),
-                    "monitor_stream": details["sink_input_index"],
-                    "pa_generation": self.router.generation,
-                    "flow_generation": self.router.flow_generation(
-                        "sink-input", details["sink_input_index"]
-                    ),
-                    "pa_sink": self._route["sink"],
-                    "pa_sink_index": details["sink_index"],
-                    "pa_monitor_source": details["monitor_source"],
-                    "pa_source": self._route["source"],
-                    "pa_owner_module": self._route["module_id"],
-                }
+                route = dict(self._route, **details)
+                route["monitor_source"] = details["monitor_source"]
+                digital_target = self._phone_pcm_target(
+                    route, self._route_device
+                )
         else:
             sink = self.sink or (await self.router._runner("get-default-sink")).strip()
             if sink.startswith("alsa_output.platform-rt5616"):
@@ -455,11 +445,28 @@ class LinuxBluezBackend:
         except BaseException:
             await self.router.close()
             raise
-        route["monitor_source"] = self._source_monitor.get(sink)
+        route["digital_target"] = self._phone_pcm_target(route, device_id)
         self._route_device = device_id
         self._route = route
         self._route_error = None
         return route
+
+    def _phone_pcm_target(self, route: dict[str, Any], device_id: str) -> dict[str, Any]:
+        return {
+            "kind": "phone_pcm",
+            "source_id": device_id,
+            "device": route["monitor_source"],
+            "monitor_stream": route["sink_input_index"],
+            "pa_generation": self.router.generation,
+            "flow_generation": self.router.flow_generation(
+                "sink-input", route["sink_input_index"]
+            ),
+            "pa_sink": route["sink"],
+            "pa_sink_index": route["sink_index"],
+            "pa_monitor_source": route["monitor_source"],
+            "pa_source": route["source"],
+            "pa_owner_module": route["module_id"],
+        }
 
     async def close_speaker_route(self) -> None:
         await self.router.close()

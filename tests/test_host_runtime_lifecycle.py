@@ -186,6 +186,54 @@ def test_lifespan_owns_single_probe_and_waits_for_inflight_work(monkeypatch):
     asyncio.run(run())
 
 
+def test_audio_notification_returns_before_lighting_reconciliation(tmp_path, monkeypatch):
+    started, release, next_snapshot = threading.Event(), threading.Event(), threading.Event()
+    calls = []
+
+    def reconcile():
+        calls.append(len(calls))
+        if len(calls) == 2:
+            started.set()
+            assert release.wait(2)
+        elif len(calls) == 3:
+            next_snapshot.set()
+
+    class System:
+        def __init__(self, _backend, *, notify, **kwargs):
+            self.notify = notify
+
+        async def start(self):
+            pass
+
+        async def close(self):
+            pass
+
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_ORIGIN", "https://cabin.example")
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_DIR", str(tmp_path))
+    monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "mock")
+    monkeypatch.setattr(engine_adapter, "startup", lambda: None)
+    monkeypatch.setattr(engine_adapter, "shutdown", lambda: None)
+    monkeypatch.setattr(engine_adapter, "_reconcile_lighting", reconcile)
+    monkeypatch.setattr("host_services.bluetooth.AudioSystem", System)
+
+    async def run():
+        await host._start_runtime()
+        try:
+            system = engine_adapter._audio_system
+            await asyncio.wait_for(system.notify(), 0.5)
+            assert await asyncio.to_thread(started.wait, 1)
+            await system.notify()
+            await system.notify()
+            release.set()
+            assert await asyncio.to_thread(next_snapshot.wait, 1)
+        finally:
+            release.set()
+            await host._stop_runtime()
+        assert len(calls) == 3
+
+    asyncio.run(run())
+
+
 def test_runtime_startup_recovers_corrupt_preferences_and_keeps_host_available(
     tmp_path, monkeypatch
 ):

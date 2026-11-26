@@ -39,6 +39,7 @@ app = FastAPI(title="LIGHT-BELT Host Service", version="1.0", lifespan=_lifespan
 app.state.runtime_identity = capture_identity(Path(__file__).resolve().parent.parent)
 app.state.ready = False
 app.state.device_probe_task = None
+app.state.lighting_update_task = None
 
 
 @app.exception_handler(HTTPException)
@@ -159,8 +160,20 @@ async def _poll_devices():
         await asyncio.sleep(STATE_PUBLISH_INTERVAL_SECONDS)
 
 
+async def _watch_lighting_updates(update):
+    from . import engine_adapter
+    while True:
+        await update.wait()
+        update.clear()
+        try:
+            await _run_in_thread(engine_adapter._reconcile_lighting)
+        except Exception:
+            _log.exception("Unable to reconcile lighting after an audio update")
+
+
 async def _start_runtime():
     from . import engine_adapter
+    lighting_update = None
     if control.origin():
         from .control_terminal import ControlPreferences, ControlTerminal, control_dir
         from .bluetooth import AudioSystem, create_backend
@@ -176,14 +189,22 @@ async def _start_runtime():
                                  program_pid=engine_adapter.program_mpv_pid)
         if real:
             backend.terminal_generation = ControlTerminal(control_dir()).generation
+        lighting_update = asyncio.Event()
+
+        async def notify_lighting():
+            lighting_update.set()
+
         system = AudioSystem(backend,
                              gate_mpv=lambda value: asyncio.to_thread(engine_adapter.gate_program,value),
-                             notify=lambda: asyncio.to_thread(engine_adapter._reconcile_lighting))
+                             notify=notify_lighting)
         engine_adapter._audio_system = system
         await system.start()
     await _run_in_thread(engine_adapter.startup)
-    if control.origin():
+    if lighting_update is not None:
         await _run_in_thread(engine_adapter._reconcile_lighting)
+        app.state.lighting_update_task = asyncio.create_task(
+            _watch_lighting_updates(lighting_update)
+        )
     if engine_adapter.ENGINE_ADAPTER == "real" and engine_adapter._real_adapter is not None:
         app.state.device_probe_task = asyncio.create_task(_poll_devices())
     ws.bind_event_loop(asyncio.get_running_loop())
@@ -194,11 +215,12 @@ async def _stop_runtime():
     from . import engine_adapter
     app.state.ready = False
     await ws.close_event_loop()
-    task = app.state.device_probe_task
-    app.state.device_probe_task = None
-    if task is not None:
+    tasks = [task for task in (app.state.device_probe_task, app.state.lighting_update_task)
+             if task is not None]
+    app.state.device_probe_task = app.state.lighting_update_task = None
+    for task in tasks:
         task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+    await asyncio.gather(*tasks, return_exceptions=True)
     try:
         if engine_adapter._audio_system:
             await engine_adapter._audio_system.close()
