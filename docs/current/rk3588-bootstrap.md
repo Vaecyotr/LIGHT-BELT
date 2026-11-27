@@ -35,43 +35,65 @@ cd /home/pi/LIGHT-BELT && bash scripts/bootstrap-rk3588.sh
 
 ### 设备进入统一部署的三种路径
 
-以下使用 `1125-full-update` 作为统一版本的分支示例。执行前将 `UnifiedBranch` 改为现场批准的实际发布分支，并与发布清单核对提交。
+统一版本发布分支为 `1126`，远端仓库为 `https://github.com/Vaecyotr/LIGHT-BELT.git`。从现场批准的发布记录取得完整提交号，按以下步骤核对后再安装或更新。
 
 新设备直接克隆并安装：
 
 ```bash
 (
   set -e
-  UnifiedBranch=1125-full-update
+  UnifiedBranch=1126
+  read -r -p '输入已批准的 1126 完整提交号: ' ApprovedCommit
+  [[ "$ApprovedCommit" =~ ^[0-9a-f]{40}$ ]]
   cd /home/pi
-  git clone --branch "$UnifiedBranch" --single-branch https://github.com/zxlzzz/LIGHT-BELT.git LIGHT-BELT
+  git clone --origin light-belt-release --branch "$UnifiedBranch" --single-branch https://github.com/Vaecyotr/LIGHT-BELT.git LIGHT-BELT
   cd /home/pi/LIGHT-BELT
+  test "$(git remote get-url light-belt-release)" = "https://github.com/Vaecyotr/LIGHT-BELT.git"
+  test "$(git branch --show-current)" = "$UnifiedBranch"
+  test "$(git rev-parse HEAD)" = "$ApprovedCommit" || { echo '发布提交不匹配，停止安装' >&2; exit 1; }
   git rev-parse HEAD
   bash scripts/bootstrap-rk3588.sh
 )
 ```
 
-旧系统先用 Git 获取新版，再运行新版安装器（不依赖旧更新器的分支设置）：
+旧系统（包括仍运行 `1108` 的系统）保留原有 `origin`，通过 `light-belt-release` 获取 `1126`。脚本核对已有别名的 URL，并将旧分支和提交传给 bootstrap 用于失败回滚。
 
 ```bash
 (
   set -e
-  UnifiedBranch=1125-full-update
+  UnifiedBranch=1126
+  ReleaseUrl=https://github.com/Vaecyotr/LIGHT-BELT.git
+  read -r -p '输入已批准的 1126 完整提交号: ' ApprovedCommit
+  [[ "$ApprovedCommit" =~ ^[0-9a-f]{40}$ ]]
   cd /home/pi/LIGHT-BELT
   git status --short --branch
   test -z "$(git status --porcelain)" || { echo '工作树有更改，停止安装' >&2; exit 1; }
+  if systemctl is-active --quiet lb-update.service; then
+    echo '更新器正在运行，停止安装' >&2
+    exit 1
+  fi
   PreviousBranch=$(git branch --show-current)
   PreviousCommit=$(git rev-parse HEAD)
-  git remote set-branches --add origin "$UnifiedBranch"
-  git fetch origin "refs/heads/$UnifiedBranch:refs/remotes/origin/$UnifiedBranch"
+  if git remote get-url light-belt-release >/dev/null 2>&1; then
+    test "$(git remote get-url light-belt-release)" = "$ReleaseUrl" || { echo 'light-belt-release URL 不匹配，停止' >&2; exit 1; }
+  else
+    git remote add light-belt-release "$ReleaseUrl"
+  fi
+  ReleaseRef="refs/heads/$UnifiedBranch:refs/remotes/light-belt-release/$UnifiedBranch"
+  if ! git config --get-all remote.light-belt-release.fetch | grep -Fxq -- "+$ReleaseRef"; then
+    git remote set-branches --add light-belt-release "$UnifiedBranch"
+  fi
+  git fetch light-belt-release "$ReleaseRef"
+  test "$(git rev-parse "light-belt-release/$UnifiedBranch")" = "$ApprovedCommit" || { echo '发布提交不匹配，停止安装' >&2; exit 1; }
   if git show-ref --verify --quiet "refs/heads/$UnifiedBranch"; then
     git switch "$UnifiedBranch"
-    git merge --ff-only "origin/$UnifiedBranch"
-    git branch --set-upstream-to="origin/$UnifiedBranch"
+    git merge --ff-only "light-belt-release/$UnifiedBranch"
+    git branch --set-upstream-to="light-belt-release/$UnifiedBranch"
   else
-    git switch --track -c "$UnifiedBranch" "origin/$UnifiedBranch"
+    git switch --track -c "$UnifiedBranch" "light-belt-release/$UnifiedBranch"
   fi
-  test "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$UnifiedBranch")"
+  test "$(git remote get-url light-belt-release)" = "$ReleaseUrl"
+  test "$(git rev-parse HEAD)" = "$ApprovedCommit"
   git rev-parse HEAD
   LIGHT_BELT_PREVIOUS_BRANCH="$PreviousBranch" LIGHT_BELT_PREVIOUS_COMMIT="$PreviousCommit" \
     bash scripts/bootstrap-rk3588.sh
@@ -81,14 +103,34 @@ cd /home/pi/LIGHT-BELT && bash scripts/bootstrap-rk3588.sh
 已运行统一版本的系统，确认工作树干净及 upstream 后使用事务更新器：
 
 ```bash
-cd /home/pi/LIGHT-BELT
-git status --short
-git branch -vv
-bash scripts/maintenance/update.sh
+(
+  set -e
+  cd /home/pi/LIGHT-BELT
+  git status --short --branch
+  test -z "$(git status --porcelain)" || { echo '工作树有更改，停止更新' >&2; exit 1; }
+  # 如需显式选择已配置的发布远端，取消下一行的注释。
+  # export LIGHT_BELT_UPDATE_BRANCH=light-belt-release/1126
+  if [[ -n "${LIGHT_BELT_UPDATE_BRANCH:-}" ]]; then
+    test "$LIGHT_BELT_UPDATE_BRANCH" = light-belt-release/1126
+    ReleaseRemote=light-belt-release
+  else
+    CurrentBranch=$(git branch --show-current)
+    ReleaseRemote=$(git config --get "branch.$CurrentBranch.remote")
+    test "$(git config --get "branch.$CurrentBranch.merge")" = refs/heads/1126
+  fi
+  test "$(git remote get-url "$ReleaseRemote")" = "https://github.com/Vaecyotr/LIGHT-BELT.git"
+  read -r -p '输入已批准的 1126 完整提交号: ' ApprovedCommit
+  [[ "$ApprovedCommit" =~ ^[0-9a-f]{40}$ ]]
+  RemoteCommit=$(git ls-remote --exit-code "$ReleaseRemote" refs/heads/1126 | cut -f1)
+  test "$RemoteCommit" = "$ApprovedCommit" || { echo '发布提交不匹配，停止更新' >&2; exit 1; }
+  bash scripts/maintenance/update.sh
+  test "$(git rev-parse HEAD)" = "$ApprovedCommit" || { echo '未更新到批准提交，检查更新日志' >&2; exit 1; }
+)
 ```
 
-更新器默认使用当前分支配置的 upstream，也可通过
-`LIGHT_BELT_UPDATE_BRANCH=origin/1125-full-update` 显式指定。三条路径保留设备数据、证书及有效本地配置，并最终使用同一套服务和音频配置。
+更新器默认使用当前分支配置的 upstream。显式指定时，命令会核对 `light-belt-release/1126` 的仓库 URL 和批准提交。三条路径保留设备数据、证书及有效本地配置。
+
+**从 `b91d460` 更新。** 该版本在 RT5616 端口未插线时可能无法通过更新器对旧实例的 `ready` 检查。可先插线，确认 `/api/v1/status` 的 `ready=true` 后执行常规更新。现场无法插线时，走上述 Git 获取与 bootstrap 路径，并记录旧提交供失败回滚。
 
 成功结尾：
 

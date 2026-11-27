@@ -1,10 +1,62 @@
 import asyncio
 import json
 
+import pytest
+
 from host_services.bluez_backend import LinuxBluezBackend
 from host_services.audio_routing import PulseAudioRouter
 from light_engine.analysis.managed_audio_input import ManagedAudioInput
 from light_engine.config import Config
+
+
+RT5616 = "alsa_output.platform-rt5616-sound.stereo-fallback"
+
+
+@pytest.mark.parametrize("default_sink", [RT5616, "auto_null", "alsa_output.hdmi"])
+def test_unplugged_rt5616_is_observed_even_with_a_temporary_default_sink(default_sink):
+    async def run():
+        async def pactl(*args):
+            if args == ("get-default-sink",):
+                return default_sink
+            assert args == ("--format=json", "list", "sinks")
+            rows = [{"name": RT5616, "index": 8, "state": "IDLE", "active_port": "headphones",
+                     "ports": [{"name": "headphones", "availability": "not available"}]}]
+            if default_sink != RT5616:
+                rows.append({"name": default_sink, "index": 9, "state": "IDLE"})
+            return json.dumps(rows)
+
+        backend = LinuxBluezBackend(bus=object(), router=PulseAudioRouter(runner=pactl))
+        result = await backend._audio_output_observation()
+        assert result["available"] is False
+        assert result["sink"] == RT5616
+        assert result["port_availability"] == "not available"
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("rt5616_count", [0, 1, 2])
+def test_temporary_default_never_confirms_audio_when_rt5616_is_unselected(rt5616_count):
+    async def run():
+        async def pactl(*args):
+            if args == ("get-default-sink",):
+                return "auto_null"
+            assert args == ("--format=json", "list", "sinks")
+            return json.dumps([{"name": "auto_null", "index": 1, "state": "IDLE"}] + [
+                {"name": RT5616 if i == 0 else "alsa_output.platform-rt5616-sound.secondary",
+                 "index": 8 + i,
+                 "state": "IDLE", "active_port": "speaker",
+                 "ports": [{"name": "speaker", "availability": "no" if rt5616_count > 1 else "yes"}]}
+                for i in range(rt5616_count)
+            ])
+
+        backend = LinuxBluezBackend(bus=object(), router=PulseAudioRouter(runner=pactl))
+        result = await backend._audio_output_observation()
+        assert result["available"] is False
+        assert result["reason"]
+        if rt5616_count != 1:
+            assert result["sink"] is None
+
+    asyncio.run(run())
 
 
 def test_program_pcm_target_is_bound_to_current_mpv_process():
@@ -56,7 +108,7 @@ def test_audio_output_observation_reports_missing_sink_without_bluez_failure():
     async def run():
         async def pactl(*args):
             if args == ("get-default-sink",):
-                return "rt5616"
+                return RT5616
             if args == ("--format=json", "list", "sinks"):
                 return json.dumps([])
             raise AssertionError(args)
@@ -65,7 +117,7 @@ def test_audio_output_observation_reports_missing_sink_without_bluez_failure():
         result = await backend._audio_output_observation()
         assert result == {
             "available": False,
-            "sink": "rt5616",
+            "sink": RT5616,
             "reason": "audio output sink is absent",
         }
 
@@ -76,9 +128,9 @@ def test_audio_output_observation_accepts_idle_suspended_sink_with_available_por
     async def run():
         async def pactl(*args):
             if args == ("get-default-sink",):
-                return "rt5616"
+                return RT5616
             if args == ("--format=json", "list", "sinks"):
-                return json.dumps([{"name": "rt5616", "index": 8, "state": "SUSPENDED",
+                return json.dumps([{"name": RT5616, "index": 8, "state": "SUSPENDED",
                                     "active_port": "speaker", "ports": [
                                         {"name": "speaker", "availability": "yes"}
                                     ]}])
@@ -97,9 +149,9 @@ def test_audio_output_observation_rejects_explicitly_unavailable_port_only():
         for availability, expected in (("no", False), ("not available", False), ("unknown", True)):
             async def pactl(*args):
                 if args == ("get-default-sink",):
-                    return "rt5616"
+                    return RT5616
                 if args == ("--format=json", "list", "sinks"):
-                    return json.dumps([{"name": "rt5616", "index": 8, "state": "IDLE",
+                    return json.dumps([{"name": RT5616, "index": 8, "state": "IDLE",
                                         "active_port": "speaker", "ports": [
                                             {"name": "speaker", "availability": availability}
                                         ]}])

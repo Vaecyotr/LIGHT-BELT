@@ -158,12 +158,14 @@ async def _poll_devices():
 
 def _update_readiness() -> None:
     from . import engine_adapter
+    from .bluetooth import audio_output_waiting_for_port
 
     if engine_adapter.ENGINE_ADAPTER != "real":
         app.state.ready = True
         return
     system = engine_adapter._audio_system
     facts = system.snapshot() if system else {}
+    audio_ready = bool(facts.get("audio_output_available")) or audio_output_waiting_for_port(facts.get("audio_output"))
     bluetooth = facts.get("bluetooth", {})
     adapter = engine_adapter._real_adapter
     tasks = (app.state.device_probe_task, app.state.media_health_task,
@@ -173,7 +175,7 @@ def _update_readiness() -> None:
         adapter is not None
         and bluetooth.get("available") and bluetooth.get("powered")
         and not bluetooth.get("route_error")
-        and facts.get("audio_output_available")
+        and audio_ready
         and facts.get("speaker", {}).get("status") != "fault"
         and getattr(adapter, "status", {}).get("role_phase") != "fault"
         and all(task is not None and not task.done() for task in tasks)

@@ -70,6 +70,53 @@ def test_manual_speaker_choice_of_idle_connected_phone_waits_without_route():
     asyncio.run(_manual_speaker_choice_of_idle_connected_phone_waits_without_route())
 
 
+def test_streaming_reconnected_phone_waits_for_rt5616_port_to_open():
+    async def run():
+        class UnpluggedBackend(Backend):
+            port = "no"
+
+            async def snapshot(self):
+                return {
+                    **await super().snapshot(),
+                    "audio_output_available": self.port == "yes",
+                    "audio_output": {
+                        "available": self.port == "yes",
+                        "sink": "alsa_output.platform-rt5616-sound.stereo-fallback",
+                        "state": "IDLE", "active_port": "headphones", "port_availability": self.port,
+                    },
+                }
+
+        backend = UnpluggedBackend()
+        gates = []
+        system = AudioSystem(backend, gate_mpv=lambda muted: _record(gates, muted))
+        try:
+            await system.start()
+            assert system.snapshot()["speaker"] == {"device": "a", "status": "waiting", "route": None}
+            await backend.callbacks()
+            assert backend.calls == []
+            assert gates == [True]
+            assert system.snapshot()["digital_target"] is None
+
+            backend.port = "yes"
+            await backend.callbacks()
+            assert backend.calls == [("open", "a")]
+            assert system.snapshot()["speaker"]["status"] == "routed"
+            assert system.snapshot()["audio_output_available"] is True
+
+            backend.port = "no"
+            await backend.callbacks()
+            assert system.snapshot()["speaker"]["status"] == "routed"
+            assert system.snapshot()["audio_output_available"] is False
+            backend.port = "yes"
+            await backend.callbacks()
+            assert system.snapshot()["audio_output_available"] is True
+            assert backend.calls == [("open", "a")]
+        finally:
+            await system.close()
+
+    asyncio.run(run())
+
+
 async def _manual_speaker_choice_of_idle_connected_phone_waits_without_route():
     backend = Backend()
     backend.speaker_active = {"a": False, "b": False}

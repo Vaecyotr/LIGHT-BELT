@@ -66,10 +66,11 @@ of interest are:
   `failed`, or `cancelled` plus device ID.
 - `data.speaker`: target device and route state (`idle`, `waiting`, `switching`,
   `routed`, `fault`); route details appear only after verification.
-- `data.audio_output_available`: sink exists and sink state is recognized.
+- `data.audio_output_available`: the target output sink is usable.
   `SUSPENDED` is a normal available state while a PulseAudio sink is idle.
-  Explicit active-port `availability=no` makes output unavailable; `unknown`
-  is retained as a raw observation because RT5616 ports may lack jack detection.
+  An active port reporting `no` or `not available` makes output unavailable.
+  `unknown` is retained as a raw observation because RT5616 ports may lack jack detection.
+  A temporary default such as `auto_null` does not confirm RT5616 output.
 - `data.audio_output`: observed sink name/index/state, active port and
   availability, and a reason when unavailable.
 - `data.lighting.intent` and `data.lighting.intent_token`: saved lighting
@@ -245,10 +246,10 @@ curl.exe -sS -X PUT "$HostUrl/control/speaker" `
   challenges must not be accepted later.
 - On BlueZ owner loss or Agent release, wait for `bluetooth.available=true`
   before retrying.
-- Missing sink, unknown sink state, explicitly unavailable active port, or
-  `pactl` failure makes output readiness false with a reason. Port `unknown` is
-  reported raw and does not alone fail readiness. Audio failure does not alone
-  mean Bluetooth is unavailable.
+- With a confirmed RT5616 sink waiting for its jack, `/api/v1/status` can report
+  `ready=true` while `audio_output_available=false`. A transmitting phone waits
+  for the port before Host opens its speaker route. Missing or ambiguous sinks,
+  unrecognized sink states and `pactl` failures still block this readiness check.
 - Route ownership/readback failure puts the speaker in `fault`; program audio
   remains gated until route state is resolved. HTTP `202` does not establish
   audible output.

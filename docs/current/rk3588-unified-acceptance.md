@@ -1,12 +1,13 @@
 # RK3588 统一生产架构验收
 
-在隔离的 NanoPC-T6 上按[一键部署手册](rk3588-bootstrap.md)安装指定版本，以 `pi` 账户执行设备命令。使用两部测试手机和第三部已配对的验证手机，记录机型、APP 版本、Host 提交、镜像、控制器固件和媒体版本。软件回归覆盖模拟设备和故障注入。以下现场结果均为 **NOT HARDWARE VERIFIED**。
+在隔离的 NanoPC-T6 上按[一键部署手册](rk3588-bootstrap.md)安装 `https://github.com/Vaecyotr/LIGHT-BELT.git` 的 `1126` 批准提交，以 `pi` 账户执行设备命令。使用两部测试手机和第三部已配对的验证手机，记录机型、APP 版本、Host 提交、镜像、控制器固件和媒体版本。现场结果均为 **NOT HARDWARE VERIFIED**。
 
 ## H1 · 镜像、声卡、显示和控制网络
 
 ```bash
 cd /home/pi/LIGHT-BELT
 git status --short --branch
+git branch -vv
 git rev-parse HEAD
 uname -a
 cat /etc/os-release
@@ -22,6 +23,29 @@ bash scripts/deploy/rk3588/verify-install.sh
 ```
 
 核对原生 PulseAudio、RT5616 输出、实际 `module-bluetooth-policy` 参数 `a2dp_source=false` 和蓝牙控制器。配置启用 TLS 时，使用设备证书所对应的受信地址。分别从舱内电脑和隔离验证端执行下列连通性检查，保留结果及实际接口、VLAN 或访问控制规则。舱内电脑应能访问，公网及不受信任网络的验证端应连不上控制端口。
+
+从受控舱内电脑执行以下 PowerShell 命令。使用设备实际的 HTTP 地址或证书受信的 HTTPS 地址。先采集未插线状态，再插线并等待 PulseAudio 重新检测，执行下一段。`commit` 应与设备的 `git rev-parse HEAD` 及批准的发布提交一致。
+
+```powershell
+$HostUrl = 'http://192.168.31.236:8443' # 替换为设备实际地址和协议
+function Get-Rt5616Check {
+    $hostStatus = (Invoke-RestMethod "$HostUrl/api/v1/status" -ErrorAction Stop).data
+    $audioStatus = (Invoke-RestMethod "$HostUrl/api/v1/audio" -ErrorAction Stop).data
+    [pscustomobject]@{
+        Commit = $hostStatus.commit
+        Ready = $hostStatus.ready
+        AudioOutputAvailable = $audioStatus.audio_output_available
+    }
+}
+$BeforeCable = Get-Rt5616Check
+```
+
+```powershell
+$AfterCable = Get-Rt5616Check
+$BeforeCable, $AfterCable | Format-Table -AutoSize
+```
+
+已确认目标 RT5616 sink 且端口明确等待插线时，预期 `Ready=True`、`AudioOutputAvailable=False`。插线后等待 RT5616 成为实际目标输出，再核对两项均为 `True`。若迟迟未恢复，读取 `/control/state` 的 `audio_output`，查看目标 sink、端口和原因。
 
 ```powershell
 $CabinAddress = '192.168.31.236' # 替换为本次设备实际地址

@@ -16,7 +16,12 @@ import time
 from typing import Any, Callable
 
 from .audio_routing import PulseAudioRouter
-from .bluetooth import BackendUnavailable
+from .bluetooth import (
+    AUDIO_SINK_STATES,
+    RT5616_SINK_PREFIX,
+    UNAVAILABLE_PORT_STATES,
+    BackendUnavailable,
+)
 
 
 BLUEZ = "org.bluez"
@@ -282,7 +287,7 @@ class LinuxBluezBackend:
         else:
             try:
                 sink = self.sink or (await self.router._runner("get-default-sink")).strip()
-                if sink.startswith("alsa_output.platform-rt5616"):
+                if sink.startswith(RT5616_SINK_PREFIX):
                     digital_target = await self._program_target(sink)
             except Exception as exc:
                 digital_error = str(exc)
@@ -311,6 +316,16 @@ class LinuxBluezBackend:
         try:
             sink = self.sink or (await self.router._runner("get-default-sink")).strip()
             rows = json.loads(await self.router._runner("--format=json", "list", "sinks"))
+            using_temporary_default = not self.sink and not sink.startswith(RT5616_SINK_PREFIX)
+            if using_temporary_default:
+                candidates = [
+                    row["name"] for row in rows if row.get("name", "").startswith(RT5616_SINK_PREFIX)
+                ]
+                if not candidates:
+                    return {"available": False, "sink": None, "reason": "RT5616 audio output sink is absent"}
+                if len(candidates) > 1:
+                    return {"available": False, "sink": None, "reason": "multiple RT5616 audio output sinks"}
+                sink = candidates[0]
             selected = next((row for row in rows if row.get("name") == sink), None)
             if selected is None:
                 return {"available": False, "sink": sink, "reason": "audio output sink is absent"}
@@ -321,13 +336,15 @@ class LinuxBluezBackend:
                 None,
             )
             port_availability = str((port or {}).get("availability", "unknown")).lower()
-            valid_state = state in {"IDLE", "RUNNING", "SUSPENDED"}
-            port_unavailable = port_availability in {"no", "not available"}
-            available = valid_state and not port_unavailable
+            valid_state = state in AUDIO_SINK_STATES
+            port_unavailable = port_availability in UNAVAILABLE_PORT_STATES
+            available = valid_state and not port_unavailable and not using_temporary_default
             if not valid_state:
                 reason = f"audio output sink state is {state or 'unknown'}"
             elif port_unavailable:
                 reason = "active audio output port is unavailable"
+            elif using_temporary_default:
+                reason = "default sink is not the RT5616 output"
             else:
                 reason = None
             return {
@@ -492,7 +509,7 @@ class LinuxBluezBackend:
         sink = self.sink or (await self.router._runner("get-default-sink")).strip()
         if not sink:
             raise BackendUnavailable("no PulseAudio output sink is selected")
-        if not sink.startswith("alsa_output.platform-rt5616"):
+        if not sink.startswith(RT5616_SINK_PREFIX):
             raise BackendUnavailable(
                 "default sink is not the RT5616 output; configure LIGHT_BELT_AUDIO_SINK"
             )

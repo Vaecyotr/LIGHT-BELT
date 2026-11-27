@@ -329,3 +329,70 @@ def test_runtime_startup_ignores_retired_enrollment_database(tmp_path, monkeypat
             await host._stop_runtime()
 
     asyncio.run(run())
+
+
+def test_rt5616_port_wait_keeps_rest_ready_and_reports_no_output(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from fastapi.testclient import TestClient
+
+    observed_port = {
+        "available": False, "sink": "alsa_output.platform-rt5616-sound.stereo-fallback",
+        "state": "SUSPENDED", "active_port": "headphones", "port_availability": "no",
+    }
+    facts = {
+        "bluetooth": {"available": True, "powered": True}, "speaker": {"status": "waiting"},
+        "audio_output_available": False, "audio_output": observed_port,
+    }
+
+    class AudioSystem:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def start(self):
+            pass
+
+        async def close(self):
+            pass
+
+        def snapshot(self):
+            return facts
+
+    monkeypatch.setenv("LIGHT_BELT_CONTROL_DIR", str(tmp_path))
+    monkeypatch.setattr(engine_adapter, "ENGINE_ADAPTER", "real")
+    monkeypatch.setattr(engine_adapter, "_real_adapter", SimpleNamespace(status={}))
+    for method in ("startup", "shutdown", "_reconcile_lighting", "observe_media", "_probe_devices"):
+        monkeypatch.setattr(engine_adapter, method, lambda: None)
+    monkeypatch.setattr("host_services.bluetooth.create_backend", lambda **_kwargs: object())
+    monkeypatch.setattr("host_services.bluetooth.AudioSystem", AudioSystem)
+
+    with TestClient(host.app) as client:
+        def assert_status(ready, output):
+            assert client.get("/api/v1/status").json()["data"]["ready"] is ready
+            for path in ("/api/v1/audio", "/control/state"):
+                assert client.get(path).json()["data"]["audio_output_available"] is output
+
+        assert_status(True, False)
+
+        facts["audio_output"] = {**observed_port, "state": "unknown"}
+        client.portal.call(host._update_readiness)
+        assert_status(False, False)
+
+        facts["audio_output"] = {"available": False, "reason": "missing sink"}
+        client.portal.call(host._update_readiness)
+        assert_status(False, False)
+
+        facts["audio_output"] = observed_port
+        facts["bluetooth"]["route_error"] = "owner mismatch"
+        client.portal.call(host._update_readiness)
+        assert_status(False, False)
+
+        del facts["bluetooth"]["route_error"]
+        facts["speaker"]["status"] = "fault"
+        client.portal.call(host._update_readiness)
+        assert_status(False, False)
+
+        facts["speaker"]["status"] = "routed"
+        facts["audio_output"] = {**observed_port, "available": True, "port_availability": "yes"}
+        facts["audio_output_available"] = True
+        client.portal.call(host._update_readiness)
+        assert_status(True, True)

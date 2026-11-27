@@ -971,7 +971,7 @@ components:
           description: Whether the source checkout was clean when the instance started.
         ready:
           type: boolean
-          description: Whether the required Host tasks, real audio controller and output are ready.
+          description: Whether the required Host tasks, BlueZ controller and routing conditions are ready. A confirmed RT5616 sink can wait for its jack while this remains true. See /audio for output availability.
         adapter:
           type: string
           enum: [mock, real]
@@ -1662,6 +1662,7 @@ components:
           type: boolean
         audio_output_available:
           type: boolean
+          description: Whether the target sink is available. False while the RT5616 port waits for a connection, including when PulseAudio temporarily selects another default.
     AudioResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessEnvelope"

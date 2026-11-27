@@ -162,7 +162,7 @@ Response 字段解释：
 | `api_version` | 是 | string | Host API 版本。 |
 | `version` | 是 | string | Host Service 版本。 |
 | `time_ms` | 是 | number | 服务端当前时间，Unix epoch 毫秒。 |
-| `ready` | 是 | boolean | 观测到必要 Host 任务、BlueZ 默认 Agent 和音频输出已就绪。合法空闲及等待图形会话可为 true。 |
+| `ready` | 是 | boolean | Host 必要任务、BlueZ 默认 Agent 和音频路由条件已满足。已确认 RT5616 sink 且端口等待插线时可为 true，实际音频输出见 `/api/v1/audio`。合法空闲及等待图形会话也可为 true。 |
 | `display` | 是 | object | `graphical_session` 和 `mpv_ipc` 分别报告图形会话和 IPC 观测。实际全屏和黑幕在设备上核对。 |
 
 可能的 `error.code`：
@@ -1020,7 +1020,7 @@ Response 字段解释：
 |---|---:|---|---|
 | `volume` | 是 | number | 当前音量，范围 `0.0~1.0`。 |
 | `muted` | 是 | boolean | 当前是否静音。 |
-| `audio_output_available` | 是 | boolean | Host 观测到目标输出 sink 存在且可用。空闲时也可为 true。 |
+| `audio_output_available` | 是 | boolean | Host 观测到目标输出 sink 存在且可用。空闲时可为 true，等待 RT5616 插线时为 false。PulseAudio 的临时默认 sink 不用于确认 RT5616 输出。 |
 
 可能的 `error.code`：
 

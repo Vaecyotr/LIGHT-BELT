@@ -86,7 +86,7 @@ if native_pulseaudio 2>/dev/null; then
     [[ "$MODULES" == *'module-bluetooth-discover'* ]] && pass "module-bluetooth-discover present" || fail "module-bluetooth-discover missing"
     bluetooth_routes_exclusive "$MODULES" && pass "Bluetooth playback routes are exclusive" || fail "foreign or competing Bluetooth playback routes"
     if bash "$SCRIPT_DIR/set-default-audio-sink.sh" --check; then
-        pass "RT5616 software output ready; physical playback requires hardware acceptance"
+        pass "RT5616 sink check passed; see /api/v1/audio for current output availability"
     else
         fail "RT5616 output or Bluetooth route not ready; inspect the default-sink user service journal"
     fi

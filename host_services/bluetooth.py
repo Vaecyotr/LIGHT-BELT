@@ -10,6 +10,22 @@ from typing import Any, Callable, Protocol
 
 _log = logging.getLogger(__name__)
 
+RT5616_SINK_PREFIX = "alsa_output.platform-rt5616"
+AUDIO_SINK_STATES = {"IDLE", "RUNNING", "SUSPENDED"}
+UNAVAILABLE_PORT_STATES = {"no", "not available"}
+
+
+def audio_output_waiting_for_port(output: dict | None) -> bool:
+    """A known RT5616 sink can be ready for use once its jack is connected."""
+    output = output or {}
+    return (
+        output.get("available") is False
+        and (output.get("sink") or "").startswith(RT5616_SINK_PREFIX)
+        and output.get("state") in AUDIO_SINK_STATES
+        and bool(output.get("active_port"))
+        and output.get("port_availability") in UNAVAILABLE_PORT_STATES
+    )
+
 
 class BackendUnavailable(RuntimeError):
     """The requested Bluetooth or audio operation cannot be verified."""
@@ -347,9 +363,18 @@ class AudioSystem:
                 "route": None,
             }
             return
-        await self._revoke_lighting_source()
-        await self._gate_program(True, verify=True)
+        waiting_for_port = audio_output_waiting_for_port(facts.get("audio_output"))
+        switching_route = self._route is not None or not waiting_for_port
+        if switching_route:
+            await self._revoke_lighting_source()
+        await self._gate_program(True, verify=switching_route)
         await self._close_route_locked()
+        if waiting_for_port:
+            self._snapshot.update(
+                speaker={"device": target_id, "status": "waiting", "route": None},
+                digital_target=None,
+            )
+            return
         try:
             route = await self.backend.set_speaker_route(target_id)
             if not route or not route.get("verified"):
