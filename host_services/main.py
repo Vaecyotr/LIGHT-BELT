@@ -27,8 +27,10 @@ async def _lifespan(application: FastAPI):
     try:
         await _disable_dpms()
         await _start_runtime()
+        _start_uplink()
         yield
     finally:
+        await _stop_uplink()
         await _stop_runtime()
 
 
@@ -39,6 +41,22 @@ app.state.device_probe_task = None
 app.state.lighting_update_task = None
 app.state.lighting_audio_task = None
 app.state.media_health_task = None
+app.state.uplink = None
+
+
+def _start_uplink():
+    from . import uplink
+    app.state.uplink = uplink.start()
+
+
+async def _stop_uplink():
+    running, app.state.uplink = app.state.uplink, None
+    if running is None:
+        return
+    task, store = running
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    store.close()
 
 
 @app.exception_handler(HTTPException)

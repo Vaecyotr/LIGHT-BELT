@@ -111,7 +111,11 @@ apply_audio_policy() {
     bash "$REPO/scripts/deploy/rk3588/setup-pulseaudio-policy.sh"
 }
 start_runtime_services() {
-    user_systemctl restart light-belt-audio-default-sink.service && user_systemctl start "$SERVICE"
+    user_systemctl restart light-belt-audio-default-sink.service && user_systemctl start "$SERVICE" && restart_plc_api
+}
+restart_plc_api() {
+    user_systemctl is-enabled --quiet light-belt-plc-status.service || return 0
+    user_systemctl restart light-belt-plc-status.service
 }
 rollback() {
     log "Rolling back to $OLD_COMMIT"
