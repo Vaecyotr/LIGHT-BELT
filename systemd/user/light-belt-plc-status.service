@@ -1,0 +1,15 @@
+[Unit]
+Description=LIGHT-BELT cabin PLC read-only HTTP API
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/LIGHT-BELT
+EnvironmentFile=-%h/.config/light-belt/host.env
+ExecStart=%h/LIGHT-BELT/.venv/bin/python -m host_services.plc_status_api --host 0.0.0.0
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

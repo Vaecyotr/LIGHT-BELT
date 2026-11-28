@@ -28,6 +28,8 @@ disable_owned_unit system bluetooth-auto-agent.service "$LB_REPO/scripts/deploy/
 disable_owned_unit system bluetooth-public-mode.service "$LB_REPO/scripts/deploy/rk3588/bluetooth-public-mode.sh"
 disable_owned_unit --user light-belt-bluetooth-priority.service "$LB_REPO/scripts/deploy/rk3588/bluetooth_audio_priority.py"
 disable_owned_unit --user bluetooth-audio-loopback.service "$LB_HOME/.local/bin/bluetooth-audio-loopback.sh"
+# Standalone PLC API installed by hand before it moved into the repository.
+disable_owned_unit --user plc-status-api.service "plc-status-api/server.py"
 for name in lb-update.service lb-update.timer; do
     unit="$LB_REPO/systemd/$name"
     destination="${LIGHT_BELT_SYSTEM_UNIT_DIR:-/etc/systemd/system}/$name"
@@ -57,14 +59,15 @@ user_systemctl start pulseaudio.service
 
 USER_UNIT_DIR="$LB_HOME/.config/systemd/user"
 mkdir -p "$USER_UNIT_DIR" "$LB_HOME/.config/autostart"
-for name in light-belt-host.service light-belt-audio-default-sink.service; do
+for name in light-belt-host.service light-belt-audio-default-sink.service light-belt-plc-status.service; do
     install_owned_file "$LB_REPO/systemd/user/$name" "$USER_UNIT_DIR/$name"
 done
 install_owned_file "$LB_REPO/systemd/light-belt-host-session.desktop" \
     "$LB_HOME/.config/autostart/light-belt-host-session.desktop"
 user_systemctl daemon-reload
-user_systemctl enable light-belt-host.service light-belt-audio-default-sink.service
+user_systemctl enable light-belt-host.service light-belt-audio-default-sink.service light-belt-plc-status.service
 user_systemctl restart light-belt-audio-default-sink.service
+user_systemctl restart light-belt-plc-status.service
 
 if [[ "${XDG_SESSION_TYPE:-}" == wayland && -n "${WAYLAND_DISPLAY:-}" ]]; then
     bash "$SCRIPT_DIR/start-host-session.sh"
